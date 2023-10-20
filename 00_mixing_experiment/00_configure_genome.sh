@@ -186,6 +186,13 @@ wget http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M25/"$mous
 
 pigz --decompress *gz
 
+## clarify the species for each contig
+sed -i "s/^>/>human_/g" "$human_fa"
+sed -i "s/^>/>mouse_/g" "$mouse_fa"
+
+grep -v "#" "$human_gtf" | sed "s/^/human_/g" > foo ; mv foo "$human_gtf"
+grep -v "#" "$mouse_gtf" | sed "s/^/mouse_/g" > foo ; mv foo "$mouse_gtf"
+
 cat $human_fa $mouse_fa captured.fa  > mixing.fa
 cat $human_gtf $mouse_gtf captured.gtf  > mixing.gtf
 

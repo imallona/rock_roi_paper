@@ -9,7 +9,7 @@ Rbin: R
 STAR: STAR
 
 ## run limits
-nthreads: 20
+nthreads: 40
 per_task_max_nthreads: 5
 per_task_max_mem:  103882211200
 
@@ -20,6 +20,7 @@ per_task_max_mem:  103882211200
 gtf: /home/imallona/ebrunner_spectral/mixing/genomes/mixing.gtf
 genome: /home/imallona/ebrunner_spectral/mixing/genomes/mixing.fa
 
+## cDNA read length -1
 sjdbOverhang: 61
 
 ## run mode, one of these (please see the README / docs):
@@ -28,13 +29,31 @@ sjdbOverhang: 61
 ##   'all'
 run_mode: 'all'
 
-## GTF `source` field identifying on-target rock- or roi- features
+## GTF `source` field (colymn2) identifying on-target rock- or roi- features
 capture_gtf_column_2_pattern : 'captured'
 
 samples:
-  - name: simulated
+  - name: mixing_unmod
     uses:
       cb_umi_fq: /home/imallona/ebrunner_spectral/data/fastqs_eighth_scRNAseq/315641_1-Unmod_S4_R1_001.fastq.gz
       cdna_fq: /home/imallona/ebrunner_spectral/data/fastqs_eighth_scRNAseq/315641_1-Unmod_S4_R2_001.fastq.gz
+      whitelist: 96x3
+      expected_cells: 5000
+  - name: mixing_rock
+    uses:
+      cb_umi_fq: /home/imallona/ebrunner_spectral/data/fastqs_eighth_scRNAseq/315641_3-RoCK_S1_R1_001.fastq.gz
+      cdna_fq: /home/imallona/ebrunner_spectral/data/fastqs_eighth_scRNAseq/315641_3-RoCK_S1_R2_001.fastq.gz
+      whitelist: 96x3
+      expected_cells: 5000
+  - name: mixing_unmod_roi
+    uses:
+      cb_umi_fq: /home/imallona/ebrunner_spectral/data/fastqs_eighth_scRNAseq/315641_2-Unmod_ROI_S2_R1_001.fastq.gz
+      cdna_fq: /home/imallona/ebrunner_spectral/data/fastqs_eighth_scRNAseq/315641_2-Unmod_ROI_S2_R2_001.fastq.gz
+      whitelist: 96x3
+      expected_cells: 5000
+  - name: mixing_rockroi
+    uses:
+      cb_umi_fq: /home/imallona/ebrunner_spectral/data/fastqs_eighth_scRNAseq/315641_4-RoCK_ROI_S3_R1_001.fastq.gz
+      cdna_fq: /home/imallona/ebrunner_spectral/data/fastqs_eighth_scRNAseq/315641_4-RoCK_ROI_S3_R2_001.fastq.gz
       whitelist: 96x3
       expected_cells: 5000
