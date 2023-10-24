@@ -1,0 +1,46 @@
+## simulate: True generates fake data and runs the pipeline
+simulate: False
+
+## where outputs will be generated at
+working_dir: /home/imallona/ebrunner_spectral/pdgfra/
+
+## software stack, will work out of the box if within the supplied docker container
+Rbin: R
+STAR: STAR
+
+## run limits
+nthreads: 10
+per_task_max_nthreads: 5
+per_task_max_mem:  103882211200
+
+## fill below these line if `simulate : False` -----------------------------------------
+## if `simulate: True` then all config below this line will be replaced by
+##   hardcoded values (within the Snakefile)
+
+gtf: /home/imallona/ebrunner_spectral/pdgfra/genomes/pdgfra.gtf
+genome: /home/imallona/ebrunner_spectral/pdgfra/genomes/pdgfra.fa
+
+## cDNA read length -1
+sjdbOverhang: 61
+
+## run mode, one of these (please see the README / docs):
+##   'tso off- and ontarget unique'
+##   'tso ontarget multi'
+##   'all'
+run_mode: 'all'
+
+## GTF `source` field (colymn2) identifying on-target rock- or roi- features
+capture_gtf_column_2_pattern : 'captured'
+
+samples:
+  - name: pdgfra_unmod
+    uses:
+      cb_umi_fq: /home/imallona/ebrunner_spectral/data/fastqs_eighth_scRNAseq/315641_1-Unmod_S4_R1_001.fastq.gz
+      cdna_fq: /home/imallona/ebrunner_spectral/data/fastqs_eighth_scRNAseq/315641_1-Unmod_S4_R2_001.fastq.gz
+      whitelist: 384x3
+      expected_cells: 5000
+
+## counting module parameters
+chromosomes:
+  - egfp
+  - chr5

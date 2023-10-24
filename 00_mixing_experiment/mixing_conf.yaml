@@ -9,7 +9,7 @@ Rbin: R
 STAR: STAR
 
 ## run limits
-nthreads: 40
+nthreads: 10
 per_task_max_nthreads: 5
 per_task_max_mem:  103882211200
 
