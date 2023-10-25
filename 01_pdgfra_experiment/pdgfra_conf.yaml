@@ -33,14 +33,27 @@ run_mode: 'all'
 capture_gtf_column_2_pattern : 'captured'
 
 samples:
-  - name: pdgfra_unmod
+  - name: pdgfra_rockroi_tso_wta
     uses:
-      cb_umi_fq: /home/imallona/ebrunner_spectral/data/fastqs_eighth_scRNAseq/315641_1-Unmod_S4_R1_001.fastq.gz
-      cdna_fq: /home/imallona/ebrunner_spectral/data/fastqs_eighth_scRNAseq/315641_1-Unmod_S4_R2_001.fastq.gz
-      whitelist: 384x3
+      cb_umi_fq: /home/imallona/ebrunner_spectral/data/fastqs_pdgfra/325402_1-RoCK_ROI_WTA_S1_R1_001.fastq.gz
+      cdna_fq: /home/imallona/ebrunner_spectral/data/fastqs_pdgfra/325402_1-RoCK_ROI_WTA_S1_R2_001.fastq.gz
       expected_cells: 5000
+      whitelist: 384x3
+  - name: pdgfra_unmod_wta
+    uses:
+      cb_umi_fq: /home/imallona/ebrunner_spectral/data/fastqs_pdgfra/325411_1-Unmod_WTA_S1_R1_001.fastq.gz
+      cdna_fq: /home/imallona/ebrunner_spectral/data/fastqs_pdgfra/325411_1-Unmod_WTA_S1_R2_001.fastq.gz
+      expected_cells: 5000
+      whitelist: 384x3
+  - name: pdfgra_rockroi_wta
+    uses:
+      cb_umi_fq: /home/imallona/ebrunner_spectral/data/fastqs_pdgfra/325411_2-RoCK_ROI_WTA_S2_R1_001.fastq.gz
+      cdna_fq: /home/imallona/ebrunner_spectral/data/fastqs_pdgfra/325411_2-RoCK_ROI_WTA_S2_R2_001.fastq.gz
+      expected_cells: 5000
+      whitelist: 384x3
 
-## counting module parameters
+
+## counting module parameters (not yet added to the snmk)
 chromosomes:
   - egfp
   - chr5
