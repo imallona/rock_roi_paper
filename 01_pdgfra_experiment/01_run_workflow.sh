@@ -13,8 +13,8 @@ git clone  git@github.com:imallona/rock_roi_method.git
 cd ~/src/rock_roi_method/main
 
 ## dirty workaround to subset `chr5` too (harcoded within the Snakefile)
-snakemake --cores 10 \
-          -s /home/imallona/src/rock_roi_paper/01_pdgfra_experiment/Snakefile \
+snakemake --cores 20 \
+          -s /home/imallona/src/rock_roi_method/main/Snakefile \
           --configfile /home/imallona/src/rock_roi_paper/01_pdgfra_experiment/pdgfra_conf.yaml -p
 
 
