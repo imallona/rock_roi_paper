@@ -7,15 +7,23 @@ working_dir: /home/imallona/ebrunner_spectral/pdgfra/
 ## software stack, will work out of the box if within the supplied docker container
 Rbin: R
 STAR: STAR
-bamCoverage: bamCoverage
+bamCoverage: bamCoverage  # not used anymore
+featureCounts: featureCounts
+bedtools: bedtools
+bedGraphToBigWig: bedGraphToBigWig
+faSize: faSize
 
 ## run limits
 nthreads: 20
 per_task_max_nthreads: 5
-per_task_max_mem:  103882211200
+per_task_max_mem:  103882211200 # not used anymore
+max_mem_mb: 350000 ## these are megabytes
 
 ## path to whitelists directory
 whitelist_path: '/home/imallona/src/rock_roi_method/data/'
+
+## path to the counting module
+rock_method_path: '/home/imallona/src/rock_roi_method/'
 
 ## fill below these line if `simulate : False` --------------------------------------------------------
 ## ----------------------------------------------------------------------------------------------------
@@ -36,6 +44,8 @@ run_mode: 'all'
 
 ## GTF `source` field (colymn2) identifying on-target rock- or roi- features
 capture_gtf_column_2_pattern : 'captured'
+featurecounts_t: 'exon' ## feature counting unit for featurecounts
+featurecounts_g: 'transcript_id' ## feature grouping unit for featurecounts
 
 ## multimodal means they sequenced tso+wta; unimodal that only sequenced wta
 samples:

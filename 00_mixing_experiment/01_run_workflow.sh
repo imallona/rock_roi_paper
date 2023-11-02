@@ -5,11 +5,13 @@
 mkdir -p ~/src
 cd $_
 
-git clone  git@github.com:imallona/rock_roi_method.git
+# git clone  git@github.com:imallona/rock_roi_method.git
 
-cd ~/src/rock_roi_method/main
+# cd ~/src/rock_roi_method/main
+cd /home/imallona/src/rock_roi_paper/00_mixing_experiment
 
-snakemake --cores 50 --configfile /home/imallona/src/rock_roi_paper/00_mixing_experiment/mixing_conf.yaml
+snakemake --cores 10 --configfile config.yaml \
+          -s /home/imallona/src/rock_roi_method/main/Snakefile -p
 
 
 # docker build . -t rock

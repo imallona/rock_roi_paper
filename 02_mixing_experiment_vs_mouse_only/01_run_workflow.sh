@@ -10,12 +10,12 @@ cd $_
 
 # git clone  git@github.com:imallona/rock_roi_method.git
 
-cd ~/src/rock_roi_method/main
+ln -s ~/src/rock_roi_method/main .
 
 ## dirty workaround to subset `chr5` too (harcoded within the Snakefile)
-snakemake --cores 10 \
+snakemake --cores 20 \
           -s /home/imallona/src/rock_roi_method/main/Snakefile \
-          --configfile ~/src/rock_roi_paper/02_mixing_experiment_vs_mouse_only/mixing_mouse.yaml -p
+          --configfile ./config.yaml -p
 
 
 

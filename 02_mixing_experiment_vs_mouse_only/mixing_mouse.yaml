@@ -7,15 +7,23 @@ working_dir: /home/imallona/ebrunner_spectral/mixing_mouse_genome_only
 ## software stack, will work out of the box if within the supplied docker container
 Rbin: R
 STAR: STAR
-bamCoverage: bamCoverage
+bamCoverage: bamCoverage ## not used anymore
+featureCounts: featureCounts
+bedtools: bedtools
+bedGraphToBigWig: bedGraphToBigWig
+faSize: faSize
 
 ## run limits
 nthreads: 20
 per_task_max_nthreads: 5
-per_task_max_mem:  103882211200
+# per_task_max_mem:  103882211200
+max_mem_mb: 350000 ## these are megabytes
 
 ## path to whitelists directory
 whitelist_path: '/home/imallona/src/rock_roi_method/data/'
+
+## path to the counting module
+rock_method_path: '/home/imallona/src/rock_roi_method/'
 
 ## fill below these line if `simulate : False` --------------------------------------------------------
 ## ----------------------------------------------------------------------------------------------------
@@ -36,6 +44,8 @@ run_mode: 'all'
 
 ## GTF `source` field (colymn2) identifying on-target rock- or roi- features
 capture_gtf_column_2_pattern : 'captured'
+featurecounts_t: 'exon' ## feature counting unit for featurecounts
+featurecounts_g: 'gene_id' ## feature grouping unit for featurecounts
 
 samples:
   - name: mixing_unmod
@@ -61,7 +71,7 @@ samples:
       cb_umi_fq: /home/imallona/ebrunner_spectral/data/fastqs_eighth_scRNAseq/315641_4-RoCK_ROI_S3_R1_001.fastq.gz
       cdna_fq: /home/imallona/ebrunner_spectral/data/fastqs_eighth_scRNAseq/315641_4-RoCK_ROI_S3_R2_001.fastq.gz
       whitelist: 96x3
-      expected_cells: 5000   
+      expected_cells: 5000
 
 
 ## module counting config
@@ -69,6 +79,7 @@ samples:
 chromosomes:                          # chromosomes to be processed
   - tdtomato
   - egfp
+
 
 # input parameters
 linker_pattern_for_seq_logo: ^([A-Z]{9})(AATG[A-Z]{9}CCAC) # tso pattern to get tso tail seq logo
