@@ -1,0 +1,258 @@
+---
+title: "Preprocessing of 01_mixing_experiment (Mouse with egfr, Human with tdtomato)"
+format:
+  html:
+    toc: true
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Load packages, load data
+
+```{r, warning=FALSE, message=FALSE}
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(plotROC)
+library(here)
+
+rdss <- dir(here("data"), "^mixing.*rds", 
+            recursive = TRUE, full.names = TRUE)
+names(rdss) <- gsub("_sce.rds", "", basename(rdss))
+rdss
+
+datadir <- dirname(rdss)[1]
+
+sces <- mapply(function(u,v)  {
+  rds <- readRDS(u)
+  rds$sample_id <- v
+  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
+  colnames(rowData(rds)) <- c("name", "type", "value")
+  g <- grepl("^ENS", rownames(rds))
+  rownames(rds)[g] <- paste0(rownames(rds)[g], 
+                             "__", rowData(rds)$name[g])
+  rowData(rds)$gene_type <- "capture"
+  k <- grepl("^ENSG", rownames(rds))
+  rowData(rds)$gene_type[k] <- "human_gene"
+  k <- grepl("^ENSMUS", rownames(rds))
+  rowData(rds)$gene_type[k] <- "mouse_gene"
+  k <- grepl("^mt", rowData(rds)$name)
+  rowData(rds)$gene_type[k] <- "mouse_mito"
+  k <- grepl("^MT", rowData(rds)$name)
+  rowData(rds)$gene_type[k] <- "human_mito"
+  rds
+}, rdss, names(rdss))
+
+sce <- Reduce(cbind, sces)
+```
+
+
+## Do some QC things (on WTA)
+
+```{r}
+
+rowData(sce)$gene_type %>% table
+
+rd <- rowData(sce)
+sce <- addPerCellQCMetrics(sce, assay.type = "wta",
+                           subsets=list(capture=rd$gene_type=="capture",
+                                        human_gene=rd$gene_type=="human_gene",
+                                        human_mito=rd$gene_type=="human_mito",
+                                        mouse_gene=rd$gene_type=="mouse_gene",
+                                        mouse_mito=rd$gene_type=="mouse_mito"))
+
+cd <- colData(sce) %>% as.data.frame %>% 
+  mutate(total_mito_percent = subsets_mouse_mito_percent+subsets_human_mito_percent)
+
+ggplot(cd, aes(x = total,
+               y = detected,
+               colour = total_mito_percent)) +
+  geom_point() +
+  scale_x_log10() + scale_y_log10() +
+  facet_wrap(~sample_id)
+
+ggplot(cd, aes(x = total, y = total_mito_percent)) +
+  geom_point() + scale_x_log10() + scale_y_sqrt() +
+  facet_wrap(~sample_id) + 
+  geom_hline(yintercept=c(3,25), colour="orange") +
+  geom_vline(xintercept=c(2750), colour="orange") +
+  geom_density2d()
+
+
+# crude filter
+dim(sce)
+mito <- sce$subsets_mouse_mito_percent+sce$subsets_human_mito_percent
+sces <- sce[,sce$total>2750 & mito>3 & mito<25]
+# sces <- sces[rowSums(assay(sces,1))>2 ,]  # don't b/c removes from off/on target mtx
+sces <- sces[rowSums(assay(sces,1))>2 | rowData(sces)$gene_type=="capture" ,] 
+dim(sces)
+
+cds <- colData(sces) %>% as.data.frame
+
+ggplot(cds, aes(x = subsets_mouse_gene_sum,
+               y = subsets_human_gene_sum)) +
+  geom_point() +
+  scale_x_log10() + scale_y_log10() +
+  geom_density2d() +
+  facet_wrap(~sample_id)
+
+# ggplot(cds, aes(x = subsets_mouse_gene_percent,
+#                y = subsets_human_gene_percent)) +
+#   geom_point() +
+#   geom_density2d() +
+#   facet_wrap(~sample_id)
+
+
+ggplot(cds, aes(x = subsets_mouse_mito_percent,
+               y = subsets_human_mito_percent)) +
+  geom_point() +
+  geom_density2d() +
+  scale_x_sqrt() + scale_y_sqrt() +
+  facet_wrap(~sample_id)
+
+# save filtered to RDS
+saveRDS(sces, file.path(datadir, "sce_qc-filtered.rds"))
+
+# remove extra things
+rm(cd, cds, sce); gc()
+
+```
+
+## From filtered set, look at TSOs
+
+```{r}
+
+df <- data.frame(sample_id = sces$sample_id,
+                 rock_egfp_wta = assay(sces, "wta")["rock_egfp",],
+                 rock_egfp_tso = assay(sces, "tso_off_and_ontarget_unique")["rock_egfp",],
+                 subsets_mouse_gene_percent = sces$subsets_mouse_gene_percent)
+
+ggplot(df, aes(sample_id, rock_egfp_wta, 
+               colour=subsets_mouse_gene_percent)) +
+  geom_jitter()
+ggplot(df, aes(sample_id, rock_egfp_tso, 
+               colour=subsets_mouse_gene_percent)) +
+  geom_jitter()
+
+# z <- assay(altExp(sces),1)
+# rn <- rownames(z)
+# assay(altExp(sces),1)[intersect(rn, rownames(sces)),1:20]
+# assay(sces, 2)[intersect(rn, rownames(sces)),1:20]
+
+# plotExpression(sces, features="rock_egfp", 
+#                x="sample_id", exprs_values="wta") + ggtitle("wta")
+
+# plotExpression(sces, features="rock_egfp", 
+#                x="sample_id", exprs_values="tso_off_and_ontarget_unique",
+#                colour_by = "subsets_mouse_gene_percent", point_size = 0) +
+#   ggtitle("tso")
+
+rds <- rowData(sces)
+tso_qc <- perCellQCMetrics(sces, assay.type = "tso_off_and_ontarget_unique",
+                           subsets=list(capture=rds$gene_type=="capture",
+                                        human_gene=rds$gene_type=="human_gene",
+                                        human_mito=rds$gene_type=="human_mito",
+                                        mouse_gene=rds$gene_type=="mouse_gene",
+                                        mouse_mito=rds$gene_type=="mouse_mito"))
+
+all(rownames(tso_qc)==colnames(sces))
+
+df <- data.frame(tso_total = tso_qc$total,
+                 tso_capture_sum = tso_qc$subsets_capture_sum,
+                 tso_mito_percent = tso_qc$subsets_mouse_mito_percent+
+                   tso_qc$subsets_human_mito_percent,
+                 wta_total = sces$total,
+                 wta_capture_sum = sces$subsets_capture_sum,
+                 wta_mito_percent = sces$subsets_mouse_mito_percent+
+                   sces$subsets_human_mito_percent,
+                 sample_id = sces$sample_id)
+
+ggplot(df, aes(x = tso_total, y = wta_total)) +
+  geom_point() +
+  scale_x_log10() + scale_y_log10() +
+  facet_wrap(~sample_id)
+
+ggplot(df, aes(x = tso_capture_sum, y = wta_capture_sum)) +
+  geom_jitter(height = .2) +
+  # scale_x_log10() + scale_y_log10() +
+  facet_wrap(~sample_id)
+
+ggplot(df, aes(x = tso_mito_percent, y = wta_mito_percent)) +
+  geom_point() +
+  # scale_x_log10() + scale_y_log10() +
+  facet_wrap(~sample_id) +
+  geom_abline(intercept = 0, slope = 1)
+
+ggplot(df, aes(x = tso_total, y = tso_mito_percent)) +
+  geom_point(size = .3) +
+  scale_x_sqrt() +
+  scale_y_sqrt() +
+  # geom_density2d() +
+  facet_wrap(~sample_id)
+```
+
+
+## Selected TSOs by mouse/human expression
+
+```{r}
+
+(rn <- rownames(altExp(sces)))
+
+exprs <- assay(altExp(sces),1)
+
+sort(rowSums(exprs, na.rm = TRUE), decreasing = TRUE) -> sorted
+
+par(mfrow=c(2,3))
+for(tso in names(sorted))
+  smoothScatter(sces$subsets_mouse_gene_percent,
+             jitter(exprs[tso,]), pch=19, main=tso,
+       xlab="mouse percent",
+       ylab=tso)
+
+  # plot(sces$subsets_mouse_gene_percent,
+  #      jitter(exprs[tso,]), pch=19, main=tso,
+  #      xlab="mouse percent",
+  #      ylab=tso)
+
+
+
+# rds <- readRDS("mixing_rock_sce.rds")
+# assay(rds,1)[!grepl("^ENS",rownames(rds)),1:12]
+# assay(rds,2)[!grepl("^ENS",rownames(rds)),1:12]
+# assay(altExp(rds),1)[,1:12]
+
+```
+
+
+
+# Remove doublets
+
+```{r}
+
+sces$doublet <- FALSE
+sces$doublet[sces$subsets_human_gene_percent > 10 & 
+               sces$subsets_mouse_gene_percent > 10] <- TRUE
+
+# to simplify, get rid of likely doublets
+ggplot(colData(sces) %>% as.data.frame,
+       aes(x = subsets_mouse_gene_percent, 
+           y = subsets_human_gene_percent,
+           colour = doublet)) +
+  geom_point() + facet_wrap(~sample_id) + geom_density2d(colour="white")
+
+
+sces_nd <- sces[,!sces$doublet]
+
+# save filtered to RDS
+saveRDS(sces, file.path(datadir, "sce_qc-filtered-nodoublets.rds"))
+
+```
