@@ -139,6 +139,7 @@ df <- data.frame(sample_id = sces$sample_id,
 ggplot(df, aes(sample_id, rock_egfp_wta, 
                colour=subsets_mouse_gene_percent)) +
   geom_jitter()
+
 ggplot(df, aes(sample_id, rock_egfp_tso, 
                colour=subsets_mouse_gene_percent)) +
   geom_jitter()
@@ -252,7 +253,10 @@ ggplot(colData(sces) %>% as.data.frame,
 
 sces_nd <- sces[,!sces$doublet]
 
+sces_nd$origin <- "mouse"
+sces_nd$origin[sces_nd$subsets_human_gene_percent > 50] <- "human"
+
 # save filtered to RDS
-saveRDS(sces, file.path(datadir, "sce_qc-filtered-nodoublets.rds"))
+saveRDS(sces_nd, file.path(datadir, "sce_qc-filtered-nodoublets.rds"))
 
 ```
