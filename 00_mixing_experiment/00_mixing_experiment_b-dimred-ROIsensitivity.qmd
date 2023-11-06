@@ -26,7 +26,7 @@ library(plotROC)
 library(here)
 
 
-datadir <- file.path(here("data"), "00_mixing_experiment")
+datadir <- file.path(here("00_mixing_experiment"), "data")
 
 # save filtered to RDS
 sces_nd <- readRDS(file.path(datadir, "sce_qc-filtered-nodoublets.rds"))

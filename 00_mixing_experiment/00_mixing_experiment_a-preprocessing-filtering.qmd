@@ -25,7 +25,7 @@ library(readr)
 library(plotROC)
 library(here)
 
-rdss <- dir(here("data"), "^mixing.*rds", 
+rdss <- dir(here("00_mixing_experiment"), "^mixing.*rds", 
             recursive = TRUE, full.names = TRUE)
 names(rdss) <- gsub("_sce.rds", "", basename(rdss))
 rdss
