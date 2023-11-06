@@ -112,12 +112,14 @@ sces_nd <- runUMAP(sces_nd, dimred="PCA")
 
 plotPCA(sces_nd, colour_by = "subsets_human_gene_percent")
 plotPCA(sces_nd, colour_by = "sample_id", ncomponents = 4)
-plotPCA(sces_nd, colour_by = "subsets_human_gene_percent", ncomponents = 4)
+plotPCA(sces_nd, colour_by = "subsets_human_gene_percent", 
+        ncomponents = 4)
 
 plotUMAP(sces_nd, colour_by = "subsets_human_gene_percent")
 plotUMAP(sces_nd, colour_by = "sample_id")
 
 # very crude but works
+set.seed(1976)
 km <- kmeans(reducedDim(sces_nd, "UMAP"), centers = 3, iter.max = 100)
 
 sces_nd$cluster <- as.factor(km$cluster)
@@ -142,16 +144,23 @@ pheatmap(corr, show_rownames = FALSE, show_colnames = FALSE,
          annotation_col = col_anno)
 
 
-rs <- rowSums(lcounts)>10
-f <- lmFit(as.matrix(lcounts[rs,]), mm[s,])
+table(rs <- rowSums(lcounts)>50 & rowData(sces_nd)$gene_type %in% 
+        c("human_gene", "mouse_gene") )
+f <- lmFit(as.matrix(lcounts[rs,s]), mm[s,])
 f <- eBayes(f)
 
-tt <- topTable(f, coef=2:3, number = 1e6)
+tt <- topTable(f, coef=2:3, number = 1e6, sort.by = "none")
+topTable(f, coef=2:3, number = 5)
+
+# no big deal .. a human gene distinguishes
+plotUMAP(sces_nd, colour_by = "ENSG00000242485.6__MRPL20")
+
+
 
 # tt_m <- topTable(f, coef=2, number = 1e6)
-
-ggplot(tt, aes(x=AveExpr, y=-log10(adj.P.Val+1e-100))) + 
-  geom_point()
+# 
+# ggplot(tt, aes(x=AveExpr, y=-log10(adj.P.Val+1e-100))) + 
+#   geom_point()
 
 
 # colData(sces_nd)[s,] %>% as.data.frame
@@ -174,9 +183,6 @@ with(cds, table(cluster, origin))
 o <- order(cds$origin, cds$sample_id)
 exprs <- as.matrix(logcounts(sces_nd)[hvg,s])
 dim(exprs)
-
-col_anno <- cds[,c("origin","sample_id")]
-
 
 ```
 
@@ -358,7 +364,8 @@ dev.off()
 
 ```{r}
 
-gene_info <- read_tsv("genes_vs_fuzznuc_mixing.txt.gz", 
+gene_info <- read_tsv(file.path(datadir,
+                                "genes_vs_fuzznuc_mixing.txt.gz"), 
                       col_names = c("ids", "pattern", "mismatches"))
 table(gene_info$pattern, gene_info$mismatches)
 
@@ -434,10 +441,6 @@ boxplot(diff ~ rowanno$match, ylim=c(-1,1), ylab="+ROI - -ROI")
 
 # vioplot(diff ~ rowanno$match)
 # vioplot(diff ~ rowanno$match, ylim=c(-1,1))
-
-
-
-                  
 
 ```
 
