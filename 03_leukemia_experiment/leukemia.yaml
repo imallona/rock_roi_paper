@@ -2,7 +2,7 @@
 simulate: False
 
 ## where outputs will be generated at
-working_dir: /home/imallona/ebrunner_spectral/mixing_mouse_genome_only
+working_dir: /home/imallona/ebrunner_spectral/leukemia
 
 ## software stack, will work out of the box if within the supplied docker container
 Rbin: R
