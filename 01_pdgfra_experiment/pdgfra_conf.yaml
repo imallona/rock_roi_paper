@@ -61,7 +61,7 @@ samples:
       cdna_fq: /home/imallona/ebrunner_spectral/data/fastqs_pdgfra/325411_1-Unmod_WTA_S1_R2_001.fastq.gz
       expected_cells: 5000
       whitelist: 384x3
-  - name: pdfgra_rockroi_unimodal
+  - name: pdgfra_rockroi_unimodal
     uses:
       cb_umi_fq: /home/imallona/ebrunner_spectral/data/fastqs_pdgfra/325411_2-RoCK_ROI_WTA_S2_R1_001.fastq.gz
       cdna_fq: /home/imallona/ebrunner_spectral/data/fastqs_pdgfra/325411_2-RoCK_ROI_WTA_S2_R2_001.fastq.gz
