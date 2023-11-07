@@ -140,8 +140,6 @@ tt <- topTable(f, coef=2:10, number = 1e6, sort.by = "none")
 # plotUMAP(sces, colour_by = "ENSMUSG00000025903.14__Lypla1")
 # plotUMAP(sces, colour_by = "ENSMUSG00000026193.15__Fn1")
 
-
-
 aac <- aggregateAcrossCells(sces, sces$cluster,use.assay.type="wta")
 
 
@@ -159,73 +157,67 @@ for(i in 1:ncol(agg_counts))
 ents <- apply(agg_counts, 1, calc_entropy)
 
 # gs <- rownames(tt)[tt$F > 50 & ents < 1.35]
-gs <- rownames(tt)[tt$F > 400 & ents < 1]
+gs <- rownames(tt)[tt$F > 100 & ents < 1]
 
 plot(ents, tt$F, log="y")
 
+df <- data.frame(gene = names(ents), 
+                 entropy=ents, Fstat=tt$F,
+                 cluster.max = apply(agg_counts, 1, which.max)) %>%
+  mutate(order_by = Fstat / entropy) %>%
+  filter(Fstat > 400, entropy < 1.2) %>%
+  arrange(desc(order_by)) %>%
+  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 10)
+
+col_anno <- colData(sces)[,c("sample_id","cluster")] %>% as.data.frame
+
+# o <- order(sces$cluster)
+
+inds <- split(seq_len(ncol(sces)), sces$cluster)
+inds <- lapply(inds, sample, 150, replace = FALSE)
+
+# manually put clusters in order
+cluster_order <- c(4,8,10,6,1,3,7,5,2,9)
+inds <- inds[cluster_order]
+
+co <- unlist(inds)
+
+genes <- split(df$gene, df$cluster.max)
+genes <- genes[cluster_order] %>% unlist
+
+pheatmap(lcounts[genes,co], show_rownames = TRUE,
+         show_colnames = FALSE, scale="none",
+         annotation_col = col_anno[co,],
+         cluster_rows = FALSE,
+         cluster_cols = FALSE, fontsize_row = 8)
+
+
+pheatmap(lcounts[genes,co], show_rownames = TRUE,
+         show_colnames = FALSE, scale="none",
+         annotation_col = col_anno[co,],
+         clustering_distance_rows = "correlation",
+         clustering_distance_cols = "correlation",
+         cluster_rows = TRUE,
+         cluster_cols = TRUE, fontsize_row = 8)
+
+
+
+# col_anno <- data.frame(cluster = rep( names(inds), sapply(inds, length)
 
 
 plotUMAP(sces, colour_by = "ENSMUSG00000016494.9__Cd34")
 plotUMAP(sces, colour_by = "ENSMUSG00000028255.6__Clca1")
 
-
-
-
-
-```
-
-
-## Sensitivity analysis
-
-```{r}
-
-exprs_nd <- assay(altExp(sces),1)
-
-# exprs_nd <- assay(sces, "tso_off_and_ontarget_unique")
-# keep <- rownames(exprs_nd)[rownames(exprs_nd) %in% rownames(altExp(sces))]
-# exprs_nd <- exprs_nd[keep,]
+# plotUMAP(sces, colour_by = "ENSMUSG00000026701.15__Prdx6")
+# 	
+# plotUMAP(sces, colour_by = "ENSMUSG00000049350.6__Zg16")
+# plotUMAP(sces, colour_by = "ENSMUSG00000015354.8__Pcolce2")
 # 
-# par(mfrow=c(2,4))
-# for(tso in names(sorted))
-#   plot(sces$subsets_mouse_gene_percent,
-#        jitter(exprs_nd[tso,]), pch=19, main=tso,
-#        xlab="mouse percent",
-#        ylab=tso)
+# plotUMAP(sces, colour_by = "ENSMUSG00000033740.17__St18")
+# 
+# plotExpression(sces, x = "cluster", 
+#                features = "ENSMUSG00000033740.17__St18")
 
-
-sort(rowSums(exprs_nd, na.rm = TRUE), decreasing = TRUE) -> sorted
-
-df <- data.frame(mouse = (sces$origin == "mouse")+0,
-                 human = (sces$origin == "human")+0,
-                 sample = sces$sample_id,
-                 as.matrix(t(exprs_nd[names(sorted),])))
-dfm <- melt(df, id.vars = c("human","mouse","sample"))
-
-
-human_targets <- grep("tdtomato", names(sorted), value = TRUE)
-
-p <- ggplot(dfm %>% filter(variable %in% c("roi_1_tdtomato", "roi_2_tdtomato")),
-                      aes(m = value, d = human, colour=sample, group=sample)) + 
-  geom_roc(size = 1.2, alpha = .8,
-           position = position_dodge2(width=.001)) +
-  facet_grid(~variable) +
-  xlim(0, .018) +
-  ggtitle("Human targets") +
-  theme(legend.position="bottom")
-
-mouse_targets <- grep("egfp", names(sorted), value = TRUE)
-
-q <- ggplot(dfm %>% filter(variable %in% c("rock_egfp","roi_egfp")),
-                      aes(m = value, d = mouse, colour=sample, group=sample)) + 
-  geom_roc(size = 1.2, alpha = .8,
-           position = position_dodge2(width=.001)) +
-  facet_grid(~variable) +
-  xlim(0, .018) +
-  ggtitle("Mouse targets") +
-  theme(legend.position="none") 
-
-
-cowplot::plot_grid(p,q, nrow=2)
 
 
 ```
