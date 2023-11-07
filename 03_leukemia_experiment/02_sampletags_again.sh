@@ -76,6 +76,7 @@ cdna=/home/imallona/ebrunner_spectral/data/fastqs_longer_leukemia/331131_1-Cell_
 cbumi=/home/imallona/ebrunner_spectral/data/fastqs_longer_leukemia/331131_1-Cell_lines_50_50_S1_R1_001.fastq.gz
 
 ## notice the alignIntronMax 1 and the seedSearchStartLmax
+##  and the outFilter* (given the extraordinary read length vs reference's)
 STAR --runThreadN 10 \
      --genomeDir genomes/sampletags_genome/ \
      --readFilesCommand zcat \
@@ -93,7 +94,9 @@ STAR --runThreadN 10 \
      --outSAMtype BAM SortedByCoordinate \
      --quantMode GeneCounts \
      --soloUMIlen 8 \
+     --sjdbGTFfile genomes/sampletags.gtf \
+     --outFilterScoreMinOverLread 0.1 \
+     --outFilterMatchNminOverLread 0.1 \
+     --outFilterMismatchNmax 150 \
      --seedSearchStartLmax 20 \
-     --alignIntronMax 1 \
-     --sjdbGTFfile genomes/sampletags.gtf
-     
+     --alignIntronMax 1
