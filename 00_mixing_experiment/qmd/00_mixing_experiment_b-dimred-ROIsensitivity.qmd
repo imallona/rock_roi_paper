@@ -401,10 +401,10 @@ gene_info$id <- gsub("^ROI", "roi", gene_info$id)
 # gene_info$id <- 
 
 
-common_genes <- intersect(gene_info$id, rownames(rowanno))
 
 rowanno <- data.frame(match = rep("nomatch", nrow(logcounts)),
                       row.names = rownames(logcounts))
+common_genes <- intersect(gene_info$id, rownames(rowanno))
 
 m1 <- match(common_genes, rownames(rowanno))
 m2 <- match(common_genes, gene_info$id)

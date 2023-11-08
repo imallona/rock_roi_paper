@@ -24,7 +24,8 @@ library(pheatmap)
 library(readr)
 library(plotROC)
 library(here)
-
+library(khroma)
+library(bluster)
 
 datadir <- file.path(here("01_pdgfra_experiment"), "data")
 
@@ -94,22 +95,34 @@ sces <- runUMAP(sces, dimred="PCA")
 #         ncomponents = 4)
 
 plotUMAP(sces, colour_by = "sample_id") + facet_wrap(~colour_by)
-plotUMAP(sces, colour_by = "total", shape_by = "sample_id") + facet_wrap(~shape_by)
 
-# very crude but works
+plotUMAP(sces, colour_by = "total", shape_by = "sample_id", point_size = 4) + 
+  facet_wrap(~shape_by)
+
+```
+
+## Clustering
+
+```{r}
+
 # set.seed(1976)
-# km <- kmeans(reducedDim(sces, "UMAP"), centers = 3, iter.max = 100)
+# nn.clusters <- clusterCells(sces, use.dimred="PCA")
+# table(nn.clusters)
+
+myscale <- c(color("muted")(9), gray="lightgray")
+names(myscale) <- as.character(1:10)
+ann_colors = list(cluster = myscale)
 
 
-nn.clusters <- clusterCells(sces, use.dimred="PCA")
-table(nn.clusters)
-
+set.seed(1976)
 nn.clusters <- clusterCells(sces, use.dimred="PCA",
                             BLUSPARAM=NNGraphParam(k=30))
+table(nn.clusters)
 sces$cluster <- nn.clusters
 
 plotUMAP(sces, colour_by="cluster", shape_by = "sample_id",
          point_size = 4, point_alpha = .9) + 
+  scale_color_manual(values = myscale) +
   facet_wrap(~shape_by)
 
 table(sces$sample_id, sces$cluster)
@@ -142,7 +155,6 @@ tt <- topTable(f, coef=2:10, number = 1e6, sort.by = "none")
 
 aac <- aggregateAcrossCells(sces, sces$cluster,use.assay.type="wta")
 
-
 calc_entropy <- function(u) {
   p <- u[u>0]
   p <- p/sum(p)
@@ -165,15 +177,16 @@ df <- data.frame(gene = names(ents),
                  entropy=ents, Fstat=tt$F,
                  cluster.max = apply(agg_counts, 1, which.max)) %>%
   mutate(order_by = Fstat / entropy) %>%
-  filter(Fstat > 400, entropy < 1.2) %>%
+  filter(Fstat > 400, entropy < 2) %>%
   arrange(desc(order_by)) %>%
-  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 10)
+  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 3)
 
 col_anno <- colData(sces)[,c("sample_id","cluster")] %>% as.data.frame
 
 # o <- order(sces$cluster)
 
 inds <- split(seq_len(ncol(sces)), sces$cluster)
+set.seed(1976)
 inds <- lapply(inds, sample, 150, replace = FALSE)
 
 # manually put clusters in order
@@ -182,31 +195,78 @@ inds <- inds[cluster_order]
 
 co <- unlist(inds)
 
-genes <- split(df$gene, df$cluster.max)
-genes <- genes[cluster_order] %>% unlist
+genes <- split(df$gene, df$cluster.max) %>% unlist
 
+# pheatmap(lcounts[genes,co], show_rownames = TRUE,
+#          show_colnames = FALSE, scale="none",
+#          annotation_col = col_anno[co,],
+#          cluster_rows = FALSE,
+#          cluster_cols = FALSE, fontsize_row = 8)
+
+pdf("clustering.pdf", height=18, width=10)
 pheatmap(lcounts[genes,co], show_rownames = TRUE,
-         show_colnames = FALSE, scale="none",
-         annotation_col = col_anno[co,],
-         cluster_rows = FALSE,
-         cluster_cols = FALSE, fontsize_row = 8)
+        show_colnames = FALSE, scale="none",
+        annotation_col = col_anno[co,],
+        clustering_distance_rows = "correlation",
+        clustering_distance_cols = "correlation",
+        cluster_rows = TRUE,
+        treeheight_row = 0,
+        cluster_cols = FALSE, fontsize_row = 12,
+        annotation_colors = ann_colors)
+dev.off()
 
 
-pheatmap(lcounts[genes,co], show_rownames = TRUE,
-         show_colnames = FALSE, scale="none",
-         annotation_col = col_anno[co,],
-         clustering_distance_rows = "correlation",
-         clustering_distance_cols = "correlation",
-         cluster_rows = TRUE,
-         cluster_cols = TRUE, fontsize_row = 8)
 
+rownames(altExp(sces))
+sort(rowSums(assay(altExp(sces), 1)), decreasing = TRUE)
 
+# sces$`between_roi_egfp:770-1049` <- assay(altExp(sces), 1)["between_roi_egfp:770-1049",]
+
+# pheatmap(lcounts[genes,co], show_rownames = TRUE,
+#          show_colnames = FALSE, scale="none",
+#          annotation_col = col_anno[co,],
+#          clustering_distance_rows = "correlation",
+#          clustering_distance_cols = "correlation",
+#          cluster_rows = TRUE,
+#          cluster_cols = TRUE, fontsize_row = 8)
 
 # col_anno <- data.frame(cluster = rep( names(inds), sapply(inds, length)
 
 
 plotUMAP(sces, colour_by = "ENSMUSG00000016494.9__Cd34")
 plotUMAP(sces, colour_by = "ENSMUSG00000028255.6__Clca1")
+
+# plotUMAP(sces, colour_by = "between_roi_egfp:770-1049", 
+#          shape_by = "sample_id", point_size = 3) + facet_wrap(~shape_by)
+
+
+# sces$`between_roi_egfp:770-1049` <- assay(altExp(sces), 1)["between_roi_egfp:770-1049",]
+# sces$`between_roi_egfp:770-1049` <- assay(altExp(sces), 1)["between_roi_egfp:770-1049",]
+
+# z <- assay(altExp(sces), 1) > 0
+
+
+mm <- sces[,sces$sample_id=="pdgfra_rockroi_multimodal"]
+
+df <- data.frame(colData(mm)[,c("sample_id","sum","detected","cluster")],
+                 as.matrix(t(logcounts(mm)[genes,])),
+                 as.matrix(t(assay(altExp(mm), 1))),
+                 reducedDim(mm,"UMAP"))
+
+ggplot(df, aes(x=UMAP1, y=UMAP2, colour=cluster)) + 
+  geom_point(size = 5) +
+  scale_color_manual(values = myscale)
+
+ggplot(df, aes(x=cluster, y=between_roi_egfp.770.1049, colour=cluster)) + 
+  geom_jitter(width=.2, size=3) +
+  scale_y_sqrt() +
+  scale_color_manual(values = myscale)
+
+
+plotUMAP(mm, colour_by = "between_roi_egfp:770-1049", 
+         size_by = "between_roi_egfp:770-1049")
+
+
 
 # plotUMAP(sces, colour_by = "ENSMUSG00000026701.15__Prdx6")
 # 	
@@ -219,218 +279,6 @@ plotUMAP(sces, colour_by = "ENSMUSG00000028255.6__Clca1")
 #                features = "ENSMUSG00000033740.17__St18")
 
 
-
-```
-
-
-
-## Focus on mouse
-
-```{r}
-
-m <- sces[rowData(sces)$gene_type=="mouse_gene", 
-             sces$subsets_mouse_gene_percent > 50]
-table(k <- rowSums(assay(m,"wta")) > 0)
-m <- m[k,]
-
-length(unique(colnames(m)))
-
-table(m$sample_id)
-
-
-mgv <- modelGeneVar(m, block = m$sample_id)
-
-# not much overlap across 'treatment', but that's probably
-# expected because there are no cell types here
-mgv_pb  <- lapply(mgv$per.block, function(u) {
- o <- order(u$p.value)
- u <- u[o,]
- head(rownames(u), 500)
-})
-upset(fromList(mgv_pb))
-
-
-ggplot(mgv %>% data.frame,
-       aes(x=mean, y=bio, colour=p.value<.05)) +
-  geom_point()
-
-hvg <- mgv$bio > .005 & mgv$p.value < .1
-table(hvg)
-rn <- rownames(mgv)[hvg]
-
-m <- fixedPCA(m, subset.row=rn) 
-m <- runUMAP(m, dimred="PCA")
-
-# plotPCA(ms, colour_by = "mod", ncomponents = 4)
-plotUMAP(m, colour_by = "sample_id", point_size = 4)
-# plotUMAP(m, colour_by = "sample_id") + facet_wrap(~colour_by)
-
-
-logcounts <- as.matrix(logcounts(m))
-mm <- model.matrix(~sample_id, data=as.data.frame(colData(m)))
-
-f <- lmFit(logcounts, mm)
-f <- eBayes(f)
-
-tt <- topTable(f, coef=2:4, number = 1e6, sort.by = "none")
-
-
-inds <- split(1:ncol(m), m$sample_id)
-s <- unname(unlist(lapply(inds, sample, 200)))
-
-
-aac <- aggregateAcrossCells(m, m$sample_id,use.assay.type="wta")
-
-
-calc_entropy <- function(u) {
-  p <- u[u>0]
-  p <- p/sum(p)
-  -sum(p*log(p))
-}
-
-# adjust the aggregated counts for the number of cells
-agg_counts <- assay(aac,"wta")
-# tb_tis <- table(hs$mod)
-# all( colnames(agg_counts)==names(tb_tis) )
-# 
-# for(i in 1:ncol(agg_counts))
-#   agg_counts[,i] <- agg_counts[,i]/tb_tis[i]
-for(i in 1:ncol(agg_counts))
-  agg_counts[,i] <- agg_counts[,i]/sum(agg_counts[,i])*1e6
-
-ents <- apply(agg_counts, 1, calc_entropy)
-
-gs <- rownames(tt)[tt$F > 50 & ents < 1.35]
-# gs <- rownames(tt)[tt$F > 100 & ents < 1.3]
-
-plot(ents, tt$F, log="y")
-
-
-col_anno <- colData(sces)[,c("sample_id","cluster")] %>% as.data.frame
-
-o <- order(sces$cluster)
-pheatmap(lcounts[gs,o], show_rownames = TRUE, 
-         show_colnames = FALSE, scale="row",
-         annotation_col = col_anno,
-         cluster_cols = FALSE,
-         fontsize_row = 8)
-
-
-
-
-# for(i in 1:nrow(logcounts)) {
-#   mn <- min(logcounts[i,])
-#   mx <- max(logcounts[i,])
-#   logcounts[i,] <- (logcounts[i,]-mn)/(mx-mn)
-# }
-
-col_anno <- colData(m)[,c("sample_id","origin")] %>% as.data.frame
-
-pdf("mouse_heatmap_plus-minus-roi.pdf", height=15, width=8)
-pheatmap(logcounts[gs,s], show_rownames = TRUE, 
-         show_colnames = FALSE, scale="none",
-         annotation_col = col_anno[s,],
-         cluster_cols = FALSE,
-         fontsize_row = 8)
-dev.off()
-
-
-# plotExpression(m, features=rownames(head(tt[o,])),
-#                x= "sample_id", colour_by = "sample_id")
-
-# plotExpression(ms, features=c("Gm11599_ENSMUSG00000084333.1",
-#                               "Commd7_ENSMUSG00000056941.17"),
-#                x= "mod",
-#                colour_by = "mod")
-# 
-# plotUMAP(ms, colour_by="TRAPPC3_ENSG00000054116.12",
-#                shape_by= "mod")
-
-
-```
-
-## Explore `fuzznuc`
-
-
-```{r}
-
-gene_info <- read_tsv(file.path(datadir,
-                                "genes_vs_fuzznuc_mixing.txt.gz"), 
-                      col_names = c("ids", "pattern", "mismatches"))
-table(gene_info$pattern, gene_info$mismatches)
-
-
-extract_stuff <- function(u, term = "gene_type", default = "unknown") {
-  g <- grep(term, u, value=TRUE)
-  if(length(g)==0)
-    return(default)
-  else
-    return(g)
-}
-
-
-ss <- strsplit(gene_info$ids, ";", fixed = TRUE)
-gene_info$g_id <- gsub('\"$',"",
-                       gsub('gene_id \"', '', sapply(ss, .subset, 1)))
-gene_info$tr_id <- gsub('\"$',"",
-                        gsub(' transcript_id \"', '', sapply(ss, .subset, 2)))
-gene_info$gene_name <- gsub('\"$',"",
-                  gsub(' gene_name \"', '',
-                       sapply(ss, extract_stuff, term = "gene_name", default = "")))
-gene_info$gene_type <- gsub('\"$',"",
-                  gsub(' gene_type \"', '',
-                       sapply(ss, extract_stuff, term = "gene_type")))
-
-
-gene_info$id <- paste0(gene_info$g_id, "__", gene_info$gene_name)
-unk <- gene_info$gene_type=="unknown"
-gene_info$id[unk] <- gene_info$tr_id[unk]
-gene_info$id <- gsub("^ROI", "roi", gene_info$id)
-
-# gene_info$ids <- NULL
-# gene_info$id <- 
-
-
-common_genes <- intersect(gene_info$id, rownames(rowanno))
-
-rowanno <- data.frame(match = rep("nomatch", nrow(logcounts)),
-                      row.names = rownames(logcounts))
-
-m1 <- match(common_genes, rownames(rowanno))
-m2 <- match(common_genes, gene_info$id)
-
-# rowanno[head(m1),,drop=FALSE]
-# gene_info[head(m2),-c(1:4)]
-
-rowanno$match[m1] <- gene_info$mismatches[m2]
-
-ann_colors = list(
-    origin = c(mouse = "salmon", human = "firebrick"),
-    match = c(nomatch = "grey", `.` = "black", `1` = "red", `2` = "orange"),
-    sample_id = c(mixing_rock = "#7570B3", 
-                  mixing_rockroi = "#E7298A",
-                  mixing_unmod = "#66A61E", 
-                  mixing_unmod_roi = "orange")
-)
-
-
-pheatmap(logcounts[gs,s], show_rownames = TRUE, 
-         show_colnames = FALSE, scale="none",
-         annotation_col = col_anno[s,],
-         annotation_row = rowanno[gs,,drop=FALSE],
-         annotation_colors = ann_colors,
-         cluster_cols = FALSE,
-         fontsize_row = 8)
-
-
-diff <- (f$coef[,1]+f$coef[,3])-f$coef[,2]
-
-par(mfrow=c(1,2))
-boxplot(diff ~ rowanno$match, ylab="+ROI - -ROI")
-boxplot(diff ~ rowanno$match, ylim=c(-1,1), ylab="+ROI - -ROI")
-
-# vioplot(diff ~ rowanno$match)
-# vioplot(diff ~ rowanno$match, ylim=c(-1,1))
 
 ```
 
