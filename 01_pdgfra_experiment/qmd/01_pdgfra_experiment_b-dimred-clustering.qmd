@@ -12,6 +12,7 @@ editor_options:
 
 ```{r, warning=FALSE, message=FALSE}
 library(SingleCellExperiment)
+library(scDblFinder)
 library(scran)
 library(scater)
 library(ggplot2)
@@ -101,6 +102,33 @@ plotUMAP(sces, colour_by = "total", shape_by = "sample_id", point_size = 4) +
 
 ```
 
+
+## Do doublet removal
+
+```{r}
+
+# couple adjustments to the object for doublet finding
+sces_adj <- sces
+counts(sces_adj) <- assay(sces, 1)
+colnames(sces_adj) <- sces_adj$sample_id.barcode
+
+sces_nd <- scDblFinder(sces_adj, samples = "sample_id")
+
+plotUMAP(sces_nd, colour_by = "scDblFinder.score")
+table(sces_nd$scDblFinder.class)
+boxplot(sces_nd$scDblFinder.score ~ sces_nd$scDblFinder.class)
+
+sces_nd <- sces_nd[,sces_nd$scDblFinder.class=="singlet"]
+
+# save filtered-nodoublet object to RDS
+saveRDS(sces_nd, file.path(datadir, "sce_qc-filtered-nodoublets.rds"))
+
+rm(sces); gc()
+
+```
+
+
+
 ## Clustering
 
 ```{r}
@@ -115,45 +143,45 @@ ann_colors = list(cluster = myscale)
 
 
 set.seed(1976)
-nn.clusters <- clusterCells(sces, use.dimred="PCA",
+nn.clusters <- clusterCells(sces_nd, use.dimred="PCA",
                             BLUSPARAM=NNGraphParam(k=30))
 table(nn.clusters)
-sces$cluster <- nn.clusters
+sces_nd$cluster <- nn.clusters
 
-plotUMAP(sces, colour_by="cluster", shape_by = "sample_id",
+plotUMAP(sces_nd, colour_by="cluster", shape_by = "sample_id",
          point_size = 4, point_alpha = .9) + 
   scale_color_manual(values = myscale) +
   facet_wrap(~shape_by)
 
-table(sces$sample_id, sces$cluster)
+table(sces_nd$sample_id, sces_nd$cluster)
 
-# logcounts <- as.matrix(logcounts(sces))
+# logcounts <- as.matrix(logcounts(sces_nd))
 mm <- model.matrix(~cluster, 
-                   data=as.data.frame(colData(sces)))
+                   data=as.data.frame(colData(sces_nd)))
 
-# inds <- split(1:ncol(sces), sces$cluster)
+# inds <- split(1:ncol(sces_nd), sces_nd$cluster)
 # s <- unlist(lapply(inds, sample, 1000))
 # 
 # s1 <- unlist(lapply(inds, sample, 50))
-lcounts <- logcounts(sces)
+lcounts <- logcounts(sces_nd)
 # corr <- cor( as.matrix(lcounts[,s1]) )
-# col_anno <- colData(sces)[s1,c("origin","sample_id")] %>% as.data.frame
+# col_anno <- colData(sces_nd)[s1,c("origin","sample_id")] %>% as.data.frame
 # pheatmap(corr, show_rownames = FALSE, show_colnames = FALSE,
 #          treeheight_row = 0, treeheight_col = 0,
 #          annotation_col = col_anno)
 
-table(rs <- rowSums(lcounts)>50 & rowData(sces)$gene_type == "mouse_gene" )
+table(rs <- rowSums(lcounts)>50 & rowData(sces_nd)$gene_type == "mouse_gene" )
 f <- lmFit(as.matrix(lcounts[rs,]), mm)
 f <- eBayes(f)
 
-topTable(f, coef=2:10, number = 10)
-tt <- topTable(f, coef=2:10, number = 1e6, sort.by = "none")
+topTable(f, coef=2:ncol(mm), number = 10)
+tt <- topTable(f, coef=2:ncol(mm), number = 1e6, sort.by = "none")
 
 
-# plotUMAP(sces, colour_by = "ENSMUSG00000025903.14__Lypla1")
-# plotUMAP(sces, colour_by = "ENSMUSG00000026193.15__Fn1")
+# plotUMAP(sces_nd, colour_by = "ENSMUSG00000025903.14__Lypla1")
+# plotUMAP(sces_nd, colour_by = "ENSMUSG00000026193.15__Fn1")
 
-aac <- aggregateAcrossCells(sces, sces$cluster,use.assay.type="wta")
+aac <- aggregateAcrossCells(sces_nd, sces_nd$cluster,use.assay.type="wta")
 
 calc_entropy <- function(u) {
   p <- u[u>0]
@@ -181,11 +209,11 @@ df <- data.frame(gene = names(ents),
   arrange(desc(order_by)) %>%
   group_by(cluster.max) %>% slice_max(order_by = order_by, n = 3)
 
-col_anno <- colData(sces)[,c("sample_id","cluster")] %>% as.data.frame
+col_anno <- colData(sces_nd)[,c("sample_id","cluster")] %>% as.data.frame
 
-# o <- order(sces$cluster)
+# o <- order(sces_nd$cluster)
 
-inds <- split(seq_len(ncol(sces)), sces$cluster)
+inds <- split(seq_len(ncol(sces_nd)), sces_nd$cluster)
 set.seed(1976)
 inds <- lapply(inds, sample, 150, replace = FALSE)
 
@@ -217,10 +245,10 @@ dev.off()
 
 
 
-rownames(altExp(sces))
-sort(rowSums(assay(altExp(sces), 1)), decreasing = TRUE)
+rownames(altExp(sces_nd))
+sort(rowSums(assay(altExp(sces_nd), 1)), decreasing = TRUE)
 
-# sces$`between_roi_egfp:770-1049` <- assay(altExp(sces), 1)["between_roi_egfp:770-1049",]
+# sces_nd$`between_roi_egfp:770-1049` <- assay(altExp(sces_nd), 1)["between_roi_egfp:770-1049",]
 
 # pheatmap(lcounts[genes,co], show_rownames = TRUE,
 #          show_colnames = FALSE, scale="none",
@@ -233,20 +261,20 @@ sort(rowSums(assay(altExp(sces), 1)), decreasing = TRUE)
 # col_anno <- data.frame(cluster = rep( names(inds), sapply(inds, length)
 
 
-plotUMAP(sces, colour_by = "ENSMUSG00000016494.9__Cd34")
-plotUMAP(sces, colour_by = "ENSMUSG00000028255.6__Clca1")
+plotUMAP(sces_nd, colour_by = "ENSMUSG00000016494.9__Cd34")
+plotUMAP(sces_nd, colour_by = "ENSMUSG00000028255.6__Clca1")
 
-# plotUMAP(sces, colour_by = "between_roi_egfp:770-1049", 
+# plotUMAP(sces_nd, colour_by = "between_roi_egfp:770-1049", 
 #          shape_by = "sample_id", point_size = 3) + facet_wrap(~shape_by)
 
 
-# sces$`between_roi_egfp:770-1049` <- assay(altExp(sces), 1)["between_roi_egfp:770-1049",]
-# sces$`between_roi_egfp:770-1049` <- assay(altExp(sces), 1)["between_roi_egfp:770-1049",]
+# sces_nd$`between_roi_egfp:770-1049` <- assay(altExp(sces_nd), 1)["between_roi_egfp:770-1049",]
+# sces_nd$`between_roi_egfp:770-1049` <- assay(altExp(sces_nd), 1)["between_roi_egfp:770-1049",]
 
-# z <- assay(altExp(sces), 1) > 0
+# z <- assay(altExp(sces_nd), 1) > 0
 
 
-mm <- sces[,sces$sample_id=="pdgfra_rockroi_multimodal"]
+mm <- sces_nd[,sces_nd$sample_id=="pdgfra_rockroi_multimodal"]
 
 df <- data.frame(colData(mm)[,c("sample_id","sum","detected","cluster")],
                  as.matrix(t(logcounts(mm)[genes,])),
@@ -274,14 +302,14 @@ plotUMAP(mm, colour_by = "between_roi_egfp:770-1049",
 
 
 
-# plotUMAP(sces, colour_by = "ENSMUSG00000026701.15__Prdx6")
+# plotUMAP(sces_nd, colour_by = "ENSMUSG00000026701.15__Prdx6")
 # 	
-# plotUMAP(sces, colour_by = "ENSMUSG00000049350.6__Zg16")
-# plotUMAP(sces, colour_by = "ENSMUSG00000015354.8__Pcolce2")
+# plotUMAP(sces_nd, colour_by = "ENSMUSG00000049350.6__Zg16")
+# plotUMAP(sces_nd, colour_by = "ENSMUSG00000015354.8__Pcolce2")
 # 
-# plotUMAP(sces, colour_by = "ENSMUSG00000033740.17__St18")
+# plotUMAP(sces_nd, colour_by = "ENSMUSG00000033740.17__St18")
 # 
-# plotExpression(sces, x = "cluster", 
+# plotExpression(sces_nd, x = "cluster", 
 #                features = "ENSMUSG00000033740.17__St18")
 
 

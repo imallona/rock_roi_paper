@@ -107,7 +107,7 @@ rm(cd, cds, sce); gc()
 
 ```{r}
 
-tail(rowData(sces) %>% as.data.frame, 8)
+rowData(sces) %>% as.data.frame %>% tail(8)
 
 # df <- data.frame(sample_id = sces$sample_id,
 #                  rock_egfp_wta = assay(sces, "wta")["roi_egfp",],
@@ -195,5 +195,4 @@ for(tso in names(sorted))
 
 
 ```
-
 
