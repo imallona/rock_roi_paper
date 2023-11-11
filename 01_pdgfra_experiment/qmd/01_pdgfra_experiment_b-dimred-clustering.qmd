@@ -139,7 +139,6 @@ rm(sces); gc()
 
 myscale <- c(color("muted")(9), gray="lightgray")
 names(myscale) <- as.character(1:10)
-ann_colors = list(cluster = myscale)
 
 
 set.seed(1976)
@@ -196,10 +195,11 @@ for(i in 1:ncol(agg_counts))
 
 ents <- apply(agg_counts, 1, calc_entropy)
 
+plot(ents, tt$F, log="y")
+
 # gs <- rownames(tt)[tt$F > 50 & ents < 1.35]
 gs <- rownames(tt)[tt$F > 100 & ents < 1]
 
-plot(ents, tt$F, log="y")
 
 df <- data.frame(gene = names(ents), 
                  entropy=ents, Fstat=tt$F,
@@ -207,7 +207,7 @@ df <- data.frame(gene = names(ents),
   mutate(order_by = Fstat / entropy) %>%
   filter(Fstat > 400, entropy < 2) %>%
   arrange(desc(order_by)) %>%
-  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 3)
+  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 4)
 
 col_anno <- colData(sces_nd)[,c("sample_id","cluster")] %>% as.data.frame
 
@@ -215,11 +215,15 @@ col_anno <- colData(sces_nd)[,c("sample_id","cluster")] %>% as.data.frame
 
 inds <- split(seq_len(ncol(sces_nd)), sces_nd$cluster)
 set.seed(1976)
-inds <- lapply(inds, sample, 150, replace = FALSE)
+inds <- lapply(inds, sample, min(table(sces_nd$cluster)), 
+               replace = FALSE)
 
 # manually put clusters in order
-# cluster_order <- c(4,8,10,6,1,3,7,5,2,9)
-# inds <- inds[cluster_order]
+
+cluster_order <- c(5, 9, 8, 4, 7, 1,3, 6,  2)
+inds <- inds[cluster_order]
+
+ann_colors = list(cluster = myscale[seq_len(length(inds))])
 
 co <- unlist(inds)
 
@@ -231,7 +235,7 @@ genes <- split(df$gene, df$cluster.max) %>% unlist
 #          cluster_rows = FALSE,
 #          cluster_cols = FALSE, fontsize_row = 8)
 
-pdf("clustering.pdf", height=18, width=10)
+pdf("clustering.pdf", height=14, width=14)
 pheatmap(lcounts[genes,co], show_rownames = TRUE,
         show_colnames = FALSE, scale="none",
         annotation_col = col_anno[co,],
@@ -239,10 +243,9 @@ pheatmap(lcounts[genes,co], show_rownames = TRUE,
         clustering_distance_cols = "correlation",
         cluster_rows = TRUE,
         treeheight_row = 0,
-        cluster_cols = FALSE, fontsize_row = 12,
+        cluster_cols = FALSE, fontsize_row = 8,
         annotation_colors = ann_colors)
 dev.off()
-
 
 
 rownames(altExp(sces_nd))
@@ -266,8 +269,6 @@ plotUMAP(sces_nd, colour_by = "ENSMUSG00000028255.6__Clca1")
 
 # plotUMAP(sces_nd, colour_by = "between_roi_egfp:770-1049", 
 #          shape_by = "sample_id", point_size = 3) + facet_wrap(~shape_by)
-
-
 # sces_nd$`between_roi_egfp:770-1049` <- assay(altExp(sces_nd), 1)["between_roi_egfp:770-1049",]
 # sces_nd$`between_roi_egfp:770-1049` <- assay(altExp(sces_nd), 1)["between_roi_egfp:770-1049",]
 
@@ -280,6 +281,9 @@ df <- data.frame(colData(mm)[,c("sample_id","sum","detected","cluster")],
                  as.matrix(t(logcounts(mm)[genes,])),
                  as.matrix(t(assay(altExp(mm), 1))),
                  reducedDim(mm,"UMAP"))
+
+df$cluster <- factor(df$cluster, levels=as.character(cluster_order))
+
 
 ggplot(df, aes(x=UMAP1, y=UMAP2, colour=cluster)) + 
   geom_point(size = 5) +
@@ -296,11 +300,8 @@ ggplot(df, aes(x=cluster, y=roi_5_chr5.75170495.75170544, colour=cluster)) +
   scale_color_manual(values = myscale)
 
 
-plotUMAP(mm, colour_by = "between_roi_egfp:770-1049", 
-         size_by = "between_roi_egfp:770-1049")
-
-
-
+# plotUMAP(mm, colour_by = "between_roi_egfp:770-1049", 
+#          size_by = "between_roi_egfp:770-1049")
 
 # plotUMAP(sces_nd, colour_by = "ENSMUSG00000026701.15__Prdx6")
 # 	
@@ -311,8 +312,6 @@ plotUMAP(mm, colour_by = "between_roi_egfp:770-1049",
 # 
 # plotExpression(sces_nd, x = "cluster", 
 #                features = "ENSMUSG00000033740.17__St18")
-
-
 
 ```
 
