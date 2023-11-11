@@ -1,5 +1,5 @@
 ---
-title: "Preprocessing of 01_mixing_experiment (Mouse with egfr, Human with tdtomato)"
+title: "Dim. Reduction / Clustering of 01_pdgfra_experiment"
 format:
   html:
     toc: true
@@ -27,6 +27,15 @@ library(plotROC)
 library(here)
 library(khroma)
 library(bluster)
+
+save_pheatmap_pdf <- function(x, filename, width=7, height=7) {
+   stopifnot(!missing(x))
+   stopifnot(!missing(filename))
+   pdf(filename, width=width, height=height)
+   grid::grid.newpage()
+   grid::grid.draw(x$gtable)
+   dev.off()
+}
 
 datadir <- file.path(here("01_pdgfra_experiment"), "data")
 
@@ -207,7 +216,7 @@ df <- data.frame(gene = names(ents),
   mutate(order_by = Fstat / entropy) %>%
   filter(Fstat > 400, entropy < 2) %>%
   arrange(desc(order_by)) %>%
-  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 4)
+  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 5)
 
 col_anno <- colData(sces_nd)[,c("sample_id","cluster")] %>% as.data.frame
 
@@ -229,14 +238,7 @@ co <- unlist(inds)
 
 genes <- split(df$gene, df$cluster.max) %>% unlist
 
-# pheatmap(lcounts[genes,co], show_rownames = TRUE,
-#          show_colnames = FALSE, scale="none",
-#          annotation_col = col_anno[co,],
-#          cluster_rows = FALSE,
-#          cluster_cols = FALSE, fontsize_row = 8)
-
-pdf("clustering.pdf", height=14, width=14)
-pheatmap(lcounts[genes,co], show_rownames = TRUE,
+ph <- pheatmap(lcounts[genes,co], show_rownames = TRUE,
         show_colnames = FALSE, scale="none",
         annotation_col = col_anno[co,],
         clustering_distance_rows = "correlation",
@@ -245,23 +247,11 @@ pheatmap(lcounts[genes,co], show_rownames = TRUE,
         treeheight_row = 0,
         cluster_cols = FALSE, fontsize_row = 8,
         annotation_colors = ann_colors)
-dev.off()
 
+save_pheatmap_pdf(ph, "cluster.pdf", width = 10, height = 10)
 
 rownames(altExp(sces_nd))
 sort(rowSums(assay(altExp(sces_nd), 1)), decreasing = TRUE)
-
-# sces_nd$`between_roi_egfp:770-1049` <- assay(altExp(sces_nd), 1)["between_roi_egfp:770-1049",]
-
-# pheatmap(lcounts[genes,co], show_rownames = TRUE,
-#          show_colnames = FALSE, scale="none",
-#          annotation_col = col_anno[co,],
-#          clustering_distance_rows = "correlation",
-#          clustering_distance_cols = "correlation",
-#          cluster_rows = TRUE,
-#          cluster_cols = TRUE, fontsize_row = 8)
-
-# col_anno <- data.frame(cluster = rep( names(inds), sapply(inds, length)
 
 
 plotUMAP(sces_nd, colour_by = "ENSMUSG00000016494.9__Cd34")
