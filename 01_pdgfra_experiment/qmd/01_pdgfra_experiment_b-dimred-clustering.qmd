@@ -277,7 +277,8 @@ plotUMAP(sces_nd, colour_by = "ENSMUSG00000028255.6__Clca1")
 
 mm <- sces_nd[,sces_nd$sample_id=="pdgfra_rockroi_multimodal"]
 
-df <- data.frame(colData(mm)[,c("sample_id","sum","detected","cluster")],
+df <- data.frame(colData(mm)[,c("sample_id","sum","detected",
+                                "cluster","scDblFinder.score")],
                  as.matrix(t(logcounts(mm)[genes,])),
                  as.matrix(t(assay(altExp(mm), 1))),
                  reducedDim(mm,"UMAP"))
@@ -288,6 +289,10 @@ df$cluster <- factor(df$cluster, levels=as.character(cluster_order))
 ggplot(df, aes(x=UMAP1, y=UMAP2, colour=cluster)) + 
   geom_point(size = 5) +
   scale_color_manual(values = myscale)
+
+# ggplot(df, aes(x=cluster, y=scDblFinder.score, colour=cluster)) + 
+#   geom_jitter(width=.2, size=3, height = .1) +
+#   scale_color_manual(values = myscale)
 
 ggplot(df, aes(x=cluster, y=between_roi_egfp.770.1049, colour=cluster)) + 
   geom_jitter(width=.2, size=3, height = .1) +
