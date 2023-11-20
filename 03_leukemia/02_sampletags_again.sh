@@ -77,7 +77,9 @@ cbumi=/home/imallona/ebrunner_spectral/data/fastqs_longer_leukemia/331131_1-Cell
 
 ## notice the alignIntronMax 1 and the seedSearchStartLmax
 ##  and the outFilter* (given the extraordinary read length vs reference's)
-STAR --runThreadN 10 \
+ulimit -Sn 1000000
+
+nice -n 19 STAR --runThreadN 92 \
      --genomeDir genomes/sampletags_genome/ \
      --readFilesCommand zcat \
      --outFileNamePrefix patients_wta_vs_sampletags/ \
