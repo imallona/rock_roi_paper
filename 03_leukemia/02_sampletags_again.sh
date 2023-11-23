@@ -1,6 +1,6 @@
 #!/bin/bash
 ##
-## Optimize 180 nt-long cDNA alignment to 45 nt-long sampletags
+## Optimize 62 nt-long cDNA alignment to 45 nt-long sampletags
 ##
 ## 07th Nov 2023
 ## Izaskun Mallona
@@ -72,14 +72,24 @@ ln -s ~/src/rock_roi_method/data/whitelist_96x3/BD_CLS1.txt .
 ln -s ~/src/rock_roi_method/data/whitelist_96x3/BD_CLS2.txt .
 ln -s ~/src/rock_roi_method/data/whitelist_96x3/BD_CLS3.txt .
 
-cdna=/home/imallona/ebrunner_spectral/data/fastqs_longer_leukemia/331131_1-Cell_lines_50_50_S1_R2_001.fastq.gz
-cbumi=/home/imallona/ebrunner_spectral/data/fastqs_longer_leukemia/331131_1-Cell_lines_50_50_S1_R1_001.fastq.gz
+cdna=/home/imallona/ebrunner_spectral/data/fastqs_short_leukemia/r2_patient_samples.fastq.gz
+cbumi=/home/imallona/ebrunner_spectral/data/fastqs_short_leukemia/r1_patient_samples.fastq.gz
+
+
+## downsampled
+# cd ~/ebrunner_spectral/data/fastqs_short_leukemia/
+# zcat $cdna | head -500000 | gzip -c > r2_pat_down.fastq.gz
+# zcat $cbumi | head -500000 | gzip -c > r1_pat_down.fastq.gz
+
+# cdna=/home/imallona/ebrunner_spectral/data/fastqs_short_leukemia/r2_pat_down.fastq.gz
+# cbumi=/home/imallona/ebrunner_spectral/data/fastqs_short_leukemia/r1_pat_down.fastq.gz
+
 
 ## notice the alignIntronMax 1 and the seedSearchStartLmax
-##  and the outFilter* (given the extraordinary read length vs reference's)
+##  and the outFilter* (given the read length v reference's)
 ulimit -Sn 1000000
 
-nice -n 19 STAR --runThreadN 92 \
+nice -n 19 STAR --runThreadN 80 \
      --genomeDir genomes/sampletags_genome/ \
      --readFilesCommand zcat \
      --outFileNamePrefix patients_wta_vs_sampletags/ \
@@ -97,8 +107,12 @@ nice -n 19 STAR --runThreadN 92 \
      --quantMode GeneCounts \
      --soloUMIlen 8 \
      --sjdbGTFfile genomes/sampletags.gtf \
-     --outFilterScoreMinOverLread 0.1 \
-     --outFilterMatchNminOverLread 0.1 \
-     --outFilterMismatchNmax 150 \
-     --seedSearchStartLmax 20 \
-     --alignIntronMax 1
+     --outFilterScoreMinOverLread 0.5 \
+     --outFilterMatchNminOverLread 0.5 \
+     --outFilterMismatchNmax 25 \
+     --seedSearchStartLmax 30 \
+     --alignIntronMax 1 \
+     --limitBAMsortRAM 9093676412
+
+
+# less patients_wta_vs_sampletags/Solo.out/Gene/raw/matrix.mtx
