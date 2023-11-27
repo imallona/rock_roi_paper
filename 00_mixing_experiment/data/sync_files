@@ -1,1 +1,1 @@
-scp mark@barbara.dqbm.uzh.ch:/home/imallona/ebrunner_spectral/mixing/multimodal/*/*.rds .
+scp gmoro@imlssherborne.uzh.ch:/home/gmoro/ebrunner_spectral/mixing/multimodal/*.rds .
