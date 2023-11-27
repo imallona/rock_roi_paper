@@ -1,27 +1,54 @@
 ---
 title: "00_mixing_experiment_c-figures"
 author: "Giulia Moro"
-format: html
-editor: visual
+format: 
+  html:
+    toc: true
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
 ---
 
-## Quarto
+### Load packages, load data 
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
 
-## Running Code
+```{r,warning=FALSE, message=FALSE}
 
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+rm(list=ls())
 
-```{r}
-1 + 1
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(plotROC)
+library(here)
+
+getwd() # after opening the .Rproj file, getwd() should be "/Users/gimoro/figure_making_paper/rock_roi_paper"
+
+rdss <- dir(here("00_mixing_experiment"), "^mixing.*rds", 
+            recursive = TRUE, full.names = TRUE)
+rdss # prints the .rds files in the 00_mixing_experiment folder
+
+datadir <- dirname(rdss)[1] # folder where the .rds files are 
+
 ```
 
-You can add options to executable code like this
+### First figure: mito vs total UMI 
+
+
+### Print sessionInfo()
 
 ```{r}
-#| echo: false
-2 * 2
+
+sessionInfo()
+
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+
