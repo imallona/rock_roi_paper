@@ -5,12 +5,10 @@ format:
   html:
     toc: true
     embed-resources: true
-editor_options: 
-  chunk_output_type: console
+    keep_md: true
 ---
 
 ### Load packages, load data 
-
 
 ```{r,warning=FALSE, message=FALSE}
 
@@ -34,13 +32,117 @@ getwd() # after opening the .Rproj file, getwd() should be "/Users/gimoro/figure
 
 rdss <- dir(here("00_mixing_experiment"), "^mixing.*rds", 
             recursive = TRUE, full.names = TRUE)
+
+names(rdss) <- gsub("_sce.rds", "", basename(rdss))
 rdss # prints the .rds files in the 00_mixing_experiment folder
 
 datadir <- dirname(rdss)[1] # folder where the .rds files are 
 
+sces <- mapply(function(u,v)  {
+  rds <- readRDS(u)
+  rds$sample_id <- v
+  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
+  colnames(rowData(rds)) <- c("name", "type", "value")
+  g <- grepl("^ENS", rownames(rds))
+  rownames(rds)[g] <- paste0(rownames(rds)[g], 
+                             "__", rowData(rds)$name[g])
+  rowData(rds)$gene_type <- "capture"
+  k <- grepl("^ENSG", rownames(rds))
+  rowData(rds)$gene_type[k] <- "human_gene"
+  k <- grepl("^ENSMUS", rownames(rds))
+  rowData(rds)$gene_type[k] <- "mouse_gene"
+  k <- grepl("^mt", rowData(rds)$name)
+  rowData(rds)$gene_type[k] <- "mouse_mito"
+  k <- grepl("^MT", rowData(rds)$name)
+  rowData(rds)$gene_type[k] <- "human_mito"
+  rds
+}, rdss, names(rdss))
+
+sce <- Reduce(cbind, sces)
+
+
 ```
 
 ### First figure: mito vs total UMI 
+
+```{r}
+
+rowData(sce)$gene_type %>% table
+
+rd <- rowData(sce)
+sce <- addPerCellQCMetrics(sce, assay.type = "wta",
+                           subsets=list(capture=rd$gene_type=="capture",
+                                        human_gene=rd$gene_type=="human_gene",
+                                        human_mito=rd$gene_type=="human_mito",
+                                        mouse_gene=rd$gene_type=="mouse_gene",
+                                        mouse_mito=rd$gene_type=="mouse_mito"))
+
+cd <- colData(sce) %>% as.data.frame %>% 
+  mutate(total_mito_percent = subsets_mouse_mito_percent+subsets_human_mito_percent)
+
+ggplot(cd, aes(x = total, y = total_mito_percent)) +
+  geom_point() + scale_x_log10() + scale_y_sqrt() +
+  facet_wrap(~factor(sample_id,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi"))) + 
+  geom_hline(yintercept=c(3,25), colour="orange") +
+  geom_vline(xintercept=c(2750), colour="orange") +
+  geom_density2d()+
+  theme_bw()+
+  xlab("total number of transcripts")+
+  ylab("percent mitochondrial reads")+
+  theme(axis.text = element_text(size = 15), axis.title=element_text(size=20,face="bold"),strip.text=element_text(size=15,face="bold"))
+
+```
+
+### Defining regions 
+
+```{r}
+
+colData(altExp(sce,withColData=TRUE))$"egfp_cds"<-colSums(assay(altExp(sce),1)[c("5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
+colData(altExp(sce,withColData=TRUE))$"egfp_tx"<-colSums(assay(altExp(sce),1)[c("5_utr_egfp_wpre","3_utr_egfp_wpre","5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
+colData(altExp(sce,withColData=TRUE))$"tdtom_cds"<-colSums(assay(altExp(sce),1)[c("5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
+colData(altExp(sce,withColData=TRUE))$"tdtom_tx"<-colSums(assay(altExp(sce),1)[c("5_utr_tdtomato_wpre","3_utr_tdtomato_wpre","5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
+colData(altExp(sce,withColData=TRUE))$"egfp_roi"<-assay(altExp(sce),1)["roi_egfp",]
+colData(altExp(sce,withColData=TRUE))$"tdtom_roi1"<-colSums(assay(altExp(sce),1)[c("roi_1_tdtomato","roi_3_tdtomato"),])
+colData(altExp(sce,withColData=TRUE))$"tdtom_roi2"<-colSums(assay(altExp(sce),1)[c("roi_2_tdtomato","roi_4_tdtomato"),])
+colData(altExp(sce,withColData=TRUE))$"sum_rois"<-colSums(assay(altExp(sce),1)[c("roi_1_tdtomato","roi_3_tdtomato","roi_2_tdtomato","roi_4_tdtomato","roi_egfp"),])
+
+```
+
+### Score regions tso_multi
+
+
+```{r}
+
+colData(altExp(sce,withColData=TRUE))$"detection_score"<-0
+colData(altExp(sce,withColData=TRUE))$detection_score[which(colData(altExp(sce,withColData=TRUE))$'egfp_tx'>0)] <- 1
+colData(altExp(sce,withColData=TRUE))$detection_score[which(colData(altExp(sce,withColData=TRUE))$'tdtom_tx'>0)] <- 1
+colData(altExp(sce,withColData=TRUE))$detection_score[which(colData(altExp(sce,withColData=TRUE))$'egfp_cds'>0)] <- 2
+colData(altExp(sce,withColData=TRUE))$detection_score[which(colData(altExp(sce,withColData=TRUE))$'tdtom_cds'>0)] <- 2
+colData(altExp(sce,withColData=TRUE))$detection_score[which(colData(altExp(sce,withColData=TRUE))$'egfp_roi'>0)] <- 3
+colData(altExp(sce,withColData=TRUE))$detection_score[which(colData(altExp(sce,withColData=TRUE))$'tdtom_roi1'>0)] <- 3
+colData(altExp(sce,withColData=TRUE))$detection_score[which(colData(altExp(sce,withColData=TRUE))$'tdtom_roi2'>0)] <- 3
+colData(altExp(sce,withColData=TRUE))$detection_score[which(colData(altExp(sce,withColData=TRUE))$'sum_rois'>0)] <- 4
+
+table(colData(altExp(sce,withColData=TRUE))$detection_score)
+
+```
+
+
+
+
+### Splitting mouse vs human
+
+```{r}
+
+#sce<-
+
+#m <- sces_nd[rowData(sces_nd)$gene_type=="mouse_gene", 
+             sces_nd$subsets_mouse_gene_percent > 50]
+#table(k <- rowSums(assay(m,"wta")) > 0)
+#m <- m[k,]
+
+```
+
 
 
 ### Print sessionInfo()
