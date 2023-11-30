@@ -204,7 +204,7 @@ table(combined_no_tx$egfp_detection_score)
 table(combined_no_tx$tdtom_detection_score)
 
 combined_no_tx$color<-"purple" # these will be the doublets
-combined_no_tx$color[which(combined_no_tx$egfp_detection_score==0 & combined_no_tx$tdtom_detection_score==0)]<-NA # no detection of either
+combined_no_tx$color[which(combined_no_tx$egfp_detection_score==0 & combined_no_tx$tdtom_detection_score==0)]<-"grey" # no detection of either
 combined_no_tx$color[which(combined_no_tx$egfp_detection_score==2 & combined_no_tx$tdtom_detection_score==0)]<-"#B2E2E2"
 combined_no_tx$color[which(combined_no_tx$egfp_detection_score==3 & combined_no_tx$tdtom_detection_score==0)]<-"#66C2A4"
 combined_no_tx$color[which(combined_no_tx$egfp_detection_score==4 & combined_no_tx$tdtom_detection_score==0)]<-"#238B45"
@@ -212,20 +212,29 @@ combined_no_tx$color[which(combined_no_tx$egfp_detection_score==0 & combined_no_
 combined_no_tx$color[which(combined_no_tx$egfp_detection_score==0 & combined_no_tx$tdtom_detection_score==3)]<-"#6BAED6"
 combined_no_tx$color[which(combined_no_tx$egfp_detection_score==0 & combined_no_tx$tdtom_detection_score==4)]<-"#2171B5"
 
-table(combined_no_tx$color)
-
-g<-ggplot(combined_no_tx, aes(x = subsets_mouse_gene_sum,
-               y = subsets_human_gene_sum))+
-  geom_point(colour="grey",alpha=0.5) +
+g <- ggplot(combined_no_tx, aes(
+  x = subsets_mouse_gene_sum,
+  y = subsets_human_gene_sum,
+  color = color  # Specify color within aes()
+)) +
+  geom_point(alpha = 0.5) +
   scale_x_log10() + scale_y_log10() +
-  facet_wrap(~factor(sample_id,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")))+
-  theme_bw()+
-  xlab("mouse gene sum")+
-  ylab("human gene sum")+
-  theme(axis.text = element_text(size = 15), axis.title=element_text(size=20,face="bold"),strip.text=element_text(size=15,face="bold"))
-
-g+geom_point(color=combined_no_tx$color,alpha=0.5)
-
+  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", "mixing_rock", "mixing_rockroi"))) +
+  theme_bw() +
+  xlab("mouse gene sum") +
+  ylab("human gene sum") +
+  theme(
+    axis.text = element_text(size = 15),
+    axis.title = element_text(size = 20, face = "bold"),
+    strip.text = element_text(size = 15, face = "bold")
+  ) +
+  scale_color_identity(
+    name = "Legend Title",
+    guide = "legend" ,
+  )+
+  labs(title="egfp and tdtomato detection")+
+  scale_color_manual(labels=c("all_tdtom_rois","all_egfp_rois","tdtom_roi","egfp_cds","tdtom_cds","no_detection","doublets"), values=c("#2171B5","#238B45","#6BAED6","#B2E2E2","#BDD7E7","grey","purple"))
+                
 ```
 
 
