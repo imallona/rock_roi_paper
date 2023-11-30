@@ -27,6 +27,9 @@ library(pheatmap)
 library(readr)
 library(plotROC)
 library(here)
+library(RColorBrewer)
+library(ggnewscale)
+#packageVersion("RColorBrewer")
 
 getwd() # after opening the .Rproj file, getwd() should be "/Users/gimoro/figure_making_paper/rock_roi_paper"
 
@@ -58,8 +61,9 @@ sces <- mapply(function(u,v)  {
   rds
 }, rdss, names(rdss))
 
-sce <- Reduce(cbind, sces)
+sces$mixing_rock
 
+sce <- Reduce(cbind, sces)
 
 ```
 
@@ -93,56 +97,136 @@ ggplot(cd, aes(x = total, y = total_mito_percent)) +
 
 ```
 
-### Defining regions 
+### Reading filtered dataset (object from Mark) --> should we change the raw filtering?
 
 ```{r}
 
-colData(altExp(sce,withColData=TRUE))$"egfp_cds"<-colSums(assay(altExp(sce),1)[c("5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
-colData(altExp(sce,withColData=TRUE))$"egfp_tx"<-colSums(assay(altExp(sce),1)[c("5_utr_egfp_wpre","3_utr_egfp_wpre","5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
-colData(altExp(sce,withColData=TRUE))$"tdtom_cds"<-colSums(assay(altExp(sce),1)[c("5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
-colData(altExp(sce,withColData=TRUE))$"tdtom_tx"<-colSums(assay(altExp(sce),1)[c("5_utr_tdtomato_wpre","3_utr_tdtomato_wpre","5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
-colData(altExp(sce,withColData=TRUE))$"egfp_roi"<-assay(altExp(sce),1)["roi_egfp",]
-colData(altExp(sce,withColData=TRUE))$"tdtom_roi1"<-colSums(assay(altExp(sce),1)[c("roi_1_tdtomato","roi_3_tdtomato"),])
-colData(altExp(sce,withColData=TRUE))$"tdtom_roi2"<-colSums(assay(altExp(sce),1)[c("roi_2_tdtomato","roi_4_tdtomato"),])
-colData(altExp(sce,withColData=TRUE))$"sum_rois"<-colSums(assay(altExp(sce),1)[c("roi_1_tdtomato","roi_3_tdtomato","roi_2_tdtomato","roi_4_tdtomato","roi_egfp"),])
+sce_filt<-readRDS(file.path(datadir, "sce_qc-filtered.rds")) 
 
 ```
 
-### Score regions tso_multi
-
+### Defining regions in filt dataset
 
 ```{r}
 
-colData(altExp(sce,withColData=TRUE))$"detection_score"<-0
-colData(altExp(sce,withColData=TRUE))$detection_score[which(colData(altExp(sce,withColData=TRUE))$'egfp_tx'>0)] <- 1
-colData(altExp(sce,withColData=TRUE))$detection_score[which(colData(altExp(sce,withColData=TRUE))$'tdtom_tx'>0)] <- 1
-colData(altExp(sce,withColData=TRUE))$detection_score[which(colData(altExp(sce,withColData=TRUE))$'egfp_cds'>0)] <- 2
-colData(altExp(sce,withColData=TRUE))$detection_score[which(colData(altExp(sce,withColData=TRUE))$'tdtom_cds'>0)] <- 2
-colData(altExp(sce,withColData=TRUE))$detection_score[which(colData(altExp(sce,withColData=TRUE))$'egfp_roi'>0)] <- 3
-colData(altExp(sce,withColData=TRUE))$detection_score[which(colData(altExp(sce,withColData=TRUE))$'tdtom_roi1'>0)] <- 3
-colData(altExp(sce,withColData=TRUE))$detection_score[which(colData(altExp(sce,withColData=TRUE))$'tdtom_roi2'>0)] <- 3
-colData(altExp(sce,withColData=TRUE))$detection_score[which(colData(altExp(sce,withColData=TRUE))$'sum_rois'>0)] <- 4
-
-table(colData(altExp(sce,withColData=TRUE))$detection_score)
+colData(altExp(sce_filt,withColData=TRUE))$"egfp_cds"<-colSums(assay(altExp(sce_filt),1)[c("5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
+colData(altExp(sce_filt,withColData=TRUE))$"egfp_tx"<-colSums(assay(altExp(sce_filt),1)[c("5_utr_egfp_wpre","3_utr_egfp_wpre","5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
+colData(altExp(sce_filt,withColData=TRUE))$"tdtom_cds"<-colSums(assay(altExp(sce_filt),1)[c("5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
+colData(altExp(sce_filt,withColData=TRUE))$"tdtom_tx"<-colSums(assay(altExp(sce_filt),1)[c("5_utr_tdtomato_wpre","3_utr_tdtomato_wpre","5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
+colData(altExp(sce_filt,withColData=TRUE))$"egfp_roi"<-assay(altExp(sce_filt),1)["roi_egfp",]
+colData(altExp(sce_filt,withColData=TRUE))$"tdtom_roi1"<-colSums(assay(altExp(sce_filt),1)[c("roi_1_tdtomato","roi_3_tdtomato"),])
+colData(altExp(sce_filt,withColData=TRUE))$"tdtom_roi2"<-colSums(assay(altExp(sce_filt),1)[c("roi_2_tdtomato","roi_4_tdtomato"),])
+colData(altExp(sce_filt,withColData=TRUE))$"sum_tdtom_rois"<-colSums(assay(altExp(sce_filt),1)[c("roi_1_tdtomato","roi_3_tdtomato","roi_2_tdtomato","roi_4_tdtomato"),])
+colData(altExp(sce_filt,withColData=TRUE))$"sum_rois"<-colSums(assay(altExp(sce_filt),1)[c("roi_1_tdtomato","roi_3_tdtomato","roi_2_tdtomato","roi_4_tdtomato","roi_egfp"),])
 
 ```
 
-
-
-
-### Splitting mouse vs human
+### Score regions tso_multi filt dataset
 
 ```{r}
 
-#sce<-
+colData(altExp(sce_filt,withColData=TRUE))$"detection_score"<-0
+colData(altExp(sce_filt,withColData=TRUE))$detection_score[which(colData(altExp(sce_filt,withColData=TRUE))$'egfp_tx'>0)] <- 1 
+colData(altExp(sce_filt,withColData=TRUE))$detection_score[which(colData(altExp(sce_filt,withColData=TRUE))$'tdtom_tx'>0)] <- 1
+colData(altExp(sce_filt,withColData=TRUE))$detection_score[which(colData(altExp(sce_filt,withColData=TRUE))$'egfp_cds'>0)] <- 2
+colData(altExp(sce_filt,withColData=TRUE))$detection_score[which(colData(altExp(sce_filt,withColData=TRUE))$'tdtom_cds'>0)] <- 2
+colData(altExp(sce_filt,withColData=TRUE))$detection_score[which(colData(altExp(sce_filt,withColData=TRUE))$'egfp_roi'>0)] <- 3
+colData(altExp(sce_filt,withColData=TRUE))$detection_score[which(colData(altExp(sce_filt,withColData=TRUE))$'tdtom_roi1'>0)] <- 3
+colData(altExp(sce_filt,withColData=TRUE))$detection_score[which(colData(altExp(sce_filt,withColData=TRUE))$'tdtom_roi2'>0)] <- 3
+colData(altExp(sce_filt,withColData=TRUE))$detection_score[which(colData(altExp(sce_filt,withColData=TRUE))$'tdtom_roi2'>0 & colData(altExp(sce_filt,withColData=TRUE))$'tdtom_roi1'>0)] <- 4
 
-#m <- sces_nd[rowData(sces_nd)$gene_type=="mouse_gene", 
-             sces_nd$subsets_mouse_gene_percent > 50]
-#table(k <- rowSums(assay(m,"wta")) > 0)
-#m <- m[k,]
+colData(altExp(sce_filt,withColData=TRUE))$"egfp_detection_score"<-0
+colData(altExp(sce_filt,withColData=TRUE))$egfp_detection_score[which(colData(altExp(sce_filt,withColData=TRUE))$'egfp_tx'>0)] <- 1
+colData(altExp(sce_filt,withColData=TRUE))$egfp_detection_score[which(colData(altExp(sce_filt,withColData=TRUE))$'egfp_cds'>0)] <- 2
+colData(altExp(sce_filt,withColData=TRUE))$egfp_detection_score[which(colData(altExp(sce_filt,withColData=TRUE))$'egfp_roi'>0)] <- 3
+colData(altExp(sce_filt,withColData=TRUE))$egfp_detection_score[which(colData(altExp(sce_filt,withColData=TRUE))$'egfp_roi'>0)] <- 4
+
+colData(altExp(sce_filt,withColData=TRUE))$"tdtom_detection_score"<-0
+colData(altExp(sce_filt,withColData=TRUE))$tdtom_detection_score[which(colData(altExp(sce_filt,withColData=TRUE))$'tdtom_tx'>0)] <- 1
+colData(altExp(sce_filt,withColData=TRUE))$tdtom_detection_score[which(colData(altExp(sce_filt,withColData=TRUE))$'tdtom_cds'>0)] <- 2
+colData(altExp(sce_filt,withColData=TRUE))$tdtom_detection_score[which(colData(altExp(sce_filt,withColData=TRUE))$'tdtom_roi1'>0)] <- 3
+colData(altExp(sce_filt,withColData=TRUE))$tdtom_detection_score[which(colData(altExp(sce_filt,withColData=TRUE))$'tdtom_roi2'>0)] <- 3
+colData(altExp(sce_filt,withColData=TRUE))$tdtom_detection_score[which(colData(altExp(sce_filt,withColData=TRUE))$'tdtom_roi2'>0 & colData(altExp(sce_filt,withColData=TRUE))$'tdtom_roi1'>0)] <- 4
+
+table(colData(altExp(sce_filt,withColData=TRUE))$detection_score,colData(altExp(sce_filt,withColData=TRUE))$sample_id)
+table(colData(altExp(sce_filt,withColData=TRUE))$egfp_detection_score,colData(altExp(sce_filt,withColData=TRUE))$sample_id)
+table(colData(altExp(sce_filt,withColData=TRUE))$tdtom_detection_score,colData(altExp(sce_filt,withColData=TRUE))$sample_id)
 
 ```
 
+### Splitting mouse vs human filt dataset
+
+```{r}
+
+sce_filt$species<-"NA"
+sce_filt$species[which(sce_filt$subsets_mouse_gene_percent>50)]<-"mouse"
+sce_filt$species[which(sce_filt$subsets_human_gene_percent>50)]<-"human"
+
+table(sce_filt$species)
+table(colData(altExp(sce_filt,withColData=TRUE))$egfp_detection_score,colData(altExp(sce_filt,withColData=TRUE))$species)
+table(colData(altExp(sce_filt,withColData=TRUE))$tdtom_detection_score,colData(altExp(sce_filt,withColData=TRUE))$species)
+
+cd <- colData(sce_filt) %>% as.data.frame %>% 
+  mutate(total_mito_percent = subsets_mouse_mito_percent+subsets_human_mito_percent)
+
+ggplot(cd, aes(x = total, y = total_mito_percent)) +
+  geom_point() + scale_x_log10() + scale_y_sqrt() +
+  facet_wrap(~species) + 
+  geom_hline(yintercept=c(3,25), colour="orange") +
+  geom_vline(xintercept=c(2750), colour="orange") +
+  geom_density2d()+
+  theme_bw()+
+  xlab("total number of transcripts")+
+  ylab("percent mitochondrial reads")+
+  theme(axis.text = element_text(size = 15), axis.title=element_text(size=20,face="bold"),strip.text=element_text(size=15,face="bold"))
+
+#sce_filt_human_mouse<-sce_filt[,which(sce_filt$species %in% c("mouse","human"))]
+
+```
+
+### Barnyard plot
+
+```{r}
+
+cds<-colData(sce_filt) %>% as.data.frame
+alt<-colData(altExp(sce_filt,withColData=TRUE)) %>% as.data.frame
+combined<-merge(cds,alt)
+
+brewer.pal(n=4,name="BuGn")
+brewer.pal(n=4,name="Blues")
+
+# only want to color by cds and roi here because the tx will be in common, so don't need the egfp and tdtom score =1.
+
+to_remove<-which(combined$egfp_detection_score==1 | combined$tdtom_detection_score==1)
+combined_no_tx<-combined[-to_remove,]
+
+table(combined_no_tx$egfp_detection_score)
+table(combined_no_tx$tdtom_detection_score)
+
+combined_no_tx$color<-"purple" # these will be the doublets
+combined_no_tx$color[which(combined_no_tx$egfp_detection_score==0 & combined_no_tx$tdtom_detection_score==0)]<-NA # no detection of either
+combined_no_tx$color[which(combined_no_tx$egfp_detection_score==2 & combined_no_tx$tdtom_detection_score==0)]<-"#B2E2E2"
+combined_no_tx$color[which(combined_no_tx$egfp_detection_score==3 & combined_no_tx$tdtom_detection_score==0)]<-"#66C2A4"
+combined_no_tx$color[which(combined_no_tx$egfp_detection_score==4 & combined_no_tx$tdtom_detection_score==0)]<-"#238B45"
+combined_no_tx$color[which(combined_no_tx$egfp_detection_score==0 & combined_no_tx$tdtom_detection_score==2)]<-"#BDD7E7"
+combined_no_tx$color[which(combined_no_tx$egfp_detection_score==0 & combined_no_tx$tdtom_detection_score==3)]<-"#6BAED6"
+combined_no_tx$color[which(combined_no_tx$egfp_detection_score==0 & combined_no_tx$tdtom_detection_score==4)]<-"#2171B5"
+
+table(combined_no_tx$color)
+
+g<-ggplot(combined_no_tx, aes(x = subsets_mouse_gene_sum,
+               y = subsets_human_gene_sum))+
+  geom_point(colour="grey",alpha=0.5) +
+  scale_x_log10() + scale_y_log10() +
+  facet_wrap(~factor(sample_id,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")))+
+  theme_bw()+
+  xlab("mouse gene sum")+
+  ylab("human gene sum")+
+  theme(axis.text = element_text(size = 15), axis.title=element_text(size=20,face="bold"),strip.text=element_text(size=15,face="bold"))
+
+g+geom_point(color=combined_no_tx$color,alpha=0.5)
+
+```
 
 
 ### Print sessionInfo()
