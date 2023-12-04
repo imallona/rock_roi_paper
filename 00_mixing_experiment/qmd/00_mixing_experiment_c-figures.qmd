@@ -1,6 +1,6 @@
 ---
 title: "00_mixing_experiment_c-figures"
-author: "Giulia Moro"
+author: "Mark Robinson & Giulia Moro"
 format: 
   html:
     toc: true
@@ -15,6 +15,22 @@ format:
 # Figure out Fuzznuc ROI error
 # Substitute the WTA with the wta_ontarget_multi
 # Remake figures with new count tables (UMI dedup)
+# Add 1 to log1p color palette
+
+```
+
+### setting up knitr 
+
+```{r}
+
+knitr::opts_chunk$set(fig.width = 20,
+               fig.height = 20,
+               cache = TRUE,
+               include = TRUE,
+               dev = c("png","svg"),
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
 
 ```
 
@@ -41,8 +57,10 @@ library(here)
 library(RColorBrewer)
 library(ggnewscale)
 library(scales)
+library(rmarkdown)
+library(irlba)
 
-#packageVersion("RColorBrewer")
+#packageVersion("Matrix")
 
 getwd() # after opening the .Rproj file, getwd() should be "/Users/gimoro/figure_making_paper/rock_roi_paper"
 
@@ -110,7 +128,7 @@ ggplot(cd, aes(x = total, y = total_mito_percent)) +
 
 ### Reading filtered dataset (object from Mark) 
 
-```{r}
+```{r,message=FALSE}
 
 sce_filt<-readRDS(file.path(datadir, "sce_qc-filtered.rds")) 
 
@@ -194,7 +212,7 @@ ggplot(combined, aes(
   y = subsets_human_gene_sum,
   color = color 
 )) +
-  geom_point(alpha = 0.5) +
+  geom_point(alpha = 0.5,size=0.5) +
   scale_x_log10() + scale_y_log10() +
   facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", "mixing_rock", "mixing_rockroi"))) +
   theme_bw() +
@@ -232,7 +250,7 @@ ggplot(combined, aes(
   y = subsets_human_gene_sum,
   color = roi_color 
 )) +
-  geom_point(alpha = 0.5) +
+  geom_point(alpha = 0.5,size=0.5) +
   scale_x_log10() + scale_y_log10() +
   facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", "mixing_rock", "mixing_rockroi"))) +
   theme_bw() +
@@ -270,7 +288,7 @@ ggplot(combined, aes(
   y = subsets_human_gene_sum,
   color = cds_color 
 )) +
-  geom_point(alpha = 0.5) +
+  geom_point(alpha = 0.5,size=0.5) +
   scale_x_log10() + scale_y_log10() +
   facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", "mixing_rock", "mixing_rockroi"))) +
   theme_bw() +
@@ -317,7 +335,7 @@ log_1p_tso_ontarget_multi <- log1p(df$tso_capture_sum)
 brewer.pal(n=9,name="BuGn")
 
 ggplot(df, aes(x = tso_total, y = wta_total, color = log_1p_tso_ontarget_multi)) +
-  geom_point(alpha=0.5) +
+  geom_point(alpha=0.5,size=0.5) +
   scale_x_log10() + scale_y_log10() +
   theme_bw() +
   xlab("total TSO UMIs") +
@@ -353,7 +371,7 @@ df$color[which(df$egfp_detection_score==0 & df$tdtom_detection_score==3)]<-"#217
 
 
 ggplot(df, aes(x = tso_capture_sum, y = wta_capture_sum, color=color))+
-  geom_jitter(height = .2)+
+  geom_jitter(height = .2,size=0.5,alpha=0.5)+
   facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", "mixing_rock", "mixing_rockroi"))) +
   theme_bw()+
   xlab("on target TSO UMIs")+
@@ -386,12 +404,14 @@ ggplot(df, aes(x = tso_capture_sum, y = wta_capture_sum,color=log_1p_tso_ontarge
 ```
 
 
-
 ### False positive vs true positive
 
 ```{r}
 
+# reading in filtered no-doublets object Mark
+
 sces_nd <- readRDS(file.path(datadir, "sce_qc-filtered-nodoublets.rds"))
+
 exprs_nd <- assay(altExp(sces_nd),1)
 
 sort(rowSums(exprs_nd, na.rm = TRUE), decreasing = TRUE) -> sorted
@@ -401,7 +421,6 @@ df <- data.frame(mouse = (sces_nd$origin == "mouse")+0,
                  sample = sces_nd$sample_id,
                  as.matrix(t(exprs_nd[names(sorted),])))
 dfm <- melt(df, id.vars = c("human","mouse","sample"))
-
 
 human_targets <- grep("tdtomato", names(sorted), value = TRUE)
 
@@ -418,7 +437,6 @@ p <- ggplot(dfm %>% filter(variable %in% c("roi_1_tdtomato", "roi_2_tdtomato","r
   ylab("true positive fraction")+
   theme(axis.text = element_text(size = 15),axis.title = element_text(size = 20, face = "bold"),strip.text = element_text(size = 15, face = "bold"))
   
-
 mouse_targets <- grep("egfp", names(sorted), value = TRUE)
 
 q <- ggplot(dfm %>% filter(variable %in% c("rock_egfp","roi_egfp")),
@@ -443,7 +461,7 @@ cowplot::plot_grid(p,q, nrow=2)
 
 ```{r}
 
-# still to do, getting error in Matrix package when generating UMAP 
+# keep getting error for the Matrix package
 
 ```
 
@@ -476,13 +494,51 @@ ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing
   xlab(" ")+
   ylab("percent positive cells")+
   theme_bw()+
-  theme(axis.text = element_text(size = 15),axis.title = element_text(size = 20, face = "bold"),strip.text = element_text(size = 15, face = "bold"))+
-  scale_fill_discrete(name = "Samples")
-
+  theme(axis.text = element_text(size = 10),axis.title = element_text(size = 20, face = "bold"),strip.text = element_text(size = 15, face = "bold"))+
+  scale_fill_discrete(name = "Samples")+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge(width=0.9), vjust=-0.5)
+  
 
 ```
 
+### Scatter plot with % positive cells (for now just tso_ontarget_multi, so now just for cds)
 
+```{r}
+
+ggplot(data=plottable,aes(y=value,x=variable,color=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")))) +
+  geom_point()+
+  xlab(" ")+
+  ylab("percent positive cells")+
+  theme_bw()+
+  labs(color='Samples') +
+  theme(axis.text = element_text(size = 10),axis.title = element_text(size = 20, face = "bold"),strip.text = element_text(size = 15, face = "bold"))+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge(width=0.9), vjust=-0.5)
+  
+```
+
+### Scatter plot with % positive cells with different x axis (for now just tso_ontarget_multi, so now just for cds)
+
+```{r}
+
+ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")),color=variable)) +
+  geom_point()+
+  xlab(" ")+
+  ylab("percent positive cells")+
+  theme_bw()+
+  labs(color='Samples') +
+  theme(axis.text = element_text(size = 10),axis.title = element_text(size = 20, face = "bold"),strip.text = element_text(size = 15, face = "bold"))+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge(width=0.9), vjust=-0.5)+
+  scale_color_manual(labels=c("percent_egfp_pos_mouse","percent_tdtom_pos_human"), values=c("#2171B5","#238B45"))
+
+```
+
+### Rendering file
+
+```{r}
+
+render("/Users/gimoro/figure_making_paper/rock_roi_paper/00_mixing_experiment/qmd/00_mixing_experiment_c-figures.qmd","html_document")
+
+```
 
 ### Print sessionInfo()
 
