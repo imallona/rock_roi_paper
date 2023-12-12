@@ -1,0 +1,120 @@
+---
+title: "00_mixing_experiment_d-coverage_tracks.qmd"
+author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+
+### TO DO 
+
+```{r}
+
+# Run for all .bw files in separate tracks
+
+# Overlay .bw WTA and TSO together
+
+# Make same plots for raw .bam files
+
+```
+
+### Setting up knitr 
+
+```{r}
+
+library(knitr)
+
+knitr::opts_chunk$set(fig.width = 14,
+               fig.height = 8,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache.lazy = FALSE,
+               cache=TRUE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+### Load packages, load data 
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(GenomicRanges)
+library(GenomicAlignments)
+library(rtracklayer)
+library(Gviz)
+library(plyranges)
+
+```
+
+### Reading .bam files
+
+```{r}
+
+getwd()
+
+bw<-dir(here("00_mixing_experiment"), "coverage.*bw", 
+            recursive = TRUE, full.names = TRUE)
+
+names(bw) <- gsub("_coverage.bw", "", basename(bw))
+
+datadir <- dirname(bw)[1] # folder where the .bw files are 
+
+```
+
+### Importing .gtf file and subsetting for egfp and tdtomato
+
+```{r}
+
+options(ucscChromosomeNames=FALSE)
+
+gtf<-dir(here("00_mixing_experiment"), ".*gtf", 
+            recursive = TRUE, full.names = TRUE)
+
+combined_gtf<-import(gtf)
+gtf_egfp<-combined_gtf[which(seqnames(combined_gtf)=="egfp"),]
+gtf_tdtom<-combined_gtf[which(seqnames(combined_gtf)=="tdtomato"),]
+
+```
+
+### Test for one file for egfp and no regulatory region
+
+```{r}
+
+chr<-c("egfp")
+
+test<-import.bw(bw[[8]],as="GRanges")
+
+egfp<-DataTrack(test,chromosome=chr,name="mixing_rockroi")
+
+gm_egfp <- GeneRegionTrack(gtf_egfp, chromosome=chr,name=chr,geneSymbol=TRUE,showId=TRUE,transcriptAnnotation="gene",fill="cadetblue2")
+gm_egfp@range$gene<-gtf_egfp$gene_id
+
+wanted_regions<-c("5_utr_egfp_wpre","3_utr_egfp_wpre","5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp") # removing egfp regulatory region
+
+gm_egfp@range<-gm_egfp@range[which(gm_egfp@range$gene %in% wanted_regions),]
+
+plotTracks(c(egfp,gm_egfp),type="histogram",showSampleNames = TRUE,from=start(gm_egfp@range)[1]-400,end=end,cex.axis = 0.5) # adding 400 bp so that have space for writing for exon
+
+plotTracks(c(egfp,gm_egfp),type="histogram",showSampleNames = TRUE) # in this case just showing transcript, no regulatory region 
+
+## visualization --> from Erich chose the first type of plot, with -44 from the start
+
+```
+
+### Print sessionInfo()
+
+```{r}
+
+sessionInfo()
+
+```
+
+
+
