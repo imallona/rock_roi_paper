@@ -13,10 +13,6 @@ format:
 
 ```{r}
 
-# Run for all .bw files in separate tracks
-
-# Overlay .bw WTA and TSO together
-
 # Make same plots for raw .bam files
 
 ```
@@ -63,6 +59,7 @@ bw<-dir(here("00_mixing_experiment"), "coverage.*bw",
             recursive = TRUE, full.names = TRUE)
 
 names(bw) <- gsub("_coverage.bw", "", basename(bw))
+names(bw) <- gsub("mixing_", "",names(bw))
 
 datadir <- dirname(bw)[1] # folder where the .bw files are 
 
@@ -87,24 +84,141 @@ gtf_tdtom<-combined_gtf[which(seqnames(combined_gtf)=="tdtomato"),]
 
 ```{r}
 
+# chr<-c("egfp")
+# 
+# test<-import.bw(bw[[8]],as="GRanges")
+# egfp<-DataTrack(test,chromosome=chr,name="mixing_rockroi")
+# 
+# gm_egfp <- GeneRegionTrack(gtf_egfp, chromosome=chr,name=chr,geneSymbol=TRUE,showId=TRUE,transcriptAnnotation="gene",fill="cadetblue2")
+# gm_egfp@range$gene<-gtf_egfp$gene_id
+# wanted_regions<-c("5_utr_egfp_wpre","3_utr_egfp_wpre","5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp") # removing egfp regulatory region
+# gm_egfp@range<-gm_egfp@range[which(gm_egfp@range$gene %in% wanted_regions),]
+# 
+# 
+# plotTracks(c(egfp,gm_egfp),type="histogram",showSampleNames = TRUE,from=start(gm_egfp@range)[1]-400,end=end,cex.axis = 0.5,background.title="black") # adding 400 bp so that have space for writing for exon
+# 
+# plotTracks(c(egfp,gm_egfp),type="histogram",showSampleNames = TRUE,background.title = "black") # in this case just showing transcript, no regulatory region 
+
+## visualization --> from Erich chose the first type of plot, with -44 from the start
+
+```
+
+### Plots for all .bw files for egfp
+
+```{r}
+
 chr<-c("egfp")
 
-test<-import.bw(bw[[8]],as="GRanges")
+coverage_egfp <- lapply(bw, function(x) {
+  import.bw(x, as="GRanges")
+  })
 
-egfp<-DataTrack(test,chromosome=chr,name="mixing_rockroi")
+for (i in 1:length(coverage_egfp)){
+  coverage_egfp[[i]]<-DataTrack(coverage_egfp[[i]],chromosome=chr,name=names(coverage_egfp[i]))
+}
 
 gm_egfp <- GeneRegionTrack(gtf_egfp, chromosome=chr,name=chr,geneSymbol=TRUE,showId=TRUE,transcriptAnnotation="gene",fill="cadetblue2")
 gm_egfp@range$gene<-gtf_egfp$gene_id
-
 wanted_regions<-c("5_utr_egfp_wpre","3_utr_egfp_wpre","5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp") # removing egfp regulatory region
-
 gm_egfp@range<-gm_egfp@range[which(gm_egfp@range$gene %in% wanted_regions),]
 
-plotTracks(c(egfp,gm_egfp),type="histogram",showSampleNames = TRUE,from=start(gm_egfp@range)[1]-400,end=end,cex.axis = 0.5) # adding 400 bp so that have space for writing for exon
+displayPars(gm_egfp)<-list(col="black",cex.group=0.8,col.line="black",fontcolor.group="black")
 
-plotTracks(c(egfp,gm_egfp),type="histogram",showSampleNames = TRUE) # in this case just showing transcript, no regulatory region 
+names(coverage_egfp)
 
-## visualization --> from Erich chose the first type of plot, with -44 from the start
+for (i in names(coverage_egfp)){
+  print(i)
+  displayPars(coverage_egfp[[i]])<-list(col.histogram="black",fill.histogram=TRUE)
+}
+
+plotTracks(c(coverage_egfp$unmod_wta,coverage_egfp$unmod_tso,coverage_egfp$unmod_roi_wta,coverage_egfp$unmod_roi_tso,coverage_egfp$rock_wta,coverage_egfp$rock_tso,coverage_egfp$rockroi_wta,coverage_egfp$rockroi_tso,gm_egfp),type="histogram",showSampleNames = TRUE,from=start(gm_egfp@range)[1]-400,end=end,cex.axis = 0.5,cex.title=0.8,background.title="cadetblue2",col.axis="black",col.title="black",col.border.title="black",showSampleNames = TRUE,lwd.title=0.5)
+
+```
+### Same for tdtomato for all .bw files
+
+```{r}
+chr<-c("tdtomato")
+
+coverage_tdtomato <- lapply(bw, function(x) {
+  import.bw(x, as="GRanges")
+  })
+
+for (i in 1:length(coverage_tdtomato)){
+  coverage_tdtomato[[i]]<-DataTrack(coverage_tdtomato[[i]],chromosome=chr,name=names(coverage_tdtomato[i]))
+}
+
+gm_tdtomato <- GeneRegionTrack(gtf_tdtom, chromosome=chr,name=chr,geneSymbol=TRUE,showId=TRUE,transcriptAnnotation="gene",fill="cadetblue2")
+gm_tdtomato@range$gene<-gtf_tdtom$gene_id
+
+wanted_regions<-c("5_utr_tdtomato_wpre","3_utr_tdtomato_wpre","5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom") # removing tdtomato regulatory region
+gm_tdtomato@range<-gm_tdtomato@range[which(gm_tdtomato@range$gene %in% wanted_regions),]
+
+displayPars(gm_tdtomato)<-list(col="black",cex.group=0.8,col.line="black",fontcolor.group="black")
+
+names(coverage_tdtomato)
+
+for (i in names(coverage_tdtomato)){
+  print(i)
+  displayPars(coverage_tdtomato[[i]])<-list(col.histogram="black",fill.histogram=TRUE)
+}
+
+plotTracks(c(coverage_tdtomato$unmod_wta,coverage_tdtomato$unmod_tso,coverage_tdtomato$unmod_roi_wta,coverage_tdtomato$unmod_roi_tso,coverage_tdtomato$rock_wta,coverage_tdtomato$rock_tso,coverage_tdtomato$rockroi_wta,coverage_tdtomato$rockroi_tso,gm_tdtomato),type="histogram",showSampleNames = TRUE,from=start(gm_tdtomato@range)[1]-400,end=end,cex.axis = 0.5,cex.title=0.8,background.title="cadetblue2",col.axis="black",col.title="black",col.border.title="black",showSampleNames = TRUE,lwd.title=0.5)
+
+```
+### Putting wta and tso tracks together for egfp
+
+```{r}
+
+ylims_unmod <- extendrange(range(c(values(coverage_egfp$unmod_wta), values(coverage_egfp$unmod_tso))))
+displayPars(coverage_egfp$unmod_wta)<-list(col.histogram="pink",fill.histogram=TRUE)
+displayPars(coverage_egfp$unmod_tso)<-list(col.histogram="lightblue",fill.histogram=TRUE)
+
+ylims_unmod_roi <- extendrange(range(c(values(coverage_egfp$unmod_roi_wta), values(coverage_egfp$unmod_roi_tso))))
+displayPars(coverage_egfp$unmod_roi_wta)<-list(col.histogram="pink",fill.histogram=TRUE)
+displayPars(coverage_egfp$unmod_roi_tso)<-list(col.histogram="lightblue",fill.histogram=TRUE)
+
+ylims_rock <- extendrange(range(c(values(coverage_egfp$rock_wta), values(coverage_egfp$rock_tso))))
+displayPars(coverage_egfp$rock_wta)<-list(col.histogram="pink",fill.histogram=TRUE)
+displayPars(coverage_egfp$rock_tso)<-list(col.histogram="lightblue",fill.histogram=TRUE)
+
+ylims_rockroi <- extendrange(range(c(values(coverage_egfp$rockroi_wta), values(coverage_egfp$rockroi_tso))))
+displayPars(coverage_egfp$rockroi_wta)<-list(col.histogram="pink",fill.histogram=TRUE)
+displayPars(coverage_egfp$rockroi_tso)<-list(col.histogram="lightblue",fill.histogram=TRUE)
+
+unmod_egfp<-OverlayTrack(trackList=list(coverage_egfp$unmod_wta,coverage_egfp$unmod_tso),legend=TRUE)
+unmod_roi_egfp<-OverlayTrack(trackList=list(coverage_egfp$unmod_roi_wta,coverage_egfp$unmod_roi_tso),legend=TRUE)
+rock_egfp<-OverlayTrack(trackList=list(coverage_egfp$rock_wta,coverage_egfp$rock_tso),legend=TRUE,ylims=ylims_rock)
+rockroi_egfp<-OverlayTrack(trackList=list(coverage_egfp$rockroi_wta,coverage_egfp$rockroi_tso),legend=TRUE)
+
+plotTracks(c(unmod_egfp,unmod_roi_egfp,rock_egfp,rockroi_egfp,gm_egfp),type="histogram",showSampleNames = TRUE,from=start(gm_egfp@range)[1]-400,end=end,cex.axis = 0.5,cex.title=0.8,background.title="cadetblue2",col.axis="black",col.title="black",col.border.title="black",showSampleNames = TRUE,lwd.title=0.5,ylim=c(0,max(ylims_rockroi,ylims_rock,ylims_unmod_roi,ylims_unmod)))
+
+```
+### Putting wta and tso tracks together for tdtomato
+
+```{r}
+
+ylims_unmod <- extendrange(range(c(values(coverage_tdtomato$unmod_wta), values(coverage_tdtomato$unmod_tso))))
+displayPars(coverage_tdtomato$unmod_wta)<-list(col.histogram="pink",fill.histogram=TRUE)
+displayPars(coverage_tdtomato$unmod_tso)<-list(col.histogram="lightblue",fill.histogram=TRUE)
+
+ylims_unmod_roi <- extendrange(range(c(values(coverage_tdtomato$unmod_roi_wta), values(coverage_tdtomato$unmod_roi_tso))))
+displayPars(coverage_tdtomato$unmod_roi_wta)<-list(col.histogram="pink",fill.histogram=TRUE)
+displayPars(coverage_tdtomato$unmod_roi_tso)<-list(col.histogram="lightblue",fill.histogram=TRUE)
+
+ylims_rock <- extendrange(range(c(values(coverage_tdtomato$rock_wta), values(coverage_tdtomato$rock_tso))))
+displayPars(coverage_tdtomato$rock_wta)<-list(col.histogram="pink",fill.histogram=TRUE)
+displayPars(coverage_tdtomato$rock_tso)<-list(col.histogram="lightblue",fill.histogram=TRUE)
+
+ylims_rockroi <- extendrange(range(c(values(coverage_tdtomato$rockroi_wta), values(coverage_tdtomato$rockroi_tso))))
+displayPars(coverage_tdtomato$rockroi_wta)<-list(col.histogram="pink",fill.histogram=TRUE)
+displayPars(coverage_tdtomato$rockroi_tso)<-list(col.histogram="lightblue",fill.histogram=TRUE)
+
+unmod_tdtomato<-OverlayTrack(trackList=list(coverage_tdtomato$unmod_wta,coverage_tdtomato$unmod_tso),legend=TRUE)
+unmod_roi_tdtomato<-OverlayTrack(trackList=list(coverage_tdtomato$unmod_roi_wta,coverage_tdtomato$unmod_roi_tso),legend=TRUE)
+rock_tdtomato<-OverlayTrack(trackList=list(coverage_tdtomato$rock_wta,coverage_tdtomato$rock_tso),legend=TRUE,ylims=ylims_rock)
+rockroi_tdtomato<-OverlayTrack(trackList=list(coverage_tdtomato$rockroi_wta,coverage_tdtomato$rockroi_tso),legend=TRUE)
+
+plotTracks(c(unmod_tdtomato,unmod_roi_tdtomato,rock_tdtomato,rockroi_tdtomato,gm_tdtomato),type="histogram",showSampleNames = TRUE,from=start(gm_egfp@range)[1]-400,end=end,cex.axis = 0.5,cex.title=0.8,background.title="cadetblue2",col.axis="black",col.title="black",col.border.title="black",showSampleNames = TRUE,lwd.title=0.5,ylim=c(0,max(ylims_rockroi,ylims_rock,ylims_unmod_roi,ylims_unmod)))
 
 ```
 
