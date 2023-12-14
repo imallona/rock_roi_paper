@@ -6,6 +6,8 @@ format:
     toc: true
     embed-resources: true
     keep_md: true
+editor_options: 
+  chunk_output_type: console
 ---
 
 ### TO DO 
@@ -59,6 +61,7 @@ library(rmarkdown)
 library(irlba)
 library(viridis)
 library(gridExtra)
+library(googlesheets4)
 
 #packageVersion("Matrix")
 
@@ -76,7 +79,7 @@ sces <- mapply(function(u,v)  {
   rds <- readRDS(u)
   rds$sample_id <- v
   rds$sample_id.barcode <- paste0(v,".",colnames(rds))
-  colnames(rowData(rds)) <- c("name", "type", "value","captured")
+  # colnames(rowData(rds)) <- c("name", "type", "value","captured")
   g <- grepl("^ENS", rownames(rds))
   rownames(rds)[g] <- paste0(rownames(rds)[g], 
                              "__", rowData(rds)$name[g])
@@ -142,21 +145,49 @@ rm(sce,sces)
 
 ```{r}
 
-colData(altExp(sce_filt,"tso_ontarget_multi"))$"egfp_cds"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
-colData(altExp(sce_filt,"tso_ontarget_multi"))$"egfp_tx"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("5_utr_egfp_wpre","3_utr_egfp_wpre","5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
-colData(altExp(sce_filt,"tso_ontarget_multi"))$"tdtom_cds"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
-colData(altExp(sce_filt,"tso_ontarget_multi"))$"tdtom_tx"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("5_utr_tdtomato_wpre","3_utr_tdtomato_wpre","5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
-colData(altExp(sce_filt,"tso_ontarget_multi"))$"egfp_roi"<-assay(altExp(sce_filt,"tso_ontarget_multi"),1)["roi_egfp",]
-colData(altExp(sce_filt,"tso_ontarget_multi"))$"tdtom_roi1"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("roi_1_tdtomato","roi_3_tdtomato"),]) #counting all regions twice due to fraction count
-colData(altExp(sce_filt,"tso_ontarget_multi"))$"tdtom_roi2"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("roi_2_tdtomato","roi_4_tdtomato"),]) #counting all regions twice due to fraction count
+# read annotation info from GS
+anno_url <- "https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=978414281"
+anno_df <- read_sheet(anno_url, "transcript-regions-mark") %>%
+  filter(Experiment=="Mixing")
+regs <- split(anno_df$Name_in_gtf_file, anno_df$region_name)
 
-colData(altExp(sce_filt,"wta_ontarget_multi"))$"egfp_cds"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
-colData(altExp(sce_filt,"wta_ontarget_multi"))$"egfp_tx"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("5_utr_egfp_wpre","3_utr_egfp_wpre","5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
-colData(altExp(sce_filt,"wta_ontarget_multi"))$"tdtom_cds"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
-colData(altExp(sce_filt,"wta_ontarget_multi"))$"tdtom_tx"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("5_utr_tdtomato_wpre","3_utr_tdtomato_wpre","5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
-colData(altExp(sce_filt,"wta_ontarget_multi"))$"egfp_roi"<-assay(altExp(sce_filt,"wta_ontarget_multi"),1)["roi_egfp",]
-colData(altExp(sce_filt,"wta_ontarget_multi"))$"tdtom_roi1"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("roi_1_tdtomato","roi_3_tdtomato"),])
-colData(altExp(sce_filt,"wta_ontarget_multi"))$"tdtom_roi2"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("roi_2_tdtomato","roi_4_tdtomato"),])
+
+# compute aggregates for egfp/tdtomato for TSO
+ae <- altExp(sce_filt,"tso_ontarget_multi")
+cd <- colData(ae)
+
+for(i in 1:length(regs))
+  cd[[ names(regs)[i] ]] <- colSums(assay(ae,1)[regs[[i]],,drop=FALSE])
+
+colData(altExp(sce_filt,"tso_ontarget_multi")) <- cd
+# ---------------
+
+# compute aggregates for egfp/tdtomato for WTA
+ae <- altExp(sce_filt,"wta_ontarget_multi")
+cd <- colData(ae)
+
+for(i in 1:length(regs))
+  cd[[ names(regs)[i] ]] <- colSums(assay(ae,1)[regs[[i]],,drop=FALSE])
+
+colData(altExp(sce_filt,"wta_ontarget_multi")) <- cd
+# ---------------
+
+
+# colData(altExp(sce_filt,"tso_ontarget_multi"))$"egfp_cds"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
+# colData(altExp(sce_filt,"tso_ontarget_multi"))$"egfp_tx"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("5_utr_egfp_wpre","3_utr_egfp_wpre","5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
+# colData(altExp(sce_filt,"tso_ontarget_multi"))$"tdtom_cds"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
+# colData(altExp(sce_filt,"tso_ontarget_multi"))$"tdtom_tx"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("5_utr_tdtomato_wpre","3_utr_tdtomato_wpre","5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
+# colData(altExp(sce_filt,"tso_ontarget_multi"))$"egfp_roi"<-assay(altExp(sce_filt,"tso_ontarget_multi"),1)["roi_egfp",]
+# colData(altExp(sce_filt,"tso_ontarget_multi"))$"tdtom_roi1"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("roi_1_tdtomato","roi_3_tdtomato"),]) #counting all regions twice due to fraction count
+# colData(altExp(sce_filt,"tso_ontarget_multi"))$"tdtom_roi2"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("roi_2_tdtomato","roi_4_tdtomato"),]) #counting all regions twice due to fraction count
+
+# colData(altExp(sce_filt,"wta_ontarget_multi"))$"egfp_cds"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
+# colData(altExp(sce_filt,"wta_ontarget_multi"))$"egfp_tx"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("5_utr_egfp_wpre","3_utr_egfp_wpre","5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
+# colData(altExp(sce_filt,"wta_ontarget_multi"))$"tdtom_cds"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
+# colData(altExp(sce_filt,"wta_ontarget_multi"))$"tdtom_tx"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("5_utr_tdtomato_wpre","3_utr_tdtomato_wpre","5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
+# colData(altExp(sce_filt,"wta_ontarget_multi"))$"egfp_roi"<-assay(altExp(sce_filt,"wta_ontarget_multi"),1)["roi_egfp",]
+# colData(altExp(sce_filt,"wta_ontarget_multi"))$"tdtom_roi1"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("roi_1_tdtomato","roi_3_tdtomato"),])
+# colData(altExp(sce_filt,"wta_ontarget_multi"))$"tdtom_roi2"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("roi_2_tdtomato","roi_4_tdtomato"),])
 
 ```
 
