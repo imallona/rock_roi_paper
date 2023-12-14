@@ -27,6 +27,7 @@ library(plotROC)
 library(here)
 library(khroma)
 library(bluster)
+library(googlesheets4)
 
 save_pheatmap_pdf <- function(x, filename, width=7, height=7) {
    stopifnot(!missing(x))
@@ -41,6 +42,9 @@ datadir <- file.path(here("01_pdgfra_experiment"), "data")
 
 # save filtered to RDS
 sces <- readRDS(file.path(datadir, "sce_qc-filtered.rds"))
+
+markers <- read_sheet("https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=1756474524",
+                      sheet = "markers-pdgfra")
 
 ```
 
@@ -134,6 +138,35 @@ saveRDS(sces_nd, file.path(datadir, "sce_qc-filtered-nodoublets.rds"))
 
 rm(sces); gc()
 
+# all(names(ents)==rownames(tt))
+# tt$entropy <- ents
+# 
+# 
+# tt %>% arrange(-F) %>% select(AveExpr, F, entropy) %>% 
+#   head(400) %>% arrange(entropy) %>% tail
+# 
+# plotExpression(sces_nd, x = "cluster", 
+#                features = "ENSMUSG00000037742.14__Eef1a1")
+# 
+# plotExpression(sces_nd, x = "cluster", 
+#                features = "ENSMUSG00000026238.14__Ptma")
+# 
+# p <- plotExpression(sces_nd, x = "cluster", 
+#                features = "ENSMUSG00000079641.3__Rpl39",
+#                colour_by = "cluster") +
+#   scale_color_manual(values = myscale)
+# 
+# tt %>% arrange(-F) %>% select(AveExpr, F, entropy) %>% 
+#   head(400) %>% arrange(-entropy) %>% tail
+#     
+# q <- plotExpression(sces_nd, x = "cluster", 
+#                features = "ENSMUSG00000079355.5__Ackr4",
+#                colour_by = "cluster") +
+#   scale_color_manual(values = myscale)
+# 
+# cowplot::plot_grid(p,q)
+
+    
 ```
 
 
@@ -146,13 +179,16 @@ rm(sces); gc()
 # nn.clusters <- clusterCells(sces, use.dimred="PCA")
 # table(nn.clusters)
 
-myscale <- c(color("muted")(9), gray="lightgray")
-names(myscale) <- as.character(1:10)
+
+myscale <- rainbow(13)
+names(myscale) <- as.character(1:13)
+# 
+# c(color("muted")(9), gray="lightgray")
 
 
 set.seed(1976)
 nn.clusters <- clusterCells(sces_nd, use.dimred="PCA",
-                            BLUSPARAM=NNGraphParam(k=30))
+                            BLUSPARAM=NNGraphParam(k=40))
 table(nn.clusters)
 sces_nd$cluster <- nn.clusters
 
@@ -182,14 +218,15 @@ table(rs <- rowSums(lcounts)>50 & rowData(sces_nd)$gene_type == "mouse_gene" )
 f <- lmFit(as.matrix(lcounts[rs,]), mm)
 f <- eBayes(f)
 
-topTable(f, coef=2:ncol(mm), number = 10)
+# topTable(f, coef=2:ncol(mm), number = 10)
 tt <- topTable(f, coef=2:ncol(mm), number = 1e6, sort.by = "none")
 
 
 # plotUMAP(sces_nd, colour_by = "ENSMUSG00000025903.14__Lypla1")
 # plotUMAP(sces_nd, colour_by = "ENSMUSG00000026193.15__Fn1")
 
-aac <- aggregateAcrossCells(sces_nd, sces_nd$cluster,use.assay.type="wta")
+aac <- aggregateAcrossCells(sces_nd, 
+                            sces_nd$cluster,use.assay.type="wta")
 
 calc_entropy <- function(u) {
   p <- u[u>0]
@@ -206,17 +243,14 @@ ents <- apply(agg_counts, 1, calc_entropy)
 
 plot(ents, tt$F, log="y")
 
-# gs <- rownames(tt)[tt$F > 50 & ents < 1.35]
-gs <- rownames(tt)[tt$F > 100 & ents < 1]
-
 
 df <- data.frame(gene = names(ents), 
                  entropy=ents, Fstat=tt$F,
                  cluster.max = apply(agg_counts, 1, which.max)) %>%
   mutate(order_by = Fstat / entropy) %>%
-  filter(Fstat > 400, entropy < 2) %>%
+  filter(Fstat > 400, entropy < 1.5) %>%
   arrange(desc(order_by)) %>%
-  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 5)
+  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 10)
 
 col_anno <- colData(sces_nd)[,c("sample_id","cluster")] %>% as.data.frame
 
@@ -229,8 +263,8 @@ inds <- lapply(inds, sample, min(table(sces_nd$cluster)),
 
 # manually put clusters in order
 
-cluster_order <- c(5, 9, 8, 4, 7, 1,3, 6,  2)
-inds <- inds[cluster_order]
+# cluster_order <- c(5, 9, 8, 4, 7, 1,3, 6,  2)
+# inds <- inds[cluster_order]
 
 ann_colors = list(cluster = myscale[seq_len(length(inds))])
 
@@ -256,6 +290,14 @@ sort(rowSums(assay(altExp(sces_nd), 1)), decreasing = TRUE)
 
 plotUMAP(sces_nd, colour_by = "ENSMUSG00000016494.9__Cd34")
 plotUMAP(sces_nd, colour_by = "ENSMUSG00000028255.6__Clca1")
+
+plotUMAP(sces_nd, colour_by = "ENSMUSG00000009246.14__Trpm5")
+
+
+plotExpression(sces_nd, colour_by = "cluster",
+               x = "cluster",
+               features = markers$Marker[1:8])
+
 
 # plotUMAP(sces_nd, colour_by = "between_roi_egfp:770-1049", 
 #          shape_by = "sample_id", point_size = 3) + facet_wrap(~shape_by)
@@ -308,5 +350,43 @@ ggplot(df, aes(x=cluster, y=roi_5_chr5.75170495.75170544, colour=cluster)) +
 # plotExpression(sces_nd, x = "cluster", 
 #                features = "ENSMUSG00000033740.17__St18")
 
+```
+
+## Quick view of markers
+
+```{r}
+
+
+df <- data.frame( colData(sces_nd)[,c("sample_id","cluster")],
+                  as.matrix(t(logcounts(sces_nd)[markers$Marker,])) )
+
+# loop through all markers
+ps <- lapply(markers$Marker, function(u) {
+  ggplot(df, aes(x=cluster, y=.data[[u]],
+                 colour = cluster)) +
+    geom_jitter(height=0.05, width=.2) +
+    ggtitle(paste0(u, "\n",
+            markers$Broad_cell_type[markers$Marker==u], " // ",
+            markers$Cell_type[markers$Marker==u])) + ylab("") +
+    scale_color_manual(values = myscale)
+})
+
+ml <- marrangeGrob(ps, nrow=2, ncol=3)
+ggsave("markers.pdf", ml, width = 12, height = 8)
+```
+
+
+## Save output
+
+```{r}
+# save clustered object to RDS
+saveRDS(sces_nd, file.path(datadir, "sce_qc-filtered-nodoublets-clustered.rds"))
+```
+
+
+## `sessionInfo()`
+
+```{r}
+sessionInfo()
 ```
 

@@ -1,0 +1,586 @@
+---
+title: "Annotation of 01_pdgfra_experiment"
+format:
+  html:
+    toc: true
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Load packages, load data
+
+```{r, warning=FALSE, message=FALSE}
+library(SingleCellExperiment)
+library(ggplot2)
+library(dplyr)
+library(UpSetR)
+library(scran)
+library(scater)
+library(scuttle)
+library(bluster)
+library(cowplot)
+library(pheatmap)
+library(here)
+library(tibble)
+library(limma)
+library(khroma)
+library(googlesheets4)
+library(gridExtra)
+library(GGally)
+library(tidyr)
+
+save_pheatmap_pdf <- function(x, filename, width=7, height=7) {
+   stopifnot(!missing(x))
+   stopifnot(!missing(filename))
+   pdf(filename, width=width, height=height)
+   grid::grid.newpage()
+   grid::grid.draw(x$gtable)
+   dev.off()
+}
+
+datadir <- file.path(here("01_pdgfra_experiment"), "data")
+
+# read filtered-clustered object to SCE
+sce <- readRDS(file.path(datadir, "sce_qc-filtered-nodoublets-clustered.rds"))
+
+
+markers <- read_sheet("https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=1756474524",
+                      sheet = "markers-pdgfra")
+
+myscale <- rainbow(13)
+names(myscale) <- as.character(1:13)
+# myscale <- c(color("muted")(9), gray="lightgray")
+# names(myscale) <- as.character(1:10)
+
+  
+```
+
+## Quick view of markers
+
+```{r}
+
+
+df <- data.frame( colData(sce)[,c("sample_id","cluster")],
+                  as.matrix(t(logcounts(sce)[markers$Marker,])) )
+
+# loop through all markers
+ps <- lapply(markers$Marker, function(u) {
+  ggplot(df, aes(x=cluster, y=.data[[u]],
+                 colour = cluster)) +
+    geom_jitter(height=0.05, width=.2) +
+    ggtitle(paste0(u, "\n",
+            markers$Broad_cell_type[markers$Marker==u], " // ",
+            markers$Cell_type[markers$Marker==u])) + ylab("") +
+    scale_color_manual(values = myscale)
+})
+
+ml <- marrangeGrob(ps, nrow=2, ncol=3)
+ggsave("all-markers-all-cells.pdf", ml, width = 12, height = 8)
+
+```
+
+## Do epithelial/mesenchymal split
+
+```{r}
+
+epi <- rownames(sce) %in%
+  markers$Marker[markers$Broad_cell_type=="Epithelial"]
+mes <- rownames(sce) %in%
+  markers$Marker[markers$Broad_cell_type=="Mesenchymal"]
+
+
+df <- cbind(df, epithelial_broad = colMeans(logcounts(sce)[epi,]),
+            mesenchymal_broad = colMeans(logcounts(sce)[mes,]))
+
+cols <- unique(markers$Cell_type)
+
+for(i in 1:length(cols)) {
+  ms <- markers$Marker[markers$Cell_type==cols[i]]
+  broad <- markers$Broad_cell_type[markers$Cell_type==cols[i]]
+  df[[paste0(broad[1],
+             "__",cols[i])]] <- colMeans(logcounts(sce)[ms,,drop=FALSE])
+}
+
+with(df, table(mesenchymal_broad > .35, epithelial_broad > .35))
+
+# plot(df$mesenchymal, df$epithelial)
+
+ggplot(df, aes(x = mesenchymal_broad, y = epithelial_broad, colour = cluster)) +
+  geom_jitter(width=.01, height = .01) +
+  geom_hline(yintercept = .35, colour="orange", size = 2) +
+  geom_vline(xintercept = .35, colour="orange", size = 2) +
+  scale_color_manual(values = myscale)
+
+ggplot(df, aes(x = mesenchymal_broad, y = epithelial_broad, colour = cluster)) +
+  geom_jitter(width=.01, height = .01) +
+  scale_color_manual(values = myscale) +
+  facet_wrap(~cluster)
+
+
+sce$broad_classification <- "neither"
+sce$broad_classification[df$mesenchymal_broad >= .35 & df$epithelial_broad < .35] <- "mesenchymal"
+sce$broad_classification[df$mesenchymal_broad < .35 & df$epithelial_broad >= .35] <- "epithelial"
+sce$broad_classification[df$mesenchymal_broad >= .35 & df$epithelial_broad >= .35] <- "doublet"
+
+df$broad_classification <- sce$broad_classification
+
+ggplot(df, aes(x = mesenchymal_broad, y = epithelial_broad, 
+               colour = cluster, shape = broad_classification)) +
+  geom_jitter(width=.01, height = .01, size = 4) +
+  geom_hline(yintercept = .35, colour="orange", size = 2) +
+  geom_vline(xintercept = .35, colour="orange", size = 2) +
+  scale_color_manual(values = myscale)
+
+
+gfp_ids <- grep("gfp", rownames(altExp(sce)), value = TRUE)
+
+df <- cbind(df, as.matrix(t( assay(altExp(sce),1)[gfp_ids,] )))
+
+
+# # loop through all markers
+# ps <- lapply(gfp_ids, function(u) {
+#   ggplot(df, aes(x=broad_classification, y=.data[[u]])) +
+#     geom_jitter(height=0.05, width=.2) +
+#     ylab("expression") +
+#     xlab("") +
+#     ggtitle(u) +
+#     theme(axis.text.x = element_text(size = 8))
+# })
+# 
+# ml <- marrangeGrob(ps, nrow=2, ncol=4)
+# ggsave("gfp-epithelial-mesenchymal.pdf", ml, width = 12, height = 6)
+
+```
+
+
+## Annotation
+
+
+```{r}
+
+# epi_cols <- grep("^Epithelial__", colnames(df), value = TRUE)
+# mes_cols <- grep("^Mesenchymal__", colnames(df), value = TRUE)
+# 
+# 
+# ggpairs(df %>% filter(broad_classification=="mesenchymal"),
+#         columns = mes_cols,
+#         mapping = aes(colour = cluster)) +
+#     scale_color_manual(values = myscale)
+# 
+# 
+# mes_cells <- df %>% filter(broad_classification=="mesenchymal") %>%
+#   select(all_of(mes_cols))
+
+
+```
+
+
+
+## Focus on epithelial
+
+
+```{r}
+
+sce_epi <- sce[,sce$broad_classification=="epithelial"]
+
+mgv <- modelGeneVar(sce_epi, block = sce_epi$sample_id)
+
+mgv_pb  <- lapply(mgv$per.block, function(u) {
+ o <- order(u$p.value)
+ u <- u[o,]
+ head(rownames(u), 1000)
+})
+
+# most are sample-wise (?)
+upset(fromList(mgv_pb))
+
+all(rownames(sce_epi)==rownames(mgv))
+
+# remove mito genes
+hvg <- mgv$bio > .01 & mgv$p.value < .05 & mgv$mean > .2 & 
+  rowData(sce_epi)$gene_type != "mouse_mito"
+rn <- rownames(mgv)[hvg]
+length(rn)
+
+
+ggplot(mgv %>% data.frame,
+       aes(x=mean, y=bio, colour=p.value<.05)) +
+  geom_point()
+
+
+sce_epi <- fixedPCA(sce_epi, subset.row=rn, rank = 30) 
+sce_epi <- runUMAP(sce_epi, dimred="PCA")
+
+# plotUMAP(sce_epi, colour_by = "cluster", shape_by = "sample_id") + 
+#   facet_wrap(~shape_by) +
+#   scale_colour_manual()
+
+
+myscale <- rainbow(13)
+names(myscale) <- as.character(1:13)
+
+# myscale <- c(color("muted")(9), gray="lightgray")
+# names(myscale) <- as.character(1:10)
+
+
+set.seed(1976)
+nn.clusters <- clusterCells(sce_epi, use.dimred="PCA",
+                            BLUSPARAM=NNGraphParam(k=40))
+table(nn.clusters)
+sce_epi$cluster <- nn.clusters
+
+plotUMAP(sce_epi, colour_by="cluster", shape_by = "sample_id",
+         point_size = 4, point_alpha = .9) + 
+  scale_color_manual(values = myscale) +
+  facet_wrap(~shape_by)
+
+table(sce_epi$sample_id, sce_epi$cluster)
+
+# logcounts <- as.matrix(logcounts(sce_epi))
+# mm <- model.matrix(~sample_id + cluster, 
+#                    data=as.data.frame(colData(sce_epi)))
+mm <- model.matrix(~ cluster, 
+                   data=as.data.frame(colData(sce_epi)))
+
+
+lcounts <- logcounts(sce_epi)
+
+table(rs <- rowSums(lcounts)>20 & rowData(sce_epi)$gene_type == "mouse_gene" )
+f <- lmFit(as.matrix(lcounts[rs,]), mm)
+f <- eBayes(f)
+
+# topTable(f, coef=2:ncol(mm), number = 4)
+tt <- topTable(f, coef=2:ncol(mm), number = 1e6, sort.by = "none")
+
+
+plotUMAP(sce_epi, colour_by = "ENSMUSG00000025934.15__Gsta3")
+plotExpression(sce_epi, x = "cluster", features = c("ENSMUSG00000033740.17__St18",
+                                                    "ENSMUSG00000092083.4__Kcnb2"),
+               colour_by = "cluster") +
+  scale_color_manual(values = myscale)
+# plotUMAP(sce_epi, colour_by = "ENSMUSG00000026193.15__Fn1")
+
+aac <- aggregateAcrossCells(sce_epi, sce_epi$cluster,use.assay.type="wta")
+
+calc_entropy <- function(u) {
+  p <- u[u>0]
+  p <- p/sum(p)
+  -sum(p*log(p))
+}
+
+# adjust the aggregated counts for the number of cells
+agg_counts <- assay(aac,"wta")[rs,]
+for(i in 1:ncol(agg_counts))
+  agg_counts[,i] <- agg_counts[,i]/sum(agg_counts[,i])*1e6
+
+ents <- apply(agg_counts, 1, calc_entropy)
+
+plot(ents, tt$F, log="y")
+
+
+df <- data.frame(gene = names(ents), 
+                 entropy=ents, Fstat=tt$F,
+                 cluster.max = apply(agg_counts, 1, which.max)) %>%
+  mutate(order_by = Fstat / entropy) %>%
+  filter(Fstat > 500, entropy < 1.5) %>%
+  arrange(desc(order_by)) %>%
+  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 20)
+
+col_anno <- colData(sce_epi)[,c("sample_id","cluster")] %>% as.data.frame
+
+table(df$cluster.max)
+
+# o <- order(sce_epi$cluster)
+
+inds <- split(seq_len(ncol(sce_epi)), sce_epi$cluster)
+set.seed(1976)
+# inds <- lapply(inds, function(u) {
+#   sample(u, ifelse(length(u)>=100, 100, length(u)),
+#          replace = FALSE)
+# })
+
+# manually put clusters in order
+
+# cluster_order <- c(1, 8, 2, 6, 5, 3, 4, 7)
+# inds <- inds[cluster_order]
+
+ann_colors = list(cluster = myscale[seq_len(length(inds))])
+
+co <- unlist(inds)
+
+genes <- split(df$gene, df$cluster.max) %>% unlist
+
+
+# make row annotation
+rowanno <- data.frame(Marker = genes) %>% 
+  left_join(markers %>% select(Marker, Broad_cell_type, Cell_type)) %>%
+  transmute(Marker = Marker,
+            broad_ct = replace_na(Broad_cell_type, ""),
+            celltype = replace_na(Cell_type, "")) %>%
+  tibble::column_to_rownames("Marker")
+
+
+ph <- pheatmap(lcounts[genes,co], show_rownames = TRUE,
+        show_colnames = FALSE, scale="none",
+        annotation_col = col_anno[co,],
+        clustering_distance_rows = "correlation",
+        clustering_distance_cols = "correlation",
+        annotation_row = rowanno,
+        cluster_rows = TRUE,
+        treeheight_row = 0,
+        cluster_cols = FALSE, fontsize_row = 9,
+        annotation_colors = ann_colors)
+
+save_pheatmap_pdf(ph, "epithelial_clustering.pdf", width = 12, height = 14)
+
+# rownames(altExp(sce_epi))
+# sort(rowSums(assay(altExp(sce_epi), 1)), decreasing = TRUE)
+
+
+
+gene_df <- data.frame(gene = names(ents), 
+                 entropy=ents, Fstat=tt$F,
+                 cluster.max = apply(agg_counts, 1, which.max)) %>%
+  left_join(markers %>% select(Marker, Broad_cell_type, Cell_type),
+            by = c("gene" = "Marker")) %>%
+  mutate(broad_ct = replace_na(Broad_cell_type, ""),
+         celltype = replace_na(Cell_type, "")) %>%
+  select(-Broad_cell_type,-Cell_type)
+
+agg_counts %>% as.data.frame %>% round(3) %>%
+  rownames_to_column("gene") %>%
+  left_join(gene_df) %>%
+  write.csv(file = "epithelial_agg_by_cluster.csv", 
+            row.names = FALSE, quote = FALSE)
+
+p <- plotExpression(sce_epi, x = "cluster", colour_by = "cluster",
+               features = markers$Marker[markers$Broad_cell_type=="Epithelial"],
+               ncol = 4) +
+  scale_color_manual(values = myscale)
+p
+
+
+ggsave("epithelial_markers_by_cluster.pdf", p, height = 12, width = 12)
+
+```
+
+
+
+# Save output
+
+```{r}
+# save clustered object to RDS
+saveRDS(sce_epi, file.path(datadir, "sce_qc-filtered-nodoublets-clustered-epithelial.rds"))
+```
+
+
+
+## Focus on mesenchymal
+
+
+```{r}
+
+sce_mes <- sce[,sce$broad_classification=="mesenchymal"]
+
+mgv <- modelGeneVar(sce_mes, block = sce_mes$sample_id)
+
+mgv_pb  <- lapply(mgv$per.block, function(u) {
+ o <- order(u$p.value)
+ u <- u[o,]
+ head(rownames(u), 1000)
+})
+
+# most are sample-wise (?)
+upset(fromList(mgv_pb))
+
+all(rownames(sce_mes)==rownames(mgv))
+
+# remove mito genes
+hvg <- mgv$bio > .01 & mgv$p.value < .05 & mgv$mean > .2 & 
+  rowData(sce_mes)$gene_type != "mouse_mito"
+rn <- rownames(mgv)[hvg]
+length(rn)
+
+
+ggplot(mgv %>% data.frame,
+       aes(x=mean, y=bio, colour=p.value<.05)) +
+  geom_point()
+
+
+sce_mes <- fixedPCA(sce_mes, subset.row=rn, rank = 30) 
+sce_mes <- runUMAP(sce_mes, dimred="PCA")
+
+plotUMAP(sce_mes, colour_by = "sample_id") + facet_wrap(~colour_by)
+
+
+myscale <- rainbow(13)
+names(myscale) <- as.character(1:13)
+
+# myscale <- c(color("muted")(9), gray="lightgray")
+# names(myscale) <- as.character(1:10)
+
+
+set.seed(1976)
+nn.clusters <- clusterCells(sce_mes, use.dimred="PCA",
+                            BLUSPARAM=NNGraphParam(k=35))
+table(nn.clusters)
+sce_mes$cluster <- nn.clusters
+
+plotUMAP(sce_mes, colour_by="cluster", shape_by = "sample_id",
+         point_size = 4, point_alpha = .9) + 
+  scale_color_manual(values = myscale) +
+  facet_wrap(~shape_by)
+
+table(sce_mes$sample_id, sce_mes$cluster)
+
+# logcounts <- as.matrix(logcounts(sce_mes))
+# mm <- model.matrix(~sample_id + cluster, 
+#                    data=as.data.frame(colData(sce_mes)))
+mm <- model.matrix(~cluster, 
+                   data=as.data.frame(colData(sce_mes)))
+
+
+lcounts <- logcounts(sce_mes)
+
+table(rs <- rowSums(lcounts)>20 & rowData(sce_mes)$gene_type == "mouse_gene" )
+f <- lmFit(as.matrix(lcounts[rs,]), mm)
+f <- eBayes(f)
+
+# topTable(f, coef=2:ncol(mm), number = 100) %>% arrange(-F) %>% head(4)
+tt <- topTable(f, coef=2:ncol(mm), number = 1e6, sort.by = "none")
+
+
+plotUMAP(sce_mes, colour_by = "ENSMUSG00000015354.8__Pcolce2")
+plotExpression(sce_mes, x = "cluster", features = c("ENSMUSG00000015354.8__Pcolce2",
+                                                    "ENSMUSG00000029810.15__Tmem176b"),
+               colour_by = "cluster") +
+    scale_color_manual(values = myscale)
+
+# plotUMAP(sce_mes, colour_by = "ENSMUSG00000026193.15__Fn1")
+
+aac <- aggregateAcrossCells(sce_mes, sce_mes$cluster,use.assay.type="wta")
+
+calc_entropy <- function(u) {
+  p <- u[u>0]
+  p <- p/sum(p)
+  -sum(p*log(p))
+}
+
+# adjust the aggregated counts for the number of cells
+agg_counts <- assay(aac,"wta")[rs,]
+for(i in 1:ncol(agg_counts))
+  agg_counts[,i] <- agg_counts[,i]/sum(agg_counts[,i])*1e6
+
+ents <- apply(agg_counts, 1, calc_entropy)
+
+plot(ents, tt$F, log="y")
+
+# gs <- rownames(tt)[tt$F > 50 & ents < 1.35]
+gs <- rownames(tt)[tt$F > 100 & ents < 1]
+
+
+df <- data.frame(gene = names(ents), 
+                 entropy=ents, Fstat=tt$F,
+                 cluster.max = apply(agg_counts, 1, which.max)) %>%
+  mutate(order_by = Fstat / entropy) %>%
+  filter(Fstat > 400, entropy < 1.5) %>%
+  arrange(desc(order_by)) %>%
+  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 15)
+
+col_anno <- colData(sce_mes)[,c("sample_id","cluster")] %>% as.data.frame
+
+table(df$cluster.max)
+
+# o <- order(sce_mes$cluster)
+
+inds <- split(seq_len(ncol(sce_mes)), sce_mes$cluster)
+set.seed(1976)
+inds <- lapply(inds, function(u) {
+  sample(u, ifelse(length(u)>=100, 100, length(u)),
+         replace = FALSE)
+})
+
+# manually put clusters in order
+
+# cluster_order <- c(1, 8, 2, 6, 5, 3, 4, 7)
+# inds <- inds[cluster_order]
+
+ann_colors = list(cluster = myscale[seq_len(length(inds))])
+
+co <- unlist(inds)
+
+genes <- split(df$gene, df$cluster.max) %>% unlist
+
+
+# make row annotation
+rowanno <- data.frame(Marker = genes) %>% 
+  left_join(markers %>% select(Marker, Broad_cell_type, Cell_type)) %>%
+  transmute(Marker = Marker,
+            broad_ct = replace_na(Broad_cell_type, ""),
+            celltype = replace_na(Cell_type, "")) %>%
+  tibble::column_to_rownames("Marker")
+
+
+ph <- pheatmap(lcounts[genes,co], show_rownames = TRUE,
+        show_colnames = FALSE, scale="none",
+        annotation_col = col_anno[co,],
+        clustering_distance_rows = "correlation",
+        clustering_distance_cols = "correlation",
+        annotation_row = rowanno,
+        cluster_rows = TRUE,
+        treeheight_row = 0,
+        cluster_cols = FALSE, fontsize_row = 9,
+        annotation_colors = ann_colors)
+
+save_pheatmap_pdf(ph, "mesenchymal_clustering.pdf", width = 12, height = 14)
+
+# rownames(altExp(sce_mes))
+# sort(rowSums(assay(altExp(sce_mes), 1)), decreasing = TRUE)
+
+
+
+gene_df <- data.frame(gene = names(ents), 
+                 entropy=ents, Fstat=tt$F,
+                 cluster.max = apply(agg_counts, 1, which.max)) %>%
+  left_join(markers %>% select(Marker, Broad_cell_type, Cell_type),
+            by = c("gene" = "Marker")) %>%
+  mutate(broad_ct = replace_na(Broad_cell_type, ""),
+         celltype = replace_na(Cell_type, "")) %>%
+  select(-Broad_cell_type,-Cell_type)
+
+agg_counts %>% as.data.frame %>% round(3) %>%
+  rownames_to_column("gene") %>%
+  left_join(gene_df) %>%
+  write.csv(file = "mesenchymal_agg_by_cluster.csv", 
+            row.names = FALSE, quote = FALSE)
+
+p <- plotExpression(sce_mes, x = "cluster", colour_by = "cluster",
+               features = markers$Marker[markers$Broad_cell_type=="Mesenchymal"],
+               ncol = 4) +
+  scale_color_manual(values = myscale)
+p
+
+
+ggsave("mesenchymal_markers_by_cluster.pdf", p, height = 12, width = 12)
+
+```
+
+
+
+
+# Save output
+
+```{r}
+# # save clustered object to RDS
+saveRDS(sce_mes, file.path(datadir, "sce_qc-filtered-nodoublets-clustered-mesenchymal.rds"))
+```
+
+
+
+## `sessionInfo()`
+
+```{r}
+sessionInfo()
+```
+
