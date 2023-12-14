@@ -195,21 +195,24 @@ colData(altExp(sce_filt,"wta_ontarget_multi")) <- cd
 
 ```{r}
 
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$"tso_egfp_detection_score"<-0
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_egfp_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'egfp_tx'>0)] <- 1
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_egfp_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'egfp_cds'>0)] <- 2
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_egfp_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'egfp_roi'>0)] <- 3
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_egfp_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'egfp_roi'>0)] <- 4
+cd <- colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))
+ae <- altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)
 
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$"tso_tdtom_detection_score"<-0
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_tdtom_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'tdtom_tx'>0)] <- 1
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_tdtom_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'tdtom_cds'>0)] <- 2
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_tdtom_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'tdtom_roi1'>0)] <- 3
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_tdtom_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'tdtom_roi2'>0)] <- 3
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_tdtom_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'tdtom_roi2'>0 & altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'tdtom_roi1'>0)] <- 4
+cd$tso_egfp_detection_score <- 0
+cd$tso_egfp_detection_score[ae$egfp_tx>0] <- 1
+cd$tso_egfp_detection_score[ae$egfp_cds>0] <- 2
+cd$tso_egfp_detection_score[ae$egfp_roi>0] <- 3
+cd$tso_egfp_detection_score[ae$egfp_roi>0] <- 4
 
-table(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$tso_egfp_detection_score)
-table(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$tso_tdtom_detection_score)
+cd$tso_tdtom_detection_score<-0
+cd$tso_tdtom_detection_score[ae$tdtom_tx>0] <- 1
+cd$tso_tdtom_detection_score[ae$tdtom_cds>0] <- 2
+cd$tso_tdtom_detection_score[ae$tdtom_roi1>0] <- 3
+cd$tso_tdtom_detection_score[ae$tdtom_roi2>0] <- 3
+cd$tso_tdtom_detection_score[ae$tdtom_roi2>0 & ae$tdtom_roi1>0] <- 4
+
+table(cd$tso_egfp_detection_score)
+table(cd$tso_tdtom_detection_score)
 
 ```
 
