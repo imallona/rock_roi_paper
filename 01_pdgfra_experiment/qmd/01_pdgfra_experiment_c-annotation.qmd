@@ -414,8 +414,8 @@ sce_mes <- runUMAP(sce_mes, dimred="PCA")
 plotUMAP(sce_mes, colour_by = "sample_id") + facet_wrap(~colour_by)
 
 
-myscale <- rainbow(13)
-names(myscale) <- as.character(1:13)
+myscale <- rainbow(8)
+names(myscale) <- as.character(1:8)
 
 # myscale <- c(color("muted")(9), gray="lightgray")
 # names(myscale) <- as.character(1:10)
@@ -423,7 +423,7 @@ names(myscale) <- as.character(1:13)
 
 set.seed(1976)
 nn.clusters <- clusterCells(sce_mes, use.dimred="PCA",
-                            BLUSPARAM=NNGraphParam(k=35))
+                            BLUSPARAM=NNGraphParam(k=30))
 table(nn.clusters)
 sce_mes$cluster <- nn.clusters
 
@@ -448,12 +448,13 @@ f <- lmFit(as.matrix(lcounts[rs,]), mm)
 f <- eBayes(f)
 
 # topTable(f, coef=2:ncol(mm), number = 100) %>% arrange(-F) %>% head(4)
+topTable(f, coef=2:ncol(mm), number = 1e6) %>% arrange(-F) %>% head(3)
 tt <- topTable(f, coef=2:ncol(mm), number = 1e6, sort.by = "none")
 
 
-plotUMAP(sce_mes, colour_by = "ENSMUSG00000015354.8__Pcolce2")
+plotUMAP(sce_mes, colour_by = "ENSMUSG00000057098.14__Ebf1")
 plotExpression(sce_mes, x = "cluster", features = c("ENSMUSG00000015354.8__Pcolce2",
-                                                    "ENSMUSG00000029810.15__Tmem176b"),
+                                                    "ENSMUSG00000057098.14__Ebf1"),
                colour_by = "cluster") +
     scale_color_manual(values = myscale)
 
@@ -476,9 +477,6 @@ ents <- apply(agg_counts, 1, calc_entropy)
 
 plot(ents, tt$F, log="y")
 
-# gs <- rownames(tt)[tt$F > 50 & ents < 1.35]
-gs <- rownames(tt)[tt$F > 100 & ents < 1]
-
 
 df <- data.frame(gene = names(ents), 
                  entropy=ents, Fstat=tt$F,
@@ -486,7 +484,7 @@ df <- data.frame(gene = names(ents),
   mutate(order_by = Fstat / entropy) %>%
   filter(Fstat > 400, entropy < 1.5) %>%
   arrange(desc(order_by)) %>%
-  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 15)
+  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 10)
 
 col_anno <- colData(sce_mes)[,c("sample_id","cluster")] %>% as.data.frame
 
@@ -505,6 +503,10 @@ inds <- lapply(inds, function(u) {
 
 # cluster_order <- c(1, 8, 2, 6, 5, 3, 4, 7)
 # inds <- inds[cluster_order]
+
+myscale <- c(color("muted")(9), gray="lightgray")
+names(myscale) <- as.character(1:10)
+
 
 ann_colors = list(cluster = myscale[seq_len(length(inds))])
 
