@@ -49,7 +49,7 @@ library(plyranges)
 
 ```
 
-### Reading .bam files
+### Reading .bw files
 
 ```{r}
 
@@ -189,6 +189,10 @@ unmod_egfp<-OverlayTrack(trackList=list(coverage_egfp$unmod_wta,coverage_egfp$un
 unmod_roi_egfp<-OverlayTrack(trackList=list(coverage_egfp$unmod_roi_wta,coverage_egfp$unmod_roi_tso),legend=TRUE)
 rock_egfp<-OverlayTrack(trackList=list(coverage_egfp$rock_wta,coverage_egfp$rock_tso),legend=TRUE,ylims=ylims_rock)
 rockroi_egfp<-OverlayTrack(trackList=list(coverage_egfp$rockroi_wta,coverage_egfp$rockroi_tso),legend=TRUE)
+names(unmod_egfp)<-"unmod"
+names(unmod_roi_egfp)<-"unmod_roi"
+names(rock_egfp)<-"rock"
+names(rockroi_egfp)<-"rockroi"
 
 plotTracks(c(unmod_egfp,unmod_roi_egfp,rock_egfp,rockroi_egfp,gm_egfp),type="histogram",showSampleNames = TRUE,from=start(gm_egfp@range)[1]-400,end=end,cex.axis = 0.5,cex.title=0.8,background.title="cadetblue2",col.axis="black",col.title="black",col.border.title="black",showSampleNames = TRUE,lwd.title=0.5,ylim=c(0,max(ylims_rockroi,ylims_rock,ylims_unmod_roi,ylims_unmod)))
 
@@ -215,12 +219,43 @@ displayPars(coverage_tdtomato$rockroi_tso)<-list(col.histogram="lightblue",fill.
 
 unmod_tdtomato<-OverlayTrack(trackList=list(coverage_tdtomato$unmod_wta,coverage_tdtomato$unmod_tso),legend=TRUE)
 unmod_roi_tdtomato<-OverlayTrack(trackList=list(coverage_tdtomato$unmod_roi_wta,coverage_tdtomato$unmod_roi_tso),legend=TRUE)
-rock_tdtomato<-OverlayTrack(trackList=list(coverage_tdtomato$rock_wta,coverage_tdtomato$rock_tso),legend=TRUE,ylims=ylims_rock)
+rock_tdtomato<-OverlayTrack(trackList=list(coverage_tdtomato$rock_wta,coverage_tdtomato$rock_tso),legend=TRUE)
 rockroi_tdtomato<-OverlayTrack(trackList=list(coverage_tdtomato$rockroi_wta,coverage_tdtomato$rockroi_tso),legend=TRUE)
+
+names(unmod_tdtomato)<-"unmod"
+names(unmod_roi_tdtomato)<-"unmod_roi"
+names(rock_tdtomato)<-"rock"
+names(rockroi_tdtomato)<-"rockroi"
 
 plotTracks(c(unmod_tdtomato,unmod_roi_tdtomato,rock_tdtomato,rockroi_tdtomato,gm_tdtomato),type="histogram",showSampleNames = TRUE,from=start(gm_egfp@range)[1]-400,end=end,cex.axis = 0.5,cex.title=0.8,background.title="cadetblue2",col.axis="black",col.title="black",col.border.title="black",showSampleNames = TRUE,lwd.title=0.5,ylim=c(0,max(ylims_rockroi,ylims_rock,ylims_unmod_roi,ylims_unmod)))
 
 ```
+
+### Reading .bam files
+
+```{r}
+
+getwd()
+
+bam<-dir(here("00_mixing_experiment"), "*.bam", 
+            recursive = TRUE, full.names = TRUE)
+
+bam
+
+names(bam) <- gsub(".bam", "", basename(bam))
+names(bam) <- gsub("_subset", "",names(bam))
+
+datadir <- dirname(bam)[1] # folder where the .bw files are 
+
+```
+
+
+```{r}
+
+
+
+```
+
 
 ### Print sessionInfo()
 
