@@ -48,6 +48,9 @@ library(Gviz)
 library(plyranges)
 library(seqinr)
 library(Rsamtools)
+library(googlesheets4)
+library(tools)
+library(here)
 
 ```
 
@@ -93,7 +96,6 @@ anno_df <- read_sheet(anno_url, "transcript-regions-mark") %>%
 regs <- split(anno_df$Name_in_gtf_file, anno_df$region_name)
 
 ```
-
 ### Plots for all .bw files for egfp 
 
 ```{r}
@@ -115,18 +117,18 @@ gm_egfp <- GeneRegionTrack(gtf_egfp,
                            name=chr,
                            geneSymbol=TRUE,
                            showId=TRUE,
-                           transcriptAnnotation="gene",
-                           fill="cadetblue2")
+                           transcriptAnnotation="gene")
 
 gm_egfp@range$gene<-gtf_egfp$gene_id
 wanted_regions<-regs$egfp_tx
 gm_egfp@range<-gm_egfp@range[which(gm_egfp@range$gene %in% wanted_regions),]
+  
+displayPars(gm_egfp) <- list(fill=ifelse(gm_egfp@range$gene %in% c("5_utr_egfp_wpre","3_utr_egfp_wpre"), "cadetblue", "cadetblue2"))
 
 displayPars(gm_egfp)<-list(col="black",
                            cex.group=0.8,
                            ol.line="black",
-                           fontcolor.group="black",
-                           add53=TRUE,)
+                           fontcolor.group="black")
 
 
 for (i in names(coverage_egfp)){
@@ -177,15 +179,18 @@ gm_tdtomato <- GeneRegionTrack(gtf_tdtom,
                                name=chr,
                                geneSymbol=TRUE,
                                showId=TRUE,
-                               transcriptAnnotation="gene",
-                               fill="cadetblue2")
+                               transcriptAnnotation="gene")
 
 gm_tdtomato@range$gene<-gtf_tdtom$gene_id
-
 wanted_regions<-regs$tdtom_tx
 gm_tdtomato@range<-gm_tdtomato@range[which(gm_tdtomato@range$gene %in% wanted_regions),]
 
-displayPars(gm_tdtomato)<-list(col="black",cex.group=0.8,col.line="black",fontcolor.group="black")
+displayPars(gm_tdtomato) <- list(fill=ifelse(gm_tdtomato@range$gene %in% c("5_utr_tdtomato_wpre","3_utr_tdtomato_wpre"), "cadetblue", "cadetblue2"))
+
+displayPars(gm_tdtomato)<-list(col="black",
+                               cex.group=0.8,
+                               col.line="black",
+                               fontcolor.group="black")
 
 for (i in names(coverage_tdtomato)){
   displayPars(coverage_tdtomato[[i]])<-list(col.histogram="black",fill.histogram=TRUE)
@@ -240,7 +245,7 @@ for (i in 1:length(coverage_egfp)){
 
 unmod_egfp<-OverlayTrack(trackList=list(coverage_egfp$unmod_wta,coverage_egfp$unmod_tso),legend=TRUE)
 unmod_roi_egfp<-OverlayTrack(trackList=list(coverage_egfp$unmod_roi_wta,coverage_egfp$unmod_roi_tso),legend=TRUE)
-rock_egfp<-OverlayTrack(trackList=list(coverage_egfp$rock_wta,coverage_egfp$rock_tso),legend=TRUE,name=)
+rock_egfp<-OverlayTrack(trackList=list(coverage_egfp$rock_wta,coverage_egfp$rock_tso),legend=TRUE)
 rockroi_egfp<-OverlayTrack(trackList=list(coverage_egfp$rockroi_wta,coverage_egfp$rockroi_tso),legend=TRUE)
 
 plotTracks(c(unmod_egfp,
@@ -369,6 +374,10 @@ for (i in names(covs_egfp)){
   displayPars(covs_egfp[[i]])<-list(col.histogram="black",fill.histogram=TRUE)
 }
 
+for (i in 1:length(covs_egfp)){
+  covs_egfp[[i]]@name<-gsub(c("_wta","_tso"),"",covs_egfp[[i]]@name)
+}
+
 unmod_egfp_bam<-OverlayTrack(trackList=list(covs_egfp$unmod_wta,covs_egfp$unmod_tso),legend=TRUE)
 unmod_roi_egfp_bam<-OverlayTrack(trackList=list(covs_egfp$unmod_roi_wta,covs_egfp$unmod_roi_tso),legend=TRUE)
 rock_egfp_bam<-OverlayTrack(trackList=list(covs_egfp$rock_wta,covs_egfp$rock_tso),legend=TRUE)
@@ -421,6 +430,10 @@ displayPars(gm_tdtomato)<-list(col="black",cex.group=0.8,col.line="black",fontco
 
 for (i in names(covs_tdtomato)){
   displayPars(covs_tdtomato[[i]])<-list(col.histogram="black",fill.histogram=TRUE)
+}
+
+for (i in 1:length(covs_tdtomato)){
+  covs_tdtomato[[i]]@name<-gsub(c("_wta","_tso"),"",covs_tdtomato[[i]]@name)
 }
 
 unmod_tdtomato_bam<-OverlayTrack(trackList=list(covs_tdtomato$unmod_wta,covs_tdtomato$unmod_tso),legend=TRUE)
