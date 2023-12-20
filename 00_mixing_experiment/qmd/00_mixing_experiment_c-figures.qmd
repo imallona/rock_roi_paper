@@ -10,30 +10,21 @@ editor_options:
   chunk_output_type: console
 ---
 
-### TO DO 
-
-```{r}
-
-# Figure out Fuzznuc ROI error
-# Remove regulatory_region_egfp
-
-```
-
 ### setting up knitr 
 
 ```{r}
 
-knitr::opts_chunk$set(fig.width = 5,
-               fig.height = 5,
-               cache = TRUE,
+knitr::opts_chunk$set(fig.width = 10,
+               fig.height = 10,
+               fig.align = "center",
                include = TRUE,
                dev = c("png","svg"),
+               cache=TRUE,
                cache.lazy = FALSE,
                warning = TRUE,
                message = TRUE)
 
 ```
-
 
 ### Load packages, load data 
 
@@ -132,6 +123,7 @@ ggplot(cd, aes(x = total, y = total_mito_percent)) +
     axis.title=element_text(size=20,face="bold"),
     strip.text=element_text(size=15,face="bold"))
 
+
 ```
 
 ### Generating filtered dataset
@@ -141,6 +133,9 @@ ggplot(cd, aes(x = total, y = total_mito_percent)) +
 mito <- sce$subsets_mouse_mito_percent+sce$subsets_human_mito_percent
 sce_filt <- sce[,sce$total>2750 & mito>3 & mito<25]
 sce_filt <- sce_filt[rowSums(assay(sce_filt,1))>2 | rowData(sce_filt)$type=="capture" ,] 
+
+#saveRDS(sce_filt, file.path(datadir, "sce_filt.rds"))
+sce_filt<-readRDS(file.path(datadir, "sce_filt.rds"))
 
 rm(sce,sces)
 
@@ -293,12 +288,8 @@ ggplot(comb, aes(
                                            "mixing_rock", "mixing_rockroi"))) +
   theme_bw() +
   xlab("mouse gene sum") +
-  ylab("human gene sum") +
-  theme(
-    axis.text = element_text(size = 15),
-    axis.title = element_text(size = 20, face = "bold"),
-    strip.text = element_text(size = 15, face = "bold")
-  ) +
+  ylab("human gene sum")+
+  theme(axis.text = element_text(size = 15), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold")) +
   scale_color_identity(
     name = "Legend Title",
     guide = "legend" ,
@@ -307,6 +298,7 @@ ggplot(comb, aes(
   scale_color_manual(labels=c("all_tdtom_rois","all_egfp_rois","tdtom_roi",
                               "egfp_cds","tdtom_cds","no_detection","doublets"),
                      values=c("#2171B5","#238B45","#6BAED6","#B2E2E2","#BDD7E7","grey","purple"))
+
 
 ```
 
@@ -339,11 +331,8 @@ ggplot(comb, aes(
   theme_bw() +
   xlab("mouse gene sum") +
   ylab("human gene sum") +
-  theme(
-    axis.text = element_text(size = 15),
-    axis.title = element_text(size = 20, face = "bold"),
-    strip.text = element_text(size = 15, face = "bold")
-  ) +
+  labs(title="Total number of transcripts vs percent mitochondrial reads")+
+  theme(axis.text = element_text(size = 15), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
   scale_color_identity(
     name = "Legend Title",
     guide = "legend" ,
@@ -352,6 +341,7 @@ ggplot(comb, aes(
   scale_color_manual(labels=c("all_tdtom_rois","all_egfp_rois","tdtom_roi",
                               "no_detection","doublets"), 
                      values=c("#2171B5","#238B45","#6BAED6","grey","purple"))
+
 
 ```
 
@@ -384,11 +374,7 @@ ggplot(comb, aes(
   theme_bw() +
   xlab("mouse gene sum") +
   ylab("human gene sum") +
-  theme(
-    axis.text = element_text(size = 15),
-    axis.title = element_text(size = 20, face = "bold"),
-    strip.text = element_text(size = 15, face = "bold")
-  ) +
+  theme(axis.text = element_text(size = 15), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
   scale_color_identity(
     name = "Legend Title",
     guide = "legend" ,
@@ -396,6 +382,7 @@ ggplot(comb, aes(
   labs(title="detection of egfp and tdtomato regions")+
   scale_color_manual(labels=c("tdtom_cds","egfp_cds","no_detection","doublets"), 
                      values=c("#2171B5","#238B45","grey","purple"))
+
 
 ```
 
@@ -416,6 +403,9 @@ table(sce_filt$doublet)
 #   geom_point() + facet_wrap(~sample_id) + geom_density2d(colour="white")
 
 sce_nd <- sce_filt[,!sce_filt$doublet]
+
+#saveRDS(sce_nd, file.path(datadir, "sce_nd.rds"))
+sce_nd<-readRDS(file.path(datadir, "sce_nd.rds"))
 
 rm(sce_filt)
 
@@ -448,6 +438,7 @@ df <- data.frame(tso_total = tso_qc$total,
                    sce_nd$subsets_human_mito_percent,
                  sample_id = sce_nd$sample_id)
 
+# specifying regions since don't want to include the regulatory regions of egfp and tdtomato
 
 # excluding regulatory region 
 
@@ -475,7 +466,7 @@ ggplot(df, aes(x = tso_total, y = wta_total, color = log_1p_tso_ontarget_multi))
 
 ```
 
-### UMIs TSO vs WTA capture, colored by tso_ontarget_multi ordered categorical
+### UMIs TSO vs WTA capture, colored by tso_ontarget_multi ordered categorical 
 
 ```{r}
 
@@ -518,6 +509,7 @@ ggplot(df, aes(x = tso_capture_sum_cds, y = wta_capture_sum_cds, color=color))+
                               "egfp_cds","tdtom_cds","no_detection","doublets"),
                      values=c("#2171B5","#238B45","#6BAED6","#B2E2E2","#BDD7E7","grey","purple"))
 
+
 ```
 
 ### Checking egfp ROIs
@@ -526,7 +518,12 @@ ggplot(df, aes(x = tso_capture_sum_cds, y = wta_capture_sum_cds, color=color))+
 
 table(df$tso_egfp_detection_score,sce_nd$sample_id,sce_nd$species)
 
-ggplot(df, aes(x = tso_capture_sum, y = tso_egfp_detection_score,color=wta_total))+
+df$species<-sce_nd$species
+
+mouse<-df[df$species=="mouse",]
+human<-df[df$species=="human",]
+
+ggplot(mouse, aes(x = tso_capture_sum, y = tso_egfp_detection_score,color=wta_total))+
   geom_jitter(height = .2,size=0.5,alpha=0.5)+
   facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", 
                                            "mixing_rock", "mixing_rockroi"))) +
@@ -547,7 +544,7 @@ ggplot(df, aes(x = tso_capture_sum, y = tso_egfp_detection_score,color=wta_total
 
 table(df$tso_tdtom_detection_score,sce_nd$sample_id,sce_nd$species)
 
-ggplot(df, aes(x = tso_capture_sum, y = tso_tdtom_detection_score,color=wta_total))+
+ggplot(human, aes(x = tso_capture_sum, y = tso_tdtom_detection_score,color=wta_total))+
   geom_jitter(height = .2,size=0.5,alpha=0.5)+
   facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", 
                                            "mixing_rock", "mixing_rockroi"))) +
@@ -562,7 +559,7 @@ ggplot(df, aes(x = tso_capture_sum, y = tso_tdtom_detection_score,color=wta_tota
 
 ```
 
-### On target UMIs TSO vs WTA capture, colored by raw total reads
+### On target UMIs TSO vs WTA capture, colored by raw total UMIs
 
 ```{r}
 
@@ -582,7 +579,7 @@ ggplot(df, aes(x = tso_capture_sum_cds, y = wta_capture_sum_cds, color=wta_total
   
 ```
 
-### On target UMIs TSO vs WTA, colored by CDS
+### On target UMIs TSO vs WTA, colored by cds
 
 ```{r}
 
@@ -613,6 +610,152 @@ ggplot(df, aes(x = tso_capture_sum_cds, y = wta_capture_sum_cds, color=color))+
   labs(title="on target WTA and TSO UMIs")+
   scale_color_manual(labels=c("tdtom_cds","egfp_cds","no_detection","doublets"), 
                      values=c("#2171B5","#238B45","grey","purple"))
+
+
+```
+
+### Barplot with % positive cells (cds)
+
+```{r}
+
+df$species<-sce_nd$species
+df$cds_detection_score<-df$wta_capture_sum_cds+df$tso_capture_sum_cds
+
+mouse<-df[df$species=="mouse",]
+human<-df[df$species=="human",]
+
+positive_cells<-data.frame(matrix(nrow = 4, ncol = 2)) 
+colnames(positive_cells)<-c("percent_egfp_pos_mouse","percent_tdtom_pos_human")
+rownames(positive_cells)<-unique(df$sample_id)
+
+for (i in unique(mouse$sample_id)){
+  positive_cells[i,1]<-length(which(mouse[mouse$sample_id==i,]$cds_detection_score>0))/length(mouse[mouse$sample_id==i,]$cds_detection_score)*100
+}
+
+for (i in unique(mouse$sample_id)){
+  positive_cells[i,2]<-length(which(human[human$sample_id==i,]$cds_detection_score>0))/length(human[human$sample_id==i,]$cds_detection_score)*100
+}
+
+plottable<-melt(positive_cells)
+plottable$sample<-rep(rownames(positive_cells),2)
+
+ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")))) +
+  geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9))+
+  xlab(" ")+
+  ylab("percent positive cells")+
+  theme_bw()+
+  ylim(0,100)+  
+  theme(axis.text = element_text(size = 8), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
+  labs(title="Barplot with % positive cells (cds)")+
+  scale_fill_discrete(name = "Samples")+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge(width=0.9), vjust=-0.5)
+
+```
+
+### Scatter plot with % positive cells (cds)
+
+```{r}
+
+ggplot(data=plottable,aes(y=value,x=variable,color=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")))) +
+  geom_point()+
+  xlab(" ")+
+  ylab("percent positive cells")+
+  theme_bw()+
+  labs(color='Samples') +
+  ylim(0,100)+
+  theme(axis.text = element_text(size = 8), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
+  labs(title="Scatterplot with % positive cells (cds)")+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge2(width=1), vjust=-0.5,show.legend=FALSE,size=4)
+  
+```
+
+### Scatter plot with % positive cells with different x axis (cds)
+
+```{r}
+
+ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")),color=variable)) +
+  geom_point()+
+  xlab(" ")+
+  ylab("percent positive cells")+
+  theme_bw()+
+  labs(color='Samples') +
+  ylim(0,100)+
+  theme(axis.text = element_text(size = 8), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
+  labs(title="Scatterplot with % positive cells (cds)")+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge(width=1), vjust=-0.5,show.legend=FALSE,size=4)+
+  scale_color_manual(labels=c("percent_egfp_pos_mouse","percent_tdtom_pos_human"), values=c("#2171B5","#238B45"))
+
+```
+
+### Barplot with % positive cells (full transcript)
+
+```{r}
+
+df$detection_score<-df$wta_capture_sum+df$tso_capture_sum
+
+mouse<-df[df$species=="mouse",]
+human<-df[df$species=="human",]
+
+positive_cells<-data.frame(matrix(nrow = 4, ncol = 2)) 
+colnames(positive_cells)<-c("percent_egfp_pos_mouse","percent_tdtom_pos_human")
+rownames(positive_cells)<-unique(df$sample_id)
+
+for (i in unique(mouse$sample_id)){
+  positive_cells[i,1]<-length(which(mouse[mouse$sample_id==i,]$detection_score>0))/length(mouse[mouse$sample_id==i,]$detection_score)*100
+}
+
+for (i in unique(mouse$sample_id)){
+  positive_cells[i,2]<-length(which(human[human$sample_id==i,]$detection_score>0))/length(human[human$sample_id==i,]$detection_score)*100
+}
+
+plottable<-melt(positive_cells)
+plottable$sample<-rep(rownames(positive_cells),2)
+
+ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")))) +
+  geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9))+
+  xlab(" ")+
+  ylab("percent positive cells")+
+  theme_bw()+
+  ylim(0,100)+
+  theme(axis.text = element_text(size = 8), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
+  labs(title="Barplot with % positive cells (full transcript)")+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge(width=0.9), vjust=-0.5)+
+  labs(fill="Samples")
+
+```
+
+### Scatter plot with % positive cells (full transcript)
+
+```{r}
+
+ggplot(data=plottable,aes(y=value,x=variable,color=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")))) +
+  geom_point()+
+  xlab(" ")+
+  ylab("percent positive cells")+
+  theme_bw()+
+  labs(color='Samples') +
+  ylim(0,100)+
+  theme(axis.text = element_text(size = 8), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
+  labs(title="Scatterplot with % positive cells (full transcript)")+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge(width=1), vjust=-0.5,show.legend=FALSE,size=4)
+  
+```
+
+### Scatter plot with % positive cells with different x axis (full transcript)
+
+```{r}
+
+ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")),color=variable)) +
+  geom_point()+
+  xlab(" ")+
+  ylab("percent positive cells")+
+  theme_bw()+
+  ylim(0,100)+
+  labs(color='Samples')+
+  theme(axis.text = element_text(size = 8), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
+  labs(title="Scatterplot with % positive cells (full transcript)")+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge(width=1), vjust=-0.5,show.legend=FALSE,size=4)+
+  scale_color_manual(labels=c("percent_egfp_pos_mouse","percent_tdtom_pos_human"), values=c("#2171B5","#238B45"))
 
 ```
 
@@ -648,7 +791,7 @@ p <- ggplot(dfm %>% filter(variable %in% c("roi_1_tdtomato", "roi_2_tdtomato","r
     axis.text = element_text(size = 15),
     axis.title = element_text(size = 20, face = "bold"),
     strip.text = element_text(size = 15, face = "bold"))
-  
+
 mouse_targets <- grep("egfp", names(sorted), value = TRUE)
 
 q <- ggplot(dfm %>% filter(variable %in% c("rock_egfp","roi_egfp")),
@@ -666,7 +809,7 @@ q <- ggplot(dfm %>% filter(variable %in% c("rock_egfp","roi_egfp")),
     axis.text = element_text(size = 15),
     axis.title = element_text(size = 20, face = "bold"),
     strip.text = element_text(size = 15, face = "bold"))
-  
+
 cowplot::plot_grid(p,q, nrow=2)
 
 ```
@@ -781,11 +924,12 @@ pheatmap(logcounts[gs,s], show_rownames = TRUE,
          cluster_cols = FALSE,
          fontsize_row = 8)
 
-```
+m <- sce_nd[rowData(sce_nd)$type=="mouse_gene", 
+             sce_nd$subsets_mouse_gene_percent > 50]
 
-### Barplot with % positive cells (for now just tso_ontarget_multi, so now just for cds)
+k <- rowSums(assay(m,"wta")) > 0
 
-```{r}
+m <- m[k,]
 
 df$species<-sce_nd$species
 
@@ -818,8 +962,7 @@ for (i in unique(mouse$sample)){
     length(human[human$sample==i,]$cds_detection_score)*100
 }
 
-plottable<-melt(positive_cells)
-plottable$sample<-rep(rownames(positive_cells),2)
+agg_counts <- assay(aac,"wta")
 
 ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")))) +
   geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9))+
@@ -832,11 +975,12 @@ ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing
   scale_fill_discrete(name = "Samples")+
   geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge(width=0.9), vjust=-0.5)
 
-```
 
-### Scatter plot with % positive cells (for now just tso_ontarget_multi, so now just for cds)
+ents <- apply(agg_counts, 1, calc_entropy)
 
-```{r}
+gs <- rownames(tt)[tt$F > 50 & ents < 1.35]
+
+col_anno <- colData(m)[,c("sample_id","species")] %>% as.data.frame
 
 ggplot(data=plottable,aes(y=value,x=variable,color=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi",
                                                                           "mixing_rock","mixing_rockroi")))) +
@@ -854,12 +998,19 @@ ggplot(data=plottable,aes(y=value,x=variable,color=factor(sample,levels=c("mixin
     position=position_dodge(width=0.5), 
     vjust=-0.5,
     show.legend=FALSE,size=4)
-  
-```
 
-### Scatter plot with % positive cells with different x axis (for now just tso_ontarget_multi, so now just for cds)
 
-```{r}
+gene_info <- read_tsv(file.path(datadir,
+                                "genes_vs_fuzznuc_mixing.txt.gz"), 
+                      col_names = c("ids", "pattern", "mismatches"))
+
+extract_stuff <- function(u, term = "gene_type", default = "unknown") {
+  g <- grep(term, u, value=TRUE)
+  if(length(g)==0)
+    return(default)
+  else
+    return(g)
+}
 
 ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi",
                                                            "mixing_rock","mixing_rockroi")),color=variable)) +
@@ -911,6 +1062,7 @@ df <- data.frame(tso_total = tso_qc$total,
 df$tso_capture_sum<-colSums(assay(ae_tso,1)[regs$egfp_tx,,drop=FALSE])+colSums(assay(ae_tso,1)[regs$tdtom_tx,,drop=FALSE])
 df$wta_capture_sum<-colSums(assay(ae_wta,1)[regs$egfp_tx,,drop=FALSE])+colSums(assay(ae_wta,1)[regs$tdtom_tx,,drop=FALSE])
 
+
 samples<-c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")
 
 p <- list()
@@ -928,8 +1080,9 @@ for (i in samples){
       scale_color_gradient(trans = "log1p") +
       scale_color_viridis() +
       xlab('on-target WTA # UMIs') +
-      ylab('on-target TSO # UMIs')
-     
+      ylab('on-target TSO # UMIs')+
+  theme(axis.text = element_text(size = 8), plot.title=element_text(size=10,face="bold"),axis.title=element_text(size=10,face="bold"),strip.text=element_text(size=10,face="bold"),legend.text=element_text(size=7))
+  
       p[[i]]<-ggExtra::ggMarginal(p[[i]],type = "density")
 }
 

@@ -55,7 +55,6 @@ sces <- mapply(function(u,v)  {
 sce <- Reduce(cbind, sces)
 ```
 
-
 ## Do some QC things (on WTA)
 
 ```{r}
