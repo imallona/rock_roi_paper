@@ -6,6 +6,8 @@ format:
     toc: true
     embed-resources: true
     keep_md: true
+editor_options: 
+  chunk_output_type: console
 ---
 
 ### setting up knitr 
@@ -50,17 +52,18 @@ library(rmarkdown)
 library(irlba)
 library(viridis)
 library(gridExtra)
-library(quarto)
-
-#packageVersion("Matrix")
+library(googlesheets4)
+library(tools)
 
 getwd() # after opening the .Rproj file, getwd() should be "/Users/gimoro/figure_making_paper/rock_roi_paper"
 
-rdss <- dir(here("00_mixing_experiment"), "^mixing.*rds", 
+rdss <- dir(here("00_mixing_experiment"), "^mixing.*rds$", 
             recursive = TRUE, full.names = TRUE)
 
 names(rdss) <- gsub("_sce.rds", "", basename(rdss))
 rdss # prints the .rds files in the 00_mixing_experiment folder
+
+md5sum(rdss)
 
 datadir <- dirname(rdss)[1] # folder where the .rds files are 
 
@@ -68,7 +71,7 @@ sces <- mapply(function(u,v)  {
   rds <- readRDS(u)
   rds$sample_id <- v
   rds$sample_id.barcode <- paste0(v,".",colnames(rds))
-  colnames(rowData(rds)) <- c("name", "type", "value","captured")
+  # colnames(rowData(rds)) <- c("name", "type", "value","captured")
   g <- grepl("^ENS", rownames(rds))
   rownames(rds)[g] <- paste0(rownames(rds)[g], 
                              "__", rowData(rds)$name[g])
@@ -107,15 +110,19 @@ cd <- colData(sce) %>% as.data.frame %>%
 
 ggplot(cd, aes(x = total, y = total_mito_percent)) +
   geom_point() + scale_x_log10() + scale_y_sqrt() +
-  facet_wrap(~factor(sample_id,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi"))) + 
+  facet_wrap(~factor(sample_id,levels=c("mixing_unmod","mixing_unmod_roi",
+                                        "mixing_rock","mixing_rockroi"))) + 
   geom_hline(yintercept=c(3,25), colour="orange") +
   geom_vline(xintercept=c(2750), colour="orange") +
   geom_density2d()+
   theme_bw()+
   xlab("total number of transcripts")+
   ylab("percent mitochondrial reads")+
-  labs(title="Total number of transcripts vs percent mitochondrial reads")+
-  theme(axis.text = element_text(size = 15), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))
+  theme(
+    axis.text = element_text(size = 15),
+    axis.title=element_text(size=20,face="bold"),
+    strip.text=element_text(size=15,face="bold"))
+
 
 ```
 
@@ -138,21 +145,31 @@ rm(sce,sces)
 
 ```{r}
 
-colData(altExp(sce_filt,"tso_ontarget_multi"))$"egfp_cds"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
-colData(altExp(sce_filt,"tso_ontarget_multi"))$"egfp_tx"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("5_utr_egfp_wpre","3_utr_egfp_wpre","5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
-colData(altExp(sce_filt,"tso_ontarget_multi"))$"tdtom_cds"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
-colData(altExp(sce_filt,"tso_ontarget_multi"))$"tdtom_tx"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("5_utr_tdtomato_wpre","3_utr_tdtomato_wpre","5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
-colData(altExp(sce_filt,"tso_ontarget_multi"))$"egfp_roi"<-assay(altExp(sce_filt,"tso_ontarget_multi"),1)["roi_egfp",]
-colData(altExp(sce_filt,"tso_ontarget_multi"))$"tdtom_roi1"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("roi_1_tdtomato","roi_3_tdtomato"),]) #counting all regions twice due to fraction count
-colData(altExp(sce_filt,"tso_ontarget_multi"))$"tdtom_roi2"<-colSums(assay(altExp(sce_filt,"tso_ontarget_multi"),1)[c("roi_2_tdtomato","roi_4_tdtomato"),]) #counting all regions twice due to fraction count
+# read annotation info from GS
+anno_url <- "https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=978414281"
+anno_df <- read_sheet(anno_url, "transcript-regions-mark") %>%
+  filter(Experiment=="Mixing")
+regs <- split(anno_df$Name_in_gtf_file, anno_df$region_name)
 
-colData(altExp(sce_filt,"wta_ontarget_multi"))$"egfp_cds"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
-colData(altExp(sce_filt,"wta_ontarget_multi"))$"egfp_tx"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("5_utr_egfp_wpre","3_utr_egfp_wpre","5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp"),])
-colData(altExp(sce_filt,"wta_ontarget_multi"))$"tdtom_cds"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
-colData(altExp(sce_filt,"wta_ontarget_multi"))$"tdtom_tx"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("5_utr_tdtomato_wpre","3_utr_tdtomato_wpre","5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),]) #counting all regions twice due to fraction count
-colData(altExp(sce_filt,"wta_ontarget_multi"))$"egfp_roi"<-assay(altExp(sce_filt,"wta_ontarget_multi"),1)["roi_egfp",]
-colData(altExp(sce_filt,"wta_ontarget_multi"))$"tdtom_roi1"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("roi_1_tdtomato","roi_3_tdtomato"),])
-colData(altExp(sce_filt,"wta_ontarget_multi"))$"tdtom_roi2"<-colSums(assay(altExp(sce_filt,"wta_ontarget_multi"),1)[c("roi_2_tdtomato","roi_4_tdtomato"),])
+# compute aggregates for egfp/tdtomato for TSO
+ae <- altExp(sce_filt,"tso_ontarget_multi")
+cd <- colData(ae)
+
+for(i in 1:length(regs))
+  cd[[ names(regs)[i] ]] <- colSums(assay(ae,1)[regs[[i]],,drop=FALSE])
+
+colData(altExp(sce_filt,"tso_ontarget_multi")) <- cd
+# ---------------
+
+# compute aggregates for egfp/tdtomato for WTA
+ae <- altExp(sce_filt,"wta_ontarget_multi")
+cd <- colData(ae)
+
+for(i in 1:length(regs))
+  cd[[ names(regs)[i] ]] <- colSums(assay(ae,1)[regs[[i]],,drop=FALSE])
+
+colData(altExp(sce_filt,"wta_ontarget_multi")) <- cd
+# ---------------
 
 ```
 
@@ -160,21 +177,25 @@ colData(altExp(sce_filt,"wta_ontarget_multi"))$"tdtom_roi2"<-colSums(assay(altEx
 
 ```{r}
 
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$"tso_egfp_detection_score"<-0
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_egfp_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'egfp_tx'>0)] <- 1
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_egfp_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'egfp_cds'>0)] <- 2
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_egfp_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'egfp_roi'>0)] <- 3
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_egfp_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'egfp_roi'>0)] <- 4
+ae <- altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)
 
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$"tso_tdtom_detection_score"<-0
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_tdtom_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'tdtom_tx'>0)] <- 1
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_tdtom_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'tdtom_cds'>0)] <- 2
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_tdtom_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'tdtom_roi1'>0)] <- 3
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_tdtom_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'tdtom_roi2'>0)] <- 3
-colData(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))$tso_tdtom_detection_score[which(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'tdtom_roi2'>0 & altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$'tdtom_roi1'>0)] <- 4
+ae$tso_egfp_detection_score <- 0
+ae$tso_egfp_detection_score[ae$egfp_tx>0] <- 1
+ae$tso_egfp_detection_score[ae$egfp_cds>0] <- 2
+ae$tso_egfp_detection_score[ae$egfp_roi>0] <- 3
+ae$tso_egfp_detection_score[ae$egfp_roi>0] <- 4
 
-table(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$tso_egfp_detection_score)
-table(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$tso_tdtom_detection_score)
+ae$tso_tdtom_detection_score<-0
+ae$tso_tdtom_detection_score[ae$tdtom_tx>0] <- 1
+ae$tso_tdtom_detection_score[ae$tdtom_cds>0] <- 2
+ae$tso_tdtom_detection_score[ae$tdtom_roi1>0] <- 3
+ae$tso_tdtom_detection_score[ae$tdtom_roi2>0] <- 3
+ae$tso_tdtom_detection_score[ae$tdtom_roi2>0 & ae$tdtom_roi1>0] <- 4
+
+table(ae$tso_egfp_detection_score)
+table(ae$tso_tdtom_detection_score)
+
+altExp(sce_filt,"tso_ontarget_multi") <- ae
 
 ```
 
@@ -182,21 +203,25 @@ table(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$tso_tdtom_detection
 
 ```{r}
 
-colData(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE))$"wta_egfp_detection_score"<-0
-colData(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE))$wta_egfp_detection_score[which(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE)$'egfp_tx'>0)] <- 1
-colData(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE))$wta_egfp_detection_score[which(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE)$'egfp_cds'>0)] <- 2
-colData(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE))$wta_egfp_detection_score[which(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE)$'egfp_roi'>0)] <- 3
-colData(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE))$wta_egfp_detection_score[which(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE)$'egfp_roi'>0)] <- 4
+ae <- altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE)
 
-colData(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE))$"wta_tdtom_detection_score"<-0
-colData(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE))$wta_tdtom_detection_score[which(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE)$'tdtom_tx'>0)] <- 1
-colData(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE))$wta_tdtom_detection_score[which(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE)$'tdtom_cds'>0)] <- 2
-colData(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE))$wta_tdtom_detection_score[which(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE)$'tdtom_roi1'>0)] <- 3
-colData(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE))$wta_tdtom_detection_score[which(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE)$'tdtom_roi2'>0)] <- 3
-colData(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE))$wta_tdtom_detection_score[which(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE)$'tdtom_roi2'>0 & altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE)$'tdtom_roi1'>0)] <- 4
+ae$wta_egfp_detection_score <- 0
+ae$wta_egfp_detection_score[ae$egfp_tx>0] <- 1
+ae$wta_egfp_detection_score[ae$egfp_cds>0] <- 2
+ae$wta_egfp_detection_score[ae$egfp_roi>0] <- 3
+ae$wta_egfp_detection_score[ae$egfp_roi>0] <- 4
 
-table(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE)$wta_egfp_detection_score)
-table(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE)$wta_tdtom_detection_score)
+ae$wta_tdtom_detection_score <- 0
+ae$wta_tdtom_detection_score[ae$tdtom_tx>0] <- 1
+ae$wta_tdtom_detection_score[ae$tdtom_cds>0] <- 2
+ae$wta_tdtom_detection_score[ae$tdtom_roi1>0] <- 3
+ae$wta_tdtom_detection_score[ae$tdtom_roi2>0] <- 3
+ae$wta_tdtom_detection_score[ae$tdtom_roi2>0 & ae$tdtom_roi1>0] <- 4
+
+table(ae$wta_egfp_detection_score)
+table(ae$wta_tdtom_detection_score)
+
+altExp(sce_filt,"wta_ontarget_multi") <- ae
 
 ```
 
@@ -204,17 +229,19 @@ table(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE)$wta_tdtom_detection
 
 ```{r}
 
-sce_filt$species<-"unknown"
-sce_filt$species[which(sce_filt$subsets_mouse_gene_percent>50)]<-"mouse"
-sce_filt$species[which(sce_filt$subsets_human_gene_percent>50)]<-"human"
+sce_filt$species <- "unknown"
+sce_filt$species[sce_filt$subsets_mouse_gene_percent>50] <- "mouse"
+sce_filt$species[sce_filt$subsets_human_gene_percent>50] <- "human"
 
 sce_filt <- sce_filt[, !sce_filt$species== "unknown"]
 
 cd <- colData(sce_filt) %>% as.data.frame %>% 
   mutate(total_mito_percent = subsets_mouse_mito_percent+subsets_human_mito_percent)
 
-table(sce_filt$species,altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$tso_egfp_detection_score)
-table(sce_filt$species,altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$tso_tdtom_detection_score)
+table(sce_filt$species,
+      altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$tso_egfp_detection_score)
+table(sce_filt$species,
+      altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$tso_tdtom_detection_score)
 
 ```
 
@@ -222,38 +249,43 @@ table(sce_filt$species,altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$ts
 
 ```{r}
 
-combined<-colData(sce_filt) %>% as.data.frame
-combined$wta_tdtom_detection_score<-altExp(sce_filt,"wta_ontarget_multi")$wta_tdtom_detection_score
-combined$wta_egfp_detection_score<-altExp(sce_filt,"wta_ontarget_multi")$wta_egfp_detection_score
-combined$tso_tdtom_detection_score<-altExp(sce_filt,"tso_ontarget_multi")$tso_tdtom_detection_score
-combined$tso_egfp_detection_score<-altExp(sce_filt,"tso_ontarget_multi")$tso_egfp_detection_score
+ae_tso <- altExp(sce_filt,"tso_ontarget_multi")
+ae_wta <- altExp(sce_filt,"wta_ontarget_multi")
+
+comb <- data.frame(colData(sce_filt)[,c("subsets_mouse_gene_sum","subsets_human_gene_sum",
+                                        "sample_id")],
+                   colData(ae_tso)[,c("tso_tdtom_detection_score","tso_egfp_detection_score")],
+                   colData(ae_wta)[,c("wta_tdtom_detection_score","wta_egfp_detection_score")])
+
+head(comb, 2)
 
 brewer.pal(n=4,name="BuGn")
 brewer.pal(n=4,name="Blues")
 
-combined$color<-"purple" # these will be the doublets
-combined$color[which(combined$tso_egfp_detection_score==0 & combined$tso_tdtom_detection_score==0)]<-"grey" # no detection of either
-combined$color[which(combined$tso_egfp_detection_score==1 & combined$tso_tdtom_detection_score>0)]<-"grey" # no detection of either
-combined$color[which(combined$tso_egfp_detection_score>0 & combined$tso_tdtom_detection_score==1)]<-"grey" # no detection of either
+comb$color<-"purple" # these will be the doublets
+comb$color[comb$tso_egfp_detection_score==0 & comb$tso_tdtom_detection_score==0]<-"grey" # no detection of either
+comb$color[comb$tso_egfp_detection_score==1 & comb$tso_tdtom_detection_score>0]<-"grey" # no detection of either
+comb$color[comb$tso_egfp_detection_score>0 & comb$tso_tdtom_detection_score==1]<-"grey" # no detection of either
 
-combined$color[which(combined$tso_egfp_detection_score==2 & combined$tso_tdtom_detection_score<=1)]<-"#B2E2E2"
-combined$color[which(combined$tso_egfp_detection_score==3 & combined$tso_tdtom_detection_score<=1)]<-"#66C2A4"
-combined$color[which(combined$tso_egfp_detection_score==4 & combined$tso_tdtom_detection_score<=1)]<-"#238B45"
+comb$color[comb$tso_egfp_detection_score==2 & comb$tso_tdtom_detection_score<=1]<-"#B2E2E2"
+comb$color[comb$tso_egfp_detection_score==3 & comb$tso_tdtom_detection_score<=1]<-"#66C2A4"
+comb$color[comb$tso_egfp_detection_score==4 & comb$tso_tdtom_detection_score<=1]<-"#238B45"
 
-combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_detection_score==2)]<-"#BDD7E7"
-combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_detection_score==3)]<-"#6BAED6"
-combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_detection_score==4)]<-"#2171B5"
+comb$color[comb$tso_egfp_detection_score<=1 & comb$tso_tdtom_detection_score==2]<-"#BDD7E7"
+comb$color[comb$tso_egfp_detection_score<=1 & comb$tso_tdtom_detection_score==3]<-"#6BAED6"
+comb$color[comb$tso_egfp_detection_score<=1 & comb$tso_tdtom_detection_score==4]<-"#2171B5"
 
-table(combined$color,combined$sample_id)
+table(comb$color,comb$sample_id)
 
-ggplot(combined, aes(
+ggplot(comb, aes(
   x = subsets_mouse_gene_sum,
   y = subsets_human_gene_sum,
   color = color 
 )) +
   geom_point(alpha = 0.5,size=0.5) +
   scale_x_log10() + scale_y_log10() +
-  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", "mixing_rock", "mixing_rockroi"))) +
+  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", 
+                                           "mixing_rock", "mixing_rockroi"))) +
   theme_bw() +
   xlab("mouse gene sum") +
   ylab("human gene sum")+
@@ -262,8 +294,11 @@ ggplot(combined, aes(
     name = "Legend Title",
     guide = "legend" ,
   )+
-  labs(title="Detection of egfp and tdtomato regions")+
-  scale_color_manual(labels=c("all_tdtom_rois","all_egfp_rois","tdtom_roi","egfp_cds","tdtom_cds","no_detection","doublets"), values=c("#2171B5","#238B45","#6BAED6","#B2E2E2","#BDD7E7","grey","purple"))
+  labs(title="detection of egfp and tdtomato regions")+
+  scale_color_manual(labels=c("all_tdtom_rois","all_egfp_rois","tdtom_roi",
+                              "egfp_cds","tdtom_cds","no_detection","doublets"),
+                     values=c("#2171B5","#238B45","#6BAED6","#B2E2E2","#BDD7E7","grey","purple"))
+
 
 ```
 
@@ -271,27 +306,28 @@ ggplot(combined, aes(
 
 ```{r}
 
-combined$color<-"purple" # these will be the doublets
-combined$color[which(combined$tso_egfp_detection_score==0 & combined$tso_tdtom_detection_score==0)]<-"grey" # no detection of either
-combined$color[which(combined$tso_egfp_detection_score==1 & combined$tso_tdtom_detection_score>0)]<-"grey" # no detection of either
-combined$color[which(combined$tso_egfp_detection_score>0 & combined$tso_tdtom_detection_score==1)]<-"grey" # no detection of either
+comb$color<-"purple" # these will be the doublets
+comb$color[comb$tso_egfp_detection_score==0 & comb$tso_tdtom_detection_score==0]<-"grey" # no detection of either
+comb$color[comb$tso_egfp_detection_score==1 & comb$tso_tdtom_detection_score>0]<-"grey" # no detection of either
+comb$color[comb$tso_egfp_detection_score>0 & comb$tso_tdtom_detection_score==1]<-"grey" # no detection of either
 
-combined$color[which(combined$tso_egfp_detection_score==2 & combined$tso_tdtom_detection_score<=1)]<-"grey"
-combined$color[which(combined$tso_egfp_detection_score==3 & combined$tso_tdtom_detection_score<=1)]<-"#66C2A4"
-combined$color[which(combined$tso_egfp_detection_score==4 & combined$tso_tdtom_detection_score<=1)]<-"#238B45"
+comb$color[comb$tso_egfp_detection_score==2 & comb$tso_tdtom_detection_score<=1]<-"grey"
+comb$color[comb$tso_egfp_detection_score==3 & comb$tso_tdtom_detection_score<=1]<-"#66C2A4"
+comb$color[comb$tso_egfp_detection_score==4 & comb$tso_tdtom_detection_score<=1]<-"#238B45"
 
-combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_detection_score==2)]<-"grey"
-combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_detection_score==3)]<-"#6BAED6"
-combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_detection_score==4)]<-"#2171B5"
+comb$color[comb$tso_egfp_detection_score<=1 & comb$tso_tdtom_detection_score==2]<-"grey"
+comb$color[comb$tso_egfp_detection_score<=1 & comb$tso_tdtom_detection_score==3]<-"#6BAED6"
+comb$color[comb$tso_egfp_detection_score<=1 & comb$tso_tdtom_detection_score==4]<-"#2171B5"
 
-ggplot(combined, aes(
+ggplot(comb, aes(
   x = subsets_mouse_gene_sum,
   y = subsets_human_gene_sum,
   color = color 
 )) +
   geom_point(alpha = 0.5,size = 0.5) +
   scale_x_log10() + scale_y_log10() +
-  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", "mixing_rock", "mixing_rockroi"))) +
+  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", 
+                                           "mixing_rock", "mixing_rockroi"))) +
   theme_bw() +
   xlab("mouse gene sum") +
   ylab("human gene sum") +
@@ -301,8 +337,11 @@ ggplot(combined, aes(
     name = "Legend Title",
     guide = "legend" ,
   )+
-  labs(title="Detection of egfp and tdtomato regions (ROIs)")+
-  scale_color_manual(labels=c("all_tdtom_rois","all_egfp_rois","tdtom_roi","no_detection","doublets"), values=c("#2171B5","#238B45","#6BAED6","grey","purple"))
+  labs(title="detection of egfp and tdtomato regions")+
+  scale_color_manual(labels=c("all_tdtom_rois","all_egfp_rois","tdtom_roi",
+                              "no_detection","doublets"), 
+                     values=c("#2171B5","#238B45","#6BAED6","grey","purple"))
+
 
 ```
 
@@ -310,27 +349,28 @@ ggplot(combined, aes(
 
 ```{r}
 
-combined$color<-"purple" # these will be the doublets
-combined$color[which(combined$tso_egfp_detection_score==0 & combined$tso_tdtom_detection_score==0)]<-"grey" # no detection of either
-combined$color[which(combined$tso_egfp_detection_score==1 & combined$tso_tdtom_detection_score>0)]<-"grey" # no detection of either
-combined$color[which(combined$tso_egfp_detection_score>0 & combined$tso_tdtom_detection_score==1)]<-"grey" # no detection of either
+comb$color<-"purple" # these will be the doublets
+comb$color[comb$tso_egfp_detection_score==0 & comb$tso_tdtom_detection_score==0]<-"grey" # no detection of either
+comb$color[comb$tso_egfp_detection_score==1 & comb$tso_tdtom_detection_score>0]<-"grey" # no detection of either
+comb$color[comb$tso_egfp_detection_score>0 & comb$tso_tdtom_detection_score==1]<-"grey" # no detection of either
 
-combined$color[which(combined$tso_egfp_detection_score==2 & combined$tso_tdtom_detection_score<=1)]<-"#238B45" # rois are part of the cds
-combined$color[which(combined$tso_egfp_detection_score==3 & combined$tso_tdtom_detection_score<=1)]<-"#238B45" # rois are part of the cds
-combined$color[which(combined$tso_egfp_detection_score==4 & combined$tso_tdtom_detection_score<=1)]<-"#238B45" # rois are part of the cds
+comb$color[comb$tso_egfp_detection_score==2 & comb$tso_tdtom_detection_score<=1]<-"#238B45" # rois are part of the cds
+comb$color[comb$tso_egfp_detection_score==3 & comb$tso_tdtom_detection_score<=1]<-"#238B45" # rois are part of the cds
+comb$color[comb$tso_egfp_detection_score==4 & comb$tso_tdtom_detection_score<=1]<-"#238B45" # rois are part of the cds
 
-combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_detection_score==2)]<-"#2171B5" # rois are part of the cds
-combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_detection_score==3)]<-"#2171B5" # rois are part of the cds
-combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_detection_score==4)]<-"#2171B5" # rois are part of the cds
+comb$color[comb$tso_egfp_detection_score<=1 & comb$tso_tdtom_detection_score==2]<-"#2171B5" # rois are part of the cds
+comb$color[comb$tso_egfp_detection_score<=1 & comb$tso_tdtom_detection_score==3]<-"#2171B5" # rois are part of the cds
+comb$color[comb$tso_egfp_detection_score<=1 & comb$tso_tdtom_detection_score==4]<-"#2171B5" # rois are part of the cds
 
-ggplot(combined, aes(
+ggplot(comb, aes(
   x = subsets_mouse_gene_sum,
   y = subsets_human_gene_sum,
   color = color 
 )) +
   geom_point(alpha = 0.5,size=0.5) +
   scale_x_log10() + scale_y_log10() +
-  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", "mixing_rock", "mixing_rockroi"))) +
+  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", 
+                                           "mixing_rock", "mixing_rockroi"))) +
   theme_bw() +
   xlab("mouse gene sum") +
   ylab("human gene sum") +
@@ -339,8 +379,10 @@ ggplot(combined, aes(
     name = "Legend Title",
     guide = "legend" ,
   )+
-  labs(title="Detection of egfp and tdtomato regions (CDS)")+
-  scale_color_manual(labels=c("tdtom_cds","egfp_cds","no_detection","doublets"), values=c("#2171B5","#238B45","grey","purple"))
+  labs(title="detection of egfp and tdtomato regions")+
+  scale_color_manual(labels=c("tdtom_cds","egfp_cds","no_detection","doublets"), 
+                     values=c("#2171B5","#238B45","grey","purple"))
+
 
 ```
 
@@ -375,6 +417,8 @@ rm(sce_filt)
 
 # on target TSO multi --> sum of counts for whole transcript
 
+ae_tso <- altExp(sce_nd,"tso_ontarget_multi")
+ae_wta <- altExp(sce_nd,"wta_ontarget_multi")
 rds <- rowData(sce_nd)
 
 tso_qc <- perCellQCMetrics(sce_nd, assay.type = "tso_off_and_ontarget_unique",
@@ -396,8 +440,10 @@ df <- data.frame(tso_total = tso_qc$total,
 
 # specifying regions since don't want to include the regulatory regions of egfp and tdtomato
 
-df$tso_capture_sum<-colSums(assay(altExp(sce_nd,"tso_ontarget_multi"),1)[c("5_utr_egfp_wpre","3_utr_egfp_wpre","5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp","5_utr_tdtomato_wpre","3_utr_tdtomato_wpre","5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),])
-df$wta_capture_sum<-colSums(assay(altExp(sce_nd,"wta_ontarget_multi"),1)[c("5_utr_egfp_wpre","3_utr_egfp_wpre","5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp","5_utr_tdtomato_wpre","3_utr_tdtomato_wpre","5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),])
+# excluding regulatory region 
+
+df$tso_capture_sum<-colSums(assay(ae_tso,1)[regs$egfp_tx,,drop=FALSE])+colSums(assay(ae_tso,1)[regs$tdtom_tx,,drop=FALSE])
+df$wta_capture_sum<-colSums(assay(ae_wta,1)[regs$egfp_tx,,drop=FALSE])+colSums(assay(ae_wta,1)[regs$tdtom_tx,,drop=FALSE])
 
 log_1p_tso_ontarget_multi <- log1p(df$tso_capture_sum)
 
@@ -409,10 +455,13 @@ ggplot(df, aes(x = tso_total, y = wta_total, color = log_1p_tso_ontarget_multi))
   theme_bw() +
   xlab("total TSO UMIs") +
   ylab("total WTA UMIs") +
-  theme(axis.text = element_text(size = 15), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
-  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", "mixing_rock", "mixing_rockroi")))+
-  labs(title="Total WTA UMIs vs total TSO UMIs")+
-  labs(colour="tso_ontarget")+
+  theme(
+    axis.text = element_text(size = 15),
+    axis.title = element_text(size = 20, face = "bold"),
+    strip.text = element_text(size = 15, face = "bold"))+
+  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", 
+                                           "mixing_rock", "mixing_rockroi")))+
+  labs(title="total WTA UMIs vs total TSO UMIs")+
   scale_color_viridis()
 
 ```
@@ -426,33 +475,40 @@ ggplot(df, aes(x = tso_total, y = wta_total, color = log_1p_tso_ontarget_multi))
 df$tso_egfp_detection_score<-altExp(sce_nd,"tso_ontarget_multi",withColData=TRUE)$tso_egfp_detection_score
 df$tso_tdtom_detection_score<-altExp(sce_nd,"tso_ontarget_multi",withColData=TRUE)$tso_tdtom_detection_score
 
-# using the cds as the ontarget and including both eGFP and tdtom
+# using the cds as the ontarget
 
-df$tso_capture_sum_cds<-colSums(assay(altExp(sce_nd,"tso_ontarget_multi"),1)[c("5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp","5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),])
-df$wta_capture_sum_cds<-colSums(assay(altExp(sce_nd,"wta_ontarget_multi"),1)[c("5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp","5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),])
+df$tso_capture_sum_cds<-colSums(assay(ae_tso,1)[regs$egfp_cds,,drop=FALSE])+colSums(assay(ae_tso,1)[regs$tdtom_cds,,drop=FALSE])
+df$wta_capture_sum_cds<-colSums(assay(ae_wta,1)[regs$egfp_cds,,drop=FALSE])+colSums(assay(ae_wta,1)[regs$tdtom_cds,,drop=FALSE])
 
 df$color<-"purple" # these will be the doublets
-df$color[which(df$tso_egfp_detection_score==0 & df$tso_tdtom_detection_score==0)]<-"grey" # no detection of either
-df$color[which(df$tso_egfp_detection_score==1 & df$tso_tdtom_detection_score>0)]<-"grey" # no detection of either
-df$color[which(df$tso_egfp_detection_score>0 & df$tso_tdtom_detection_score==1)]<-"grey" # no detection of either
+df$color[df$tso_egfp_detection_score==0 & df$tso_tdtom_detection_score==0]<-"grey" # no detection of either
+df$color[df$tso_egfp_detection_score==1 & df$tso_tdtom_detection_score>0]<-"grey" # no detection of either
+df$color[df$tso_egfp_detection_score>0 & df$tso_tdtom_detection_score==1]<-"grey" # no detection of either
 
-df$color[which(df$tso_egfp_detection_score==2 & df$tso_tdtom_detection_score<=1)]<-"#B2E2E2"
-df$color[which(df$tso_egfp_detection_score==3 & df$tso_tdtom_detection_score<=1)]<-"#66C2A4"
-df$color[which(df$tso_egfp_detection_score==4 & df$tso_tdtom_detection_score<=1)]<-"#238B45"
+df$color[df$tso_egfp_detection_score==2 & df$tso_tdtom_detection_score<=1]<-"#B2E2E2"
+df$color[df$tso_egfp_detection_score==3 & df$tso_tdtom_detection_score<=1]<-"#66C2A4"
+df$color[df$tso_egfp_detection_score==4 & df$tso_tdtom_detection_score<=1]<-"#238B45"
 
-df$color[which(df$tso_egfp_detection_score<=1 & df$tso_tdtom_detection_score==2)]<-"#BDD7E7"
-df$color[which(df$tso_egfp_detection_score<=1 & df$tso_tdtom_detection_score==3)]<-"#6BAED6"
-df$color[which(df$tso_egfp_detection_score<=1 & df$tso_tdtom_detection_score==4)]<-"#2171B5"
+df$color[df$tso_egfp_detection_score<=1 & df$tso_tdtom_detection_score==2]<-"#BDD7E7"
+df$color[df$tso_egfp_detection_score<=1 & df$tso_tdtom_detection_score==3]<-"#6BAED6"
+df$color[df$tso_egfp_detection_score<=1 & df$tso_tdtom_detection_score==4]<-"#2171B5"
 
 ggplot(df, aes(x = tso_capture_sum_cds, y = wta_capture_sum_cds, color=color))+
   geom_jitter(height = .2,size=0.5,alpha=0.5)+
-  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", "mixing_rock", "mixing_rockroi"))) +
+  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", 
+                                           "mixing_rock", "mixing_rockroi"))) +
   theme_bw()+
   xlab("on target TSO UMIs")+
   ylab("on target WTA UMIs")+
-  theme(axis.text = element_text(size = 15), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
-  labs(title="On target egfp vs tdtomato regions")+
-  scale_color_manual(labels=c("all_tdtom_rois","all_egfp_rois","tdtom_roi","egfp_cds","tdtom_cds","no_detection","doublets"), values=c("#2171B5","#238B45","#6BAED6","#B2E2E2","#BDD7E7","grey","purple"))
+  theme(
+    axis.text = element_text(size = 15),
+    axis.title = element_text(size = 20, face = "bold"),
+    strip.text = element_text(size = 15, face = "bold"))+
+  labs(title="detection of egfp and tdtomato regions")+
+  scale_color_manual(labels=c("all_tdtom_rois","all_egfp_rois","tdtom_roi",
+                              "egfp_cds","tdtom_cds","no_detection","doublets"),
+                     values=c("#2171B5","#238B45","#6BAED6","#B2E2E2","#BDD7E7","grey","purple"))
+
 
 ```
 
@@ -469,10 +525,15 @@ human<-df[df$species=="human",]
 
 ggplot(mouse, aes(x = tso_capture_sum, y = tso_egfp_detection_score,color=wta_total))+
   geom_jitter(height = .2,size=0.5,alpha=0.5)+
-  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", "mixing_rock", "mixing_rockroi"))) +
+  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", 
+                                           "mixing_rock", "mixing_rockroi"))) +
   theme_bw()+
-  theme(axis.text = element_text(size = 15), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
-  labs(title="egfp ROIs vs on target TSO UMIs")+
+  xlab("on target TSO UMIs")+
+  ylab("tso_egfp_detection_score")+
+  theme(
+    axis.text = element_text(size = 15),
+    axis.title = element_text(size = 20, face = "bold"),
+    strip.text = element_text(size = 15, face = "bold"))+
   scale_color_viridis()
 
 ```
@@ -485,12 +546,15 @@ table(df$tso_tdtom_detection_score,sce_nd$sample_id,sce_nd$species)
 
 ggplot(human, aes(x = tso_capture_sum, y = tso_tdtom_detection_score,color=wta_total))+
   geom_jitter(height = .2,size=0.5,alpha=0.5)+
-  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", "mixing_rock", "mixing_rockroi"))) +
+  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", 
+                                           "mixing_rock", "mixing_rockroi"))) +
   theme_bw()+
   xlab("on target TSO UMIs")+
   ylab("tso_tdtom_detection_score")+
-  theme(axis.text = element_text(size = 15), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
-  labs(title="On target egfp vs tdtomato regions")+
+  theme(
+    axis.text = element_text(size = 15),
+    axis.title = element_text(size = 20, face = "bold"),
+    strip.text = element_text(size = 15, face = "bold"))+
   scale_color_viridis()
 
 ```
@@ -501,12 +565,16 @@ ggplot(human, aes(x = tso_capture_sum, y = tso_tdtom_detection_score,color=wta_t
 
 ggplot(df, aes(x = tso_capture_sum_cds, y = wta_capture_sum_cds, color=wta_total))+
   geom_jitter(height = .2,alpha=0.3,size=0.5)+
-  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", "mixing_rock", "mixing_rockroi"))) +
+  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", 
+                                           "mixing_rock", "mixing_rockroi"))) +
   theme_bw()+
   xlab("on target TSO UMIs")+
   ylab("on target WTA UMIs")+
-  theme(axis.text = element_text(size = 15), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
-  labs(title="On target egfp vs tdtomato regions")+
+  theme(
+    axis.text = element_text(size = 15),
+    axis.title = element_text(size = 20, face = "bold"),
+    strip.text = element_text(size = 15, face = "bold"))+
+  labs(title="on target WTA and TSO UMIs")+
   scale_color_viridis()
   
 ```
@@ -516,27 +584,33 @@ ggplot(df, aes(x = tso_capture_sum_cds, y = wta_capture_sum_cds, color=wta_total
 ```{r}
 
 df$color<-"purple" # these will be the doublets
-df$color[which(df$tso_egfp_detection_score==0 & df$tso_tdtom_detection_score==0)]<-"grey" # no detection of either
-df$color[which(df$tso_egfp_detection_score==1 & df$tso_tdtom_detection_score>0)]<-"grey" # no detection of either
-df$color[which(df$tso_egfp_detection_score>0 & df$tso_tdtom_detection_score==1)]<-"grey" # no detection of either
+df$color[df$tso_egfp_detection_score==0 & df$tso_tdtom_detection_score==0]<-"grey" # no detection of either
+df$color[df$tso_egfp_detection_score==1 & df$tso_tdtom_detection_score>0]<-"grey" # no detection of either
+df$color[df$tso_egfp_detection_score>0 & df$tso_tdtom_detection_score==1]<-"grey" # no detection of either
 
-df$color[which(df$tso_egfp_detection_score==2 & df$tso_tdtom_detection_score<=1)]<-"#238B45"
-df$color[which(df$tso_egfp_detection_score==3 & df$tso_tdtom_detection_score<=1)]<-"#238B45"
-df$color[which(df$tso_egfp_detection_score==4 & df$tso_tdtom_detection_score<=1)]<-"#238B45"
+df$color[df$tso_egfp_detection_score==2 & df$tso_tdtom_detection_score<=1]<-"#238B45"
+df$color[df$tso_egfp_detection_score==3 & df$tso_tdtom_detection_score<=1]<-"#238B45"
+df$color[df$tso_egfp_detection_score==4 & df$tso_tdtom_detection_score<=1]<-"#238B45"
 
-df$color[which(df$tso_egfp_detection_score<=1 & df$tso_tdtom_detection_score==2)]<-"#2171B5"
-df$color[which(df$tso_egfp_detection_score<=1 & df$tso_tdtom_detection_score==3)]<-"#2171B5"
-df$color[which(df$tso_egfp_detection_score<=1 & df$tso_tdtom_detection_score==4)]<-"#2171B5"
+df$color[df$tso_egfp_detection_score<=1 & df$tso_tdtom_detection_score==2]<-"#2171B5"
+df$color[df$tso_egfp_detection_score<=1 & df$tso_tdtom_detection_score==3]<-"#2171B5"
+df$color[df$tso_egfp_detection_score<=1 & df$tso_tdtom_detection_score==4]<-"#2171B5"
 
 ggplot(df, aes(x = tso_capture_sum_cds, y = wta_capture_sum_cds, color=color))+
   geom_jitter(height = .2,alpha=0.3,size=0.5)+
-  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", "mixing_rock", "mixing_rockroi"))) +
+  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", "mixing_unmod_roi", 
+                                           "mixing_rock", "mixing_rockroi"))) +
   theme_bw()+
   xlab("on target TSO UMIs")+
-  ylab("on target WTA UMIs")+  
-theme(axis.text = element_text(size = 15), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
-  labs(title="On target egfp vs tdtomato regions")+
-  scale_color_manual(labels=c("tdtom_cds","egfp_cds","no_detection","doublets"), values=c("#2171B5","#238B45","grey","purple"))
+  ylab("on target WTA UMIs")+
+  theme(
+    axis.text = element_text(size = 15),
+    axis.title = element_text(size = 20, face = "bold"),
+    strip.text = element_text(size = 15, face = "bold"))+
+  labs(title="on target WTA and TSO UMIs")+
+  scale_color_manual(labels=c("tdtom_cds","egfp_cds","no_detection","doublets"), 
+                     values=c("#2171B5","#238B45","grey","purple"))
+
 
 ```
 
@@ -713,7 +787,10 @@ p <- ggplot(dfm %>% filter(variable %in% c("roi_1_tdtomato", "roi_2_tdtomato","r
   theme_bw()+
   xlab("false positive fraction")+
   ylab("true positive fraction")+
-  theme(axis.text = element_text(size = 10),axis.title = element_text(size = 10, face = "bold"),strip.text = element_text(size = 10, face = "bold"))
+  theme(
+    axis.text = element_text(size = 15),
+    axis.title = element_text(size = 20, face = "bold"),
+    strip.text = element_text(size = 15, face = "bold"))
 
 mouse_targets <- grep("egfp", names(sorted), value = TRUE)
 
@@ -728,7 +805,10 @@ q <- ggplot(dfm %>% filter(variable %in% c("rock_egfp","roi_egfp")),
   theme_bw()+
   xlab("false positive fraction")+
   ylab("true positive fraction")+
-  theme(axis.text = element_text(size = 10),axis.title = element_text(size = 10, face = "bold"),strip.text = element_text(size = 10, face = "bold"))
+  theme(
+    axis.text = element_text(size = 15),
+    axis.title = element_text(size = 20, face = "bold"),
+    strip.text = element_text(size = 15, face = "bold"))
 
 cowplot::plot_grid(p,q, nrow=2)
 
@@ -844,12 +924,120 @@ pheatmap(logcounts[gs,s], show_rownames = TRUE,
          cluster_cols = FALSE,
          fontsize_row = 8)
 
+m <- sce_nd[rowData(sce_nd)$type=="mouse_gene", 
+             sce_nd$subsets_mouse_gene_percent > 50]
+
+k <- rowSums(assay(m,"wta")) > 0
+
+m <- m[k,]
+
+df$species<-sce_nd$species
+
+ae_tso <- altExp(sce_nd,"tso_ontarget_multi")
+ae_wta <- altExp(sce_nd,"wta_ontarget_multi")
+
+
+# excluding regulatory region 
+
+df$tso_capture_sum_cds<-colSums(assay(ae_tso,1)[regs$egfp_cds,,drop=FALSE])+colSums(assay(ae_tso,1)[regs$tdtom_cds,,drop=FALSE])
+df$wta_capture_sum_cds<-colSums(assay(ae_wta,1)[regs$egfp_cds,,drop=FALSE])+colSums(assay(ae_wta,1)[regs$tdtom_cds,,drop=FALSE])
+
+
+df$cds_detection_score<-df$tso_capture_sum_cds+df$wta_capture_sum_cds
+
+mouse<-df[df$species=="mouse",]
+human<-df[df$species=="human",]
+
+positive_cells<-data.frame(matrix(nrow = 4, ncol = 2)) 
+colnames(positive_cells)<-c("percent_egfp_pos_mouse","percent_tdtom_pos_human")
+rownames(positive_cells)<-unique(df$sample)
+
+for (i in unique(mouse$sample)){
+  positive_cells[i,1]<-length(which(mouse[mouse$sample==i,]$cds_detection_score>0))/
+    length(mouse[mouse$sample==i,]$cds_detection_score)*100
+}
+
+for (i in unique(mouse$sample)){
+  positive_cells[i,2]<-length(which(human[human$sample==i,]$cds_detection_score>0))/
+    length(human[human$sample==i,]$cds_detection_score)*100
+}
+
+agg_counts <- assay(aac,"wta")
+
+ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")))) +
+  geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9))+
+  xlab(" ")+
+  ylab("percent positive cells")+
+  theme_bw()+
+  ylim(0,100)+  
+  theme(axis.text = element_text(size = 8), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
+  labs(title="Barplot with % positive cells (cds)")+
+  scale_fill_discrete(name = "Samples")+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge(width=0.9), vjust=-0.5)
+
+
+ents <- apply(agg_counts, 1, calc_entropy)
+
+gs <- rownames(tt)[tt$F > 50 & ents < 1.35]
+
+col_anno <- colData(m)[,c("sample_id","species")] %>% as.data.frame
+
+ggplot(data=plottable,aes(y=value,x=variable,color=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi",
+                                                                          "mixing_rock","mixing_rockroi")))) +
+  geom_point()+
+  xlab(" ")+
+  ylab("percent positive cells")+
+  theme_bw()+
+  labs(color='Samples') +
+  theme(
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 20, face = "bold"),
+    strip.text = element_text(size = 15, face = "bold"))+
+  geom_text(
+    aes(label=format(round(value,2),nsmall=2)), 
+    position=position_dodge(width=0.5), 
+    vjust=-0.5,
+    show.legend=FALSE,size=4)
+
+
+gene_info <- read_tsv(file.path(datadir,
+                                "genes_vs_fuzznuc_mixing.txt.gz"), 
+                      col_names = c("ids", "pattern", "mismatches"))
+
+extract_stuff <- function(u, term = "gene_type", default = "unknown") {
+  g <- grep(term, u, value=TRUE)
+  if(length(g)==0)
+    return(default)
+  else
+    return(g)
+}
+
+ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi",
+                                                           "mixing_rock","mixing_rockroi")),color=variable)) +
+  geom_point()+
+  xlab(" ")+
+  ylab("percent positive cells")+
+  theme_bw()+
+  labs(color='Samples') +
+  theme(
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 20, face = "bold"),
+    strip.text = element_text(size = 15, face = "bold"))+
+  geom_text(
+    aes(label=format(round(value,2),nsmall=2)), 
+    position=position_dodge(width=0.5), 
+    vjust=-0.5,show.legend=FALSE,size=4)+
+  scale_color_manual(labels=c("percent_egfp_pos_mouse","percent_tdtom_pos_human"), 
+                     values=c("#2171B5","#238B45"))
+
 ```
 
 ### Library size per cell WTA vs TSO (previous plots from Izaskun)
 
 ```{r}
 
+ae_tso <- altExp(sce_nd,"tso_ontarget_multi")
+ae_wta <- altExp(sce_nd,"wta_ontarget_multi")
 rds <- rowData(sce_nd)
 
 tso_qc <- perCellQCMetrics(sce_nd, assay.type = "tso_off_and_ontarget_unique",
@@ -869,9 +1057,11 @@ df <- data.frame(tso_total = tso_qc$total,
                    sce_nd$subsets_human_mito_percent,
                  sample_id = sce_nd$sample_id)
 
+# excluding regulatory region 
 
-df$tso_capture_sum<-colSums(assay(altExp(sce_nd,"tso_ontarget_multi"),1)[c("5_utr_egfp_wpre","3_utr_egfp_wpre","5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp","5_utr_tdtomato_wpre","3_utr_tdtomato_wpre","5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),])
-df$wta_capture_sum<-colSums(assay(altExp(sce_nd,"wta_ontarget_multi"),1)[c("5_utr_egfp_wpre","3_utr_egfp_wpre","5_to_roi_egfp","roi_egfp","rock_egfp","capture_sequence_double_egfp_egfp","5_utr_tdtomato_wpre","3_utr_tdtomato_wpre","5_to_roi_tdtomato","roi_1_tdtomato","roi_2_tdtomato","roi_3_tdtomato","roi_4_tdtomato","between_roi_1","between_roi_2","between_roi_3","rock_tdtomato","capture_sequence_double_egfp_tdtom"),])
+df$tso_capture_sum<-colSums(assay(ae_tso,1)[regs$egfp_tx,,drop=FALSE])+colSums(assay(ae_tso,1)[regs$tdtom_tx,,drop=FALSE])
+df$wta_capture_sum<-colSums(assay(ae_wta,1)[regs$egfp_tx,,drop=FALSE])+colSums(assay(ae_wta,1)[regs$tdtom_tx,,drop=FALSE])
+
 
 samples<-c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")
 
