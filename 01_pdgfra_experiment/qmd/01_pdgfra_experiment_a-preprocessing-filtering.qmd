@@ -29,6 +29,7 @@ rdss <- dir(here("01_pdgfra_experiment"), "^pd.*rds$",
             recursive = TRUE, full.names = TRUE)
 names(rdss) <- gsub("_sce.rds", "", basename(rdss))
 rdss <- rdss[!grepl("bak", rdss)] # remove those in 'bak' dir
+rdss <- rdss[names(rdss) != "pdgfra_rockroi_unimodal"]
 rdss
 
 datadir <- dirname(rdss)[1]
@@ -200,6 +201,15 @@ for(tso in names(sorted))
              jitter(exprs[tso,]), pch=19, main=tso,
        xlab="mouse percent",
        ylab=tso)
+
+
+```
+
+
+## sessionInfo()
+
+```{r}
+
 
 
 ```

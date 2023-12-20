@@ -17,6 +17,7 @@ library(scran)
 library(scater)
 library(ggplot2)
 library(dplyr)
+library(tidyr)
 library(reshape2)
 library(UpSetR)
 library(limma)
@@ -28,6 +29,8 @@ library(here)
 library(khroma)
 library(bluster)
 library(googlesheets4)
+library(gridExtra)
+
 
 save_pheatmap_pdf <- function(x, filename, width=7, height=7) {
    stopifnot(!missing(x))
@@ -62,7 +65,7 @@ mgv <- modelGeneVar(sces, block = sces$sample_id)
 mgv_pb  <- lapply(mgv$per.block, function(u) {
  o <- order(u$p.value)
  u <- u[o,]
- head(rownames(u), 1000)
+ head(rownames(u), 500)
 })
 
 # most are sample-wise (?)
@@ -180,10 +183,9 @@ rm(sces); gc()
 # table(nn.clusters)
 
 
-myscale <- rainbow(13)
-names(myscale) <- as.character(1:13)
-# 
-# c(color("muted")(9), gray="lightgray")
+myscale <- c(color("muted")(9), gray="lightgray")
+names(myscale) <- as.character(1:length(myscale))
+
 
 
 set.seed(1976)
@@ -248,49 +250,57 @@ df <- data.frame(gene = names(ents),
                  entropy=ents, Fstat=tt$F,
                  cluster.max = apply(agg_counts, 1, which.max)) %>%
   mutate(order_by = Fstat / entropy) %>%
-  filter(Fstat > 400, entropy < 1.5) %>%
+  filter(Fstat > 400, entropy < 1.25) %>%
   arrange(desc(order_by)) %>%
   group_by(cluster.max) %>% slice_max(order_by = order_by, n = 10)
 
 col_anno <- colData(sces_nd)[,c("sample_id","cluster")] %>% as.data.frame
 
+genes <- split(df$gene, df$cluster.max) %>% unlist
+
+# make row annotation
+rowanno <- data.frame(Marker = genes) %>% 
+  left_join(markers %>% select(Marker, Broad_cell_type, Cell_type)) %>%
+  transmute(Marker = Marker,
+            broad_ct = replace_na(Broad_cell_type, ""),
+            celltype = replace_na(Cell_type, "")) %>%
+  tibble::column_to_rownames("Marker")
+
+
 # o <- order(sces_nd$cluster)
 
 inds <- split(seq_len(ncol(sces_nd)), sces_nd$cluster)
-set.seed(1976)
-inds <- lapply(inds, sample, min(table(sces_nd$cluster)), 
-               replace = FALSE)
+# set.seed(1976)
+# inds <- lapply(inds, sample, min(table(sces_nd$cluster)), 
+#                replace = FALSE)
 
 # manually put clusters in order
 
-# cluster_order <- c(5, 9, 8, 4, 7, 1,3, 6,  2)
-# inds <- inds[cluster_order]
+cluster_order <- rev(c(1, 7, 6, 2, 3, 4, 5, 8))
+inds <- inds[cluster_order]
 
 ann_colors = list(cluster = myscale[seq_len(length(inds))])
 
 co <- unlist(inds)
-
-genes <- split(df$gene, df$cluster.max) %>% unlist
 
 ph <- pheatmap(lcounts[genes,co], show_rownames = TRUE,
         show_colnames = FALSE, scale="none",
         annotation_col = col_anno[co,],
         clustering_distance_rows = "correlation",
         clustering_distance_cols = "correlation",
+        annotation_row = rowanno,
         cluster_rows = TRUE,
         treeheight_row = 0,
         cluster_cols = FALSE, fontsize_row = 8,
         annotation_colors = ann_colors)
 
-save_pheatmap_pdf(ph, "cluster.pdf", width = 10, height = 10)
+save_pheatmap_pdf(ph, "cluster-allcells.pdf", width = 10, height = 10)
 
 rownames(altExp(sces_nd))
 sort(rowSums(assay(altExp(sces_nd), 1)), decreasing = TRUE)
 
-
 plotUMAP(sces_nd, colour_by = "ENSMUSG00000016494.9__Cd34")
 plotUMAP(sces_nd, colour_by = "ENSMUSG00000028255.6__Clca1")
-
 plotUMAP(sces_nd, colour_by = "ENSMUSG00000009246.14__Trpm5")
 
 
@@ -372,9 +382,8 @@ ps <- lapply(markers$Marker, function(u) {
 })
 
 ml <- marrangeGrob(ps, nrow=2, ncol=3)
-ggsave("markers.pdf", ml, width = 12, height = 8)
+ggsave("allmarkers-allcells.pdf", ml, width = 12, height = 8)
 ```
-
 
 ## Save output
 
