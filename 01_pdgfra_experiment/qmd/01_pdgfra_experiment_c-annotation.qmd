@@ -48,10 +48,10 @@ sce <- readRDS(file.path(datadir, "sce_qc-filtered-nodoublets-clustered.rds"))
 markers <- read_sheet("https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=1756474524",
                       sheet = "markers-pdgfra")
 
-myscale <- rainbow(13)
-names(myscale) <- as.character(1:13)
-# myscale <- c(color("muted")(9), gray="lightgray")
-# names(myscale) <- as.character(1:10)
+# myscale <- rainbow(13)
+# names(myscale) <- as.character(1:13)
+myscale <- c(color("muted")(9), gray="lightgray")
+names(myscale) <- as.character(1:10)
 
   
 ```
@@ -217,16 +217,16 @@ sce_epi <- runUMAP(sce_epi, dimred="PCA")
 #   scale_colour_manual()
 
 
-myscale <- rainbow(13)
-names(myscale) <- as.character(1:13)
+# myscale <- rainbow(13)
+# names(myscale) <- as.character(1:13)
 
-# myscale <- c(color("muted")(9), gray="lightgray")
-# names(myscale) <- as.character(1:10)
+myscale <- c(color("muted")(9), gray="lightgray", black="black")
+names(myscale) <- as.character(1:11)
 
 
 set.seed(1976)
 nn.clusters <- clusterCells(sce_epi, use.dimred="PCA",
-                            BLUSPARAM=NNGraphParam(k=40))
+                            BLUSPARAM=NNGraphParam(k=30))
 table(nn.clusters)
 sce_epi$cluster <- nn.clusters
 
@@ -253,10 +253,13 @@ f <- eBayes(f)
 # topTable(f, coef=2:ncol(mm), number = 4)
 tt <- topTable(f, coef=2:ncol(mm), number = 1e6, sort.by = "none")
 
+grep("Trpm5", rownames(sce_epi), value = TRUE)
 
 plotUMAP(sce_epi, colour_by = "ENSMUSG00000025934.15__Gsta3")
+plotUMAP(sce_epi, colour_by = "ENSMUSG00000009246.14__Trpm5")
 plotExpression(sce_epi, x = "cluster", features = c("ENSMUSG00000033740.17__St18",
-                                                    "ENSMUSG00000092083.4__Kcnb2"),
+                                                    "ENSMUSG00000092083.4__Kcnb2",
+                                                    "ENSMUSG00000009246.14__Trpm5"),
                colour_by = "cluster") +
   scale_color_manual(values = myscale)
 # plotUMAP(sce_epi, colour_by = "ENSMUSG00000026193.15__Fn1")
@@ -283,9 +286,9 @@ df <- data.frame(gene = names(ents),
                  entropy=ents, Fstat=tt$F,
                  cluster.max = apply(agg_counts, 1, which.max)) %>%
   mutate(order_by = Fstat / entropy) %>%
-  filter(Fstat > 500, entropy < 1.5) %>%
+  filter(Fstat > 50, entropy < 1.5) %>%
   arrange(desc(order_by)) %>%
-  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 20)
+  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 5)
 
 col_anno <- colData(sce_epi)[,c("sample_id","cluster")] %>% as.data.frame
 
@@ -305,8 +308,6 @@ set.seed(1976)
 # cluster_order <- c(1, 8, 2, 6, 5, 3, 4, 7)
 # inds <- inds[cluster_order]
 
-ann_colors = list(cluster = myscale[seq_len(length(inds))])
-
 co <- unlist(inds)
 
 genes <- split(df$gene, df$cluster.max) %>% unlist
@@ -319,6 +320,11 @@ rowanno <- data.frame(Marker = genes) %>%
             broad_ct = replace_na(Broad_cell_type, ""),
             celltype = replace_na(Cell_type, "")) %>%
   tibble::column_to_rownames("Marker")
+
+cts <- unique(rowanno$celltype)
+
+ann_colors = list(cluster = myscale[seq_len(length(inds))],
+                  celltype = setNames(myscale[1:length(cts)], cts))
 
 
 ph <- pheatmap(lcounts[genes,co], show_rownames = TRUE,
@@ -414,11 +420,11 @@ sce_mes <- runUMAP(sce_mes, dimred="PCA")
 plotUMAP(sce_mes, colour_by = "sample_id") + facet_wrap(~colour_by)
 
 
-myscale <- rainbow(8)
-names(myscale) <- as.character(1:8)
+# myscale <- rainbow(8)
+# names(myscale) <- as.character(1:8)
 
-# myscale <- c(color("muted")(9), gray="lightgray")
-# names(myscale) <- as.character(1:10)
+myscale <- c(color("muted")(9), gray="lightgray")
+names(myscale) <- as.character(1:10)
 
 
 set.seed(1976)
