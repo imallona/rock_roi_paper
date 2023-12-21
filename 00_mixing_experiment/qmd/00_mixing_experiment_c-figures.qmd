@@ -55,6 +55,10 @@ library(gridExtra)
 library(googlesheets4)
 library(tools)
 
+packageVersion("Matrix")
+
+
+
 getwd() # after opening the .Rproj file, getwd() should be "/Users/gimoro/figure_making_paper/rock_roi_paper"
 
 rdss <- dir(here("00_mixing_experiment"), "^mixing.*rds$", 
@@ -122,7 +126,6 @@ ggplot(cd, aes(x = total, y = total_mito_percent)) +
     axis.text = element_text(size = 15),
     axis.title=element_text(size=20,face="bold"),
     strip.text=element_text(size=15,face="bold"))
-
 
 ```
 
@@ -289,7 +292,10 @@ ggplot(comb, aes(
   theme_bw() +
   xlab("mouse gene sum") +
   ylab("human gene sum")+
-  theme(axis.text = element_text(size = 15), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold")) +
+  theme(axis.text = element_text(size = 15), 
+        plot.title=element_text(size=15,face="bold"),
+        axis.title=element_text(size=15,face="bold"),
+        strip.text=element_text(size=15,face="bold")) +
   scale_color_identity(
     name = "Legend Title",
     guide = "legend" ,
@@ -298,7 +304,6 @@ ggplot(comb, aes(
   scale_color_manual(labels=c("all_tdtom_rois","all_egfp_rois","tdtom_roi",
                               "egfp_cds","tdtom_cds","no_detection","doublets"),
                      values=c("#2171B5","#238B45","#6BAED6","#B2E2E2","#BDD7E7","grey","purple"))
-
 
 ```
 
@@ -332,7 +337,10 @@ ggplot(comb, aes(
   xlab("mouse gene sum") +
   ylab("human gene sum") +
   labs(title="Total number of transcripts vs percent mitochondrial reads")+
-  theme(axis.text = element_text(size = 15), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
+  theme(axis.text = element_text(size = 15), 
+        plot.title=element_text(size=15,face="bold"),
+        axis.title=element_text(size=15,face="bold"),
+        strip.text=element_text(size=15,face="bold"))+
   scale_color_identity(
     name = "Legend Title",
     guide = "legend" ,
@@ -374,7 +382,10 @@ ggplot(comb, aes(
   theme_bw() +
   xlab("mouse gene sum") +
   ylab("human gene sum") +
-  theme(axis.text = element_text(size = 15), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
+  theme(axis.text = element_text(size = 15), 
+        plot.title=element_text(size=15,face="bold"),
+        axis.title=element_text(size=15,face="bold"),
+        strip.text=element_text(size=15,face="bold"))+
   scale_color_identity(
     name = "Legend Title",
     guide = "legend" ,
@@ -645,10 +656,15 @@ ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing
   ylab("percent positive cells")+
   theme_bw()+
   ylim(0,100)+  
-  theme(axis.text = element_text(size = 8), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
+  theme(axis.text = element_text(size = 8), 
+        plot.title=element_text(size=15,face="bold"),
+        axis.title=element_text(size=15,face="bold"),
+        strip.text=element_text(size=15,face="bold"))+
   labs(title="Barplot with % positive cells (cds)")+
   scale_fill_discrete(name = "Samples")+
-  geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge(width=0.9), vjust=-0.5)
+  geom_text(aes(label=format(round(value,2),nsmall=2)), 
+            position=position_dodge(width=0.9), 
+            vjust=-0.5)
 
 ```
 
@@ -663,9 +679,16 @@ ggplot(data=plottable,aes(y=value,x=variable,color=factor(sample,levels=c("mixin
   theme_bw()+
   labs(color='Samples') +
   ylim(0,100)+
-  theme(axis.text = element_text(size = 8), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
+  theme(axis.text = element_text(size = 8), 
+        plot.title=element_text(size=15,face="bold"),
+        axis.title=element_text(size=15,face="bold"),
+        strip.text=element_text(size=15,face="bold"))+
   labs(title="Scatterplot with % positive cells (cds)")+
-  geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge2(width=1), vjust=-0.5,show.legend=FALSE,size=4)
+  geom_text(aes(label=format(round(value,2),nsmall=2)), 
+            position=position_dodge2(width=1), 
+            vjust=-0.5,
+            show.legend=FALSE,
+            size=4)
   
 ```
 
@@ -680,10 +703,17 @@ ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("mixing_unmod","mixin
   theme_bw()+
   labs(color='Samples') +
   ylim(0,100)+
-  theme(axis.text = element_text(size = 8), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
+  theme(axis.text = element_text(size = 8), 
+        plot.title=element_text(size=15,face="bold"),
+        axis.title=element_text(size=15,face="bold"),
+        strip.text=element_text(size=15,face="bold"))+
   labs(title="Scatterplot with % positive cells (cds)")+
-  geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge(width=1), vjust=-0.5,show.legend=FALSE,size=4)+
-  scale_color_manual(labels=c("percent_egfp_pos_mouse","percent_tdtom_pos_human"), values=c("#2171B5","#238B45"))
+  geom_text(aes(label=format(round(value,2),nsmall=2)), 
+            position=position_dodge(width=1), 
+            vjust=-0.5,
+            show.legend=FALSE,size=4)+
+  scale_color_manual(labels=c("percent_egfp_pos_mouse","percent_tdtom_pos_human"), 
+                     values=c("#2171B5","#238B45"))
 
 ```
 
@@ -717,9 +747,14 @@ ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing
   ylab("percent positive cells")+
   theme_bw()+
   ylim(0,100)+
-  theme(axis.text = element_text(size = 8), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
+  theme(axis.text = element_text(size = 8), 
+        plot.title=element_text(size=15,face="bold"),
+        axis.title=element_text(size=15,face="bold"),
+        strip.text=element_text(size=15,face="bold"))+
   labs(title="Barplot with % positive cells (full transcript)")+
-  geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge(width=0.9), vjust=-0.5)+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), 
+            position=position_dodge(width=0.9), 
+            vjust=-0.5)+
   labs(fill="Samples")
 
 ```
@@ -735,9 +770,15 @@ ggplot(data=plottable,aes(y=value,x=variable,color=factor(sample,levels=c("mixin
   theme_bw()+
   labs(color='Samples') +
   ylim(0,100)+
-  theme(axis.text = element_text(size = 8), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
+  theme(axis.text = element_text(size = 8), 
+        plot.title=element_text(size=15,face="bold"),
+        axis.title=element_text(size=15,face="bold"),
+        strip.text=element_text(size=15,face="bold"))+
   labs(title="Scatterplot with % positive cells (full transcript)")+
-  geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge(width=1), vjust=-0.5,show.legend=FALSE,size=4)
+  geom_text(aes(label=format(round(value,2),nsmall=2)), 
+            position=position_dodge(width=1),
+            vjust=-0.5,
+            show.legend=FALSE,size=4)
   
 ```
 
@@ -752,10 +793,18 @@ ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("mixing_unmod","mixin
   theme_bw()+
   ylim(0,100)+
   labs(color='Samples')+
-  theme(axis.text = element_text(size = 8), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
+  theme(axis.text = element_text(size = 8), 
+        plot.title=element_text(size=15,face="bold"),
+        axis.title=element_text(size=15,face="bold"),
+        strip.text=element_text(size=15,face="bold"))+
   labs(title="Scatterplot with % positive cells (full transcript)")+
-  geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge(width=1), vjust=-0.5,show.legend=FALSE,size=4)+
-  scale_color_manual(labels=c("percent_egfp_pos_mouse","percent_tdtom_pos_human"), values=c("#2171B5","#238B45"))
+  geom_text(aes(label=format(round(value,2),nsmall=2)), 
+            position=position_dodge(width=1), 
+            vjust=-0.5,
+            show.legend=FALSE,
+            size=4)+
+  scale_color_manual(labels=c("percent_egfp_pos_mouse","percent_tdtom_pos_human"), 
+                     values=c("#2171B5","#238B45"))
 
 ```
 
@@ -813,7 +862,6 @@ q <- ggplot(dfm %>% filter(variable %in% c("rock_egfp","roi_egfp")),
 cowplot::plot_grid(p,q, nrow=2)
 
 ```
-
 
 ### Fuzznuc ROI
 
@@ -924,112 +972,6 @@ pheatmap(logcounts[gs,s], show_rownames = TRUE,
          cluster_cols = FALSE,
          fontsize_row = 8)
 
-m <- sce_nd[rowData(sce_nd)$type=="mouse_gene", 
-             sce_nd$subsets_mouse_gene_percent > 50]
-
-k <- rowSums(assay(m,"wta")) > 0
-
-m <- m[k,]
-
-df$species<-sce_nd$species
-
-ae_tso <- altExp(sce_nd,"tso_ontarget_multi")
-ae_wta <- altExp(sce_nd,"wta_ontarget_multi")
-
-
-# excluding regulatory region 
-
-df$tso_capture_sum_cds<-colSums(assay(ae_tso,1)[regs$egfp_cds,,drop=FALSE])+colSums(assay(ae_tso,1)[regs$tdtom_cds,,drop=FALSE])
-df$wta_capture_sum_cds<-colSums(assay(ae_wta,1)[regs$egfp_cds,,drop=FALSE])+colSums(assay(ae_wta,1)[regs$tdtom_cds,,drop=FALSE])
-
-
-df$cds_detection_score<-df$tso_capture_sum_cds+df$wta_capture_sum_cds
-
-mouse<-df[df$species=="mouse",]
-human<-df[df$species=="human",]
-
-positive_cells<-data.frame(matrix(nrow = 4, ncol = 2)) 
-colnames(positive_cells)<-c("percent_egfp_pos_mouse","percent_tdtom_pos_human")
-rownames(positive_cells)<-unique(df$sample)
-
-for (i in unique(mouse$sample)){
-  positive_cells[i,1]<-length(which(mouse[mouse$sample==i,]$cds_detection_score>0))/
-    length(mouse[mouse$sample==i,]$cds_detection_score)*100
-}
-
-for (i in unique(mouse$sample)){
-  positive_cells[i,2]<-length(which(human[human$sample==i,]$cds_detection_score>0))/
-    length(human[human$sample==i,]$cds_detection_score)*100
-}
-
-agg_counts <- assay(aac,"wta")
-
-ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")))) +
-  geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9))+
-  xlab(" ")+
-  ylab("percent positive cells")+
-  theme_bw()+
-  ylim(0,100)+  
-  theme(axis.text = element_text(size = 8), plot.title=element_text(size=15,face="bold"),axis.title=element_text(size=15,face="bold"),strip.text=element_text(size=15,face="bold"))+
-  labs(title="Barplot with % positive cells (cds)")+
-  scale_fill_discrete(name = "Samples")+
-  geom_text(aes(label=format(round(value,2),nsmall=2)), position=position_dodge(width=0.9), vjust=-0.5)
-
-
-ents <- apply(agg_counts, 1, calc_entropy)
-
-gs <- rownames(tt)[tt$F > 50 & ents < 1.35]
-
-col_anno <- colData(m)[,c("sample_id","species")] %>% as.data.frame
-
-ggplot(data=plottable,aes(y=value,x=variable,color=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi",
-                                                                          "mixing_rock","mixing_rockroi")))) +
-  geom_point()+
-  xlab(" ")+
-  ylab("percent positive cells")+
-  theme_bw()+
-  labs(color='Samples') +
-  theme(
-    axis.text = element_text(size = 10),
-    axis.title = element_text(size = 20, face = "bold"),
-    strip.text = element_text(size = 15, face = "bold"))+
-  geom_text(
-    aes(label=format(round(value,2),nsmall=2)), 
-    position=position_dodge(width=0.5), 
-    vjust=-0.5,
-    show.legend=FALSE,size=4)
-
-
-gene_info <- read_tsv(file.path(datadir,
-                                "genes_vs_fuzznuc_mixing.txt.gz"), 
-                      col_names = c("ids", "pattern", "mismatches"))
-
-extract_stuff <- function(u, term = "gene_type", default = "unknown") {
-  g <- grep(term, u, value=TRUE)
-  if(length(g)==0)
-    return(default)
-  else
-    return(g)
-}
-
-ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi",
-                                                           "mixing_rock","mixing_rockroi")),color=variable)) +
-  geom_point()+
-  xlab(" ")+
-  ylab("percent positive cells")+
-  theme_bw()+
-  labs(color='Samples') +
-  theme(
-    axis.text = element_text(size = 10),
-    axis.title = element_text(size = 20, face = "bold"),
-    strip.text = element_text(size = 15, face = "bold"))+
-  geom_text(
-    aes(label=format(round(value,2),nsmall=2)), 
-    position=position_dodge(width=0.5), 
-    vjust=-0.5,show.legend=FALSE,size=4)+
-  scale_color_manual(labels=c("percent_egfp_pos_mouse","percent_tdtom_pos_human"), 
-                     values=c("#2171B5","#238B45"))
-
 ```
 
 ### Library size per cell WTA vs TSO (previous plots from Izaskun)
@@ -1081,7 +1023,11 @@ for (i in samples){
       scale_color_viridis() +
       xlab('on-target WTA # UMIs') +
       ylab('on-target TSO # UMIs')+
-  theme(axis.text = element_text(size = 8), plot.title=element_text(size=10,face="bold"),axis.title=element_text(size=10,face="bold"),strip.text=element_text(size=10,face="bold"),legend.text=element_text(size=7))
+  theme(axis.text = element_text(size = 8), 
+        plot.title=element_text(size=10,face="bold"),
+        axis.title=element_text(size=10,face="bold"),
+        strip.text=element_text(size=10,face="bold"),
+        legend.text=element_text(size=7))
   
       p[[i]]<-ggExtra::ggMarginal(p[[i]],type = "density")
 }
