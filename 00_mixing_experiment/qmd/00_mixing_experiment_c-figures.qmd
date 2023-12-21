@@ -477,6 +477,46 @@ ggplot(df, aes(x = tso_total, y = wta_total, color = log_1p_tso_ontarget_multi))
 
 ```
 
+### Percentage TSO mitochondrial vs WTA mitochondrial
+
+```{r}
+
+ggplot(df, aes(x = tso_mito_percent, y = wta_mito_percent)) +
+  geom_point() +
+  # scale_x_log10() + scale_y_log10() +
+  facet_wrap(~sample_id) +
+  geom_abline(intercept = 0, slope = 1)+
+    theme_bw()+
+  xlab("mitochondrial percentage TSO")+
+  ylab("mitochondrial percentage WTA")+
+  theme(
+    axis.text = element_text(size = 15),
+    axis.title = element_text(size = 20, face = "bold"),
+    strip.text = element_text(size = 15, face = "bold"))+
+  labs(title="Mitochondrial WTA vs mitochondrial TSO ")
+
+```
+
+### TSO total vs TSO mitochondrial
+
+```{r}
+
+ggplot(df, aes(x = tso_total, y = tso_mito_percent)) +
+  geom_point(size = .3) +
+  scale_x_sqrt() +
+  scale_y_sqrt() +
+  facet_wrap(~sample_id)+
+    xlab("Total TSO")+
+  ylab("mitochondrial percentage TSO")+
+  theme(
+    axis.text = element_text(size = 15),
+    axis.title = element_text(size = 20, face = "bold"),
+    strip.text = element_text(size = 15, face = "bold"))+
+  labs(title="Total TSO vs mitochondrial TSO")+
+  theme_bw()
+
+```
+
 ### UMIs TSO vs WTA capture, colored by tso_ontarget_multi ordered categorical 
 
 ```{r}
@@ -625,7 +665,7 @@ ggplot(df, aes(x = tso_capture_sum_cds, y = wta_capture_sum_cds, color=color))+
 
 ```
 
-### Barplot with % positive cells (cds)
+### Barplot % number of cells
 
 ```{r}
 
@@ -635,23 +675,29 @@ df$cds_detection_score<-df$wta_capture_sum_cds+df$tso_capture_sum_cds
 mouse<-df[df$species=="mouse",]
 human<-df[df$species=="human",]
 
-positive_cells<-data.frame(matrix(nrow = 4, ncol = 2)) 
-colnames(positive_cells)<-c("percent_egfp_pos_mouse","percent_tdtom_pos_human")
-rownames(positive_cells)<-unique(df$sample_id)
+positive_cells_cds<-data.frame(matrix(nrow = 4, ncol = 2)) 
+colnames(positive_cells_cds)<-c("percent_egfp_pos_mouse_cds","percent_tdtom_pos_human_cds")
+rownames(positive_cells_cds)<-unique(df$sample_id)
 
 for (i in unique(mouse$sample_id)){
-  positive_cells[i,1]<-length(which(mouse[mouse$sample_id==i,]$cds_detection_score>0))/length(mouse[mouse$sample_id==i,]$cds_detection_score)*100
+  positive_cells_cds[i,1]<-length(which(mouse[mouse$sample_id==i,]$cds_detection_score>0))/length(mouse[mouse$sample_id==i,]$cds_detection_score)*100
 }
 
 for (i in unique(mouse$sample_id)){
-  positive_cells[i,2]<-length(which(human[human$sample_id==i,]$cds_detection_score>0))/length(human[human$sample_id==i,]$cds_detection_score)*100
+  positive_cells_cds[i,2]<-length(which(human[human$sample_id==i,]$cds_detection_score>0))/length(human[human$sample_id==i,]$cds_detection_score)*100
 }
 
-plottable<-melt(positive_cells)
-plottable$sample<-rep(rownames(positive_cells),2)
+plottable<-melt(positive_cells_cds)
 
-ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")))) +
-  geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9))+
+plottable$sample<-rep(rownames(positive_cells_cds),2)
+
+ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing_unmod",
+                                                                         "mixing_unmod_roi",
+                                                                         "mixing_rock",
+                                                                         "mixing_rockroi")))) +
+  geom_bar(stat="identity",
+           width = 0.8, 
+           position = position_dodge(width = 0.9))+
   xlab(" ")+
   ylab("percent positive cells")+
   theme_bw()+
@@ -672,7 +718,11 @@ ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing
 
 ```{r}
 
-ggplot(data=plottable,aes(y=value,x=variable,color=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")))) +
+ggplot(data=plottable,
+       aes(y=value,x=variable,color=factor(sample,levels=c("mixing_unmod",
+                                                           "mixing_unmod_n1",
+                                                           "mixing_rock",
+                                                           "mixing_rockroi")))) +
   geom_point()+
   xlab(" ")+
   ylab("percent positive cells")+
@@ -689,14 +739,17 @@ ggplot(data=plottable,aes(y=value,x=variable,color=factor(sample,levels=c("mixin
             vjust=-0.5,
             show.legend=FALSE,
             size=4)
-  
+
 ```
 
 ### Scatter plot with % positive cells with different x axis (cds)
 
 ```{r}
 
-ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")),color=variable)) +
+ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("mixing_unmod",
+                                                           "mixing_unmod_roi",
+                                                           "mixing_rock",
+                                                           "mixing_rockroi")),color=variable)) +
   geom_point()+
   xlab(" ")+
   ylab("percent positive cells")+
@@ -711,7 +764,8 @@ ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("mixing_unmod","mixin
   geom_text(aes(label=format(round(value,2),nsmall=2)), 
             position=position_dodge(width=1), 
             vjust=-0.5,
-            show.legend=FALSE,size=4)+
+            show.legend=FALSE,
+            size=4)+
   scale_color_manual(labels=c("percent_egfp_pos_mouse","percent_tdtom_pos_human"), 
                      values=c("#2171B5","#238B45"))
 
@@ -726,22 +780,26 @@ df$detection_score<-df$wta_capture_sum+df$tso_capture_sum
 mouse<-df[df$species=="mouse",]
 human<-df[df$species=="human",]
 
-positive_cells<-data.frame(matrix(nrow = 4, ncol = 2)) 
-colnames(positive_cells)<-c("percent_egfp_pos_mouse","percent_tdtom_pos_human")
-rownames(positive_cells)<-unique(df$sample_id)
+positive_cells_tx<-data.frame(matrix(nrow = 4, ncol = 2)) 
+colnames(positive_cells_tx)<-c("percent_egfp_pos_mouse_tx","percent_tdtom_pos_human_tx")
+rownames(positive_cells_tx)<-unique(df$sample_id)
 
 for (i in unique(mouse$sample_id)){
-  positive_cells[i,1]<-length(which(mouse[mouse$sample_id==i,]$detection_score>0))/length(mouse[mouse$sample_id==i,]$detection_score)*100
+  positive_cells_tx[i,1]<-length(which(mouse[mouse$sample_id==i,]$detection_score>0))/length(mouse[mouse$sample_id==i,]$detection_score)*100
 }
 
 for (i in unique(mouse$sample_id)){
-  positive_cells[i,2]<-length(which(human[human$sample_id==i,]$detection_score>0))/length(human[human$sample_id==i,]$detection_score)*100
+  positive_cells_tx[i,2]<-length(which(human[human$sample_id==i,]$detection_score>0))/length(human[human$sample_id==i,]$detection_score)*100
 }
 
-plottable<-melt(positive_cells)
-plottable$sample<-rep(rownames(positive_cells),2)
+plottable<-melt(positive_cells_tx)
 
-ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")))) +
+plottable$sample<-rep(rownames(positive_cells_tx),2)
+
+ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing_unmod",
+                                                                         "mixing_unmod_roi",
+                                                                         "mixing_rock",
+                                                                         "mixing_rockroi")))) +
   geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9))+
   xlab(" ")+
   ylab("percent positive cells")+
@@ -763,7 +821,10 @@ ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing
 
 ```{r}
 
-ggplot(data=plottable,aes(y=value,x=variable,color=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")))) +
+ggplot(data=plottable,aes(y=value,x=variable,color=factor(sample,levels=c("mixing_unmod",
+                                                                          "mixing_unmod_roi",
+                                                                          "mixing_rock",
+                                                                          "mxing_rockroi")))) +
   geom_point()+
   xlab(" ")+
   ylab("percent positive cells")+
@@ -776,17 +837,21 @@ ggplot(data=plottable,aes(y=value,x=variable,color=factor(sample,levels=c("mixin
         strip.text=element_text(size=15,face="bold"))+
   labs(title="Scatterplot with % positive cells (full transcript)")+
   geom_text(aes(label=format(round(value,2),nsmall=2)), 
-            position=position_dodge(width=1),
+            position=position_dodge(width=1), 
             vjust=-0.5,
-            show.legend=FALSE,size=4)
-  
+            show.legend=FALSE,
+            size=4)
+
 ```
 
 ### Scatter plot with % positive cells with different x axis (full transcript)
 
 ```{r}
 
-ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("mixing_unmod","mixing_unmod_roi","mixing_rock","mixing_rockroi")),color=variable)) +
+ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("mixing_unmod",
+                                                           "mixing_unmod_roi",
+                                                           "mixing_rock",
+                                                           "mixing_rockroi")),color=variable)) +
   geom_point()+
   xlab(" ")+
   ylab("percent positive cells")+
@@ -805,6 +870,37 @@ ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("mixing_unmod","mixin
             size=4)+
   scale_color_manual(labels=c("percent_egfp_pos_mouse","percent_tdtom_pos_human"), 
                      values=c("#2171B5","#238B45"))
+
+```
+
+### Barplot cds and tx
+
+```{r}
+
+positive_cells<-cbind(positive_cells_cds,positive_cells_tx)
+
+plottable<-melt(positive_cells)
+
+plottable$sample<-rep(rownames(positive_cells_tx),2)
+
+ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing_unmod",
+                                                                         "mixing_unmod_roi",
+                                                                         "mixing_rock",
+                                                                         "mixing_rockroi")))) +
+  geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9))+
+  xlab(" ")+
+  ylab("percent positive cells")+
+  theme_bw()+
+  ylim(0,100)+
+  theme(axis.text = element_text(size = 8), 
+        plot.title=element_text(size=15,face="bold"),
+        axis.title=element_text(size=15,face="bold"),
+        strip.text=element_text(size=15,face="bold"))+
+  labs(title="Barplot with % positive cells")+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), 
+            position=position_dodge(width=0.9), 
+            vjust=-0.5)+
+  labs(fill="Samples")
 
 ```
 
