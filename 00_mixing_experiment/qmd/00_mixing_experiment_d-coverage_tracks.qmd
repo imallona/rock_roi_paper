@@ -71,7 +71,7 @@ datadir <- dirname(bw)[1] # folder where the .bw files are
 
 ```
 
-### Importing .gtf file and subsetting for egfp and tdtomato
+### Importing .gtf file 
 
 ```{r}
 
@@ -184,8 +184,8 @@ for (x in chr){
   
   ranges<-c()
   for (i in modality){
-    ranges[paste0("ylims_",i,"_",x)]<-extendrange(range(c(values(coverage_chr[[paste0(i,"_wta")]]), 
-                                                                 values(coverage_chr[[paste0(i,"_tso")]]))))[[2]]
+    ranges[paste0("ylims_",i,"_",x)]<-max(range(c(values(coverage_chr[[paste0(i,"_wta")]]), 
+                                                                 values(coverage_chr[[paste0(i,"_tso")]]))))
   }
   
   overlays<-list()
@@ -312,7 +312,7 @@ for (x in chr){
   modality<-c("unmod","unmod_roi","rock","rockroi")
   
   for (i in modality){
-    ranges_bam[paste0("ylims_",i,"_",x)]<-extendrange(range(c(values(bam_coverages[[x]][[paste0(i,"_wta")]]), 
+    ranges_bam[paste0("ylims_",i,"_",x)]<-max(range(c(values(bam_coverages[[x]][[paste0(i,"_wta")]]), 
                                                                  values(bam_coverages[[x]][[paste0(i,"_tso")]]))))[[2]]
   }
   
@@ -390,8 +390,8 @@ for (x in chr){
 
   ranges<-c()
   for (i in modality){
-    ranges[paste0("ylims_",i,"_",x)]<-extendrange(range(c(values(tail_covs[[paste0(i,"_wta")]]), 
-                                                                 values(tail_covs[[paste0(i,"_tso")]]))))[[2]]
+    ranges[paste0("ylims_",i,"_",x)]<-max(range(c(values(tail_covs[[paste0(i,"_wta")]]), 
+                                                                 values(tail_covs[[paste0(i,"_tso")]]))))
   }
   plotTracks(c(tail_overlays_bam[[paste0("unmod_",x)]],
                bw_coverages[[x]][[paste0("unmod_",x)]],
