@@ -55,7 +55,7 @@ library(here)
 
 ```
 
-### Reading .bam files
+### Reading .bw files
 
 ```{r}
 
@@ -147,7 +147,7 @@ for (x in chr){
   plotTracks(c(coverage_chr,gm),
             type="histogram",
             from=start(gm@range)[1]-500,
-            end=gm@end,
+            to=gm@end,
             cex.axis = 0.5,
             cex.title=0.5,
             background.title="cadetblue2",
@@ -197,7 +197,7 @@ for (x in chr){
              gm),
            type="histogram",
            from=start(gm@range)[1]-500,
-           end=gm@end,
+           to=gm@end,
            cex.axis = 0.5,
            cex.title=0.5,
            background.title="cadetblue2",
@@ -286,7 +286,7 @@ for (x in chr){
              gms[[x]]),
            type="histogram",
            from=start(gms[[x]]@range)[1]-400,
-           end=gms[[x]]@end,
+           to=gms[[x]]@end,
            cex.axis = 0.5,
            cex.title=0.5,
            background.title="cadetblue2",
@@ -327,7 +327,7 @@ for (x in chr){
              gms[[x]]),
            type="histogram",
            from=start(gms[[x]]@range)[1]-400,
-           end=gms[[x]]@end,
+           to=gms[[x]]@end,
            cex.axis =0.5,
            cex.title=0.5,
            background.title="cadetblue2",
@@ -404,7 +404,7 @@ for (x in chr){
                gms[[x]]),
            type="histogram",
            from=gms[[x]]@end-400,
-           end=gms[[x]]@end,
+           to=gms[[x]]@end,
            cex.axis =0.5,
            cex.title=0.5,
            background.title="cadetblue2",
