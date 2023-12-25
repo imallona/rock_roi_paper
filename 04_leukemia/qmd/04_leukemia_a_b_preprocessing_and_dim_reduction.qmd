@@ -1,0 +1,531 @@
+---
+title: "04_leukemia_a_b_preprocessing_and_dim_reduction"
+author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+editor_options: 
+  chunk_output_type: console
+---
+
+### setting up knitr 
+
+```{r}
+
+knitr::opts_chunk$set(fig.width = 10,
+               fig.height = 10,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache=TRUE,
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+### Load packages, load data 
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(plotROC)
+library(here)
+library(RColorBrewer)
+library(ggnewscale)
+library(scales)
+library(rmarkdown)
+library(irlba)
+library(viridis)
+library(gridExtra)
+library(SummarizedExperiment)
+library(googlesheets4)
+library(tools)
+library(SingleCellExperiment)
+library(scDblFinder)
+library(scran)
+library(scater)
+library(ggplot2)
+library(dplyr)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(plotROC)
+library(here)
+library(khroma)
+library(bluster)
+
+packageVersion("Matrix") # had some issues with the Matrix package version, needs to be 1.6.1
+
+```
+
+### Loading data --> two separate objects, one for sample tags and one for counts
+
+```{r}
+
+# counts object
+
+rdss <- dir(here("04_leukemia"), "*_sce.rds$", 
+            recursive = TRUE, full.names = TRUE)
+
+names(rdss) <- gsub("_sce.rds", "", basename(rdss))
+datadir <- dirname(rdss)[1]
+
+sces <- mapply(function(u,v)  {
+  rds <- readRDS(u)
+  rds$sample_id <- v
+  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
+  colnames(rowData(rds)) <- c("name", "type", "value","captured")
+  g <- grepl("^ENS", rownames(rds))
+  rownames(rds)[g] <- paste0(rownames(rds)[g], 
+                             "__", rowData(rds)$name[g])
+  rowData(rds)$type <- "capture"
+  k <- grepl("^ENSG", rownames(rds))
+  rowData(rds)$type[k] <- "human_gene"
+  k <- grepl("^ENSMUS", rownames(rds))
+  rowData(rds)$type[k] <- "mouse_gene"
+  k <- grepl("^mt", rowData(rds)$name)
+  rowData(rds)$type[k] <- "mouse_mito"
+  k <- grepl("^MT", rowData(rds)$name)
+  rowData(rds)$type[k] <- "human_mito"
+  rds
+}, rdss, names(rdss))
+
+sce <- Reduce(cbind, sces)
+
+rm(sces)
+
+# sampletags object
+
+rdss_sample_tags <- dir(here("04_leukemia"), "sampletags_", 
+            recursive = TRUE, full.names = TRUE)
+names(rdss_sample_tags) <- gsub("_summarizedexperiment.rds", "", basename(rdss))
+
+sces_sample_tags<-readRDS(rdss_sample_tags)
+
+```
+
+### Adding the sampletag info to the counts sce object
+
+```{r}
+
+# Generating SummarizedExperiment object
+
+sumexp_sces_sample_tags<-SummarizedExperiment(assays=assay(sces_sample_tags))
+
+# Subsetting object to have the same columns
+
+sumexp_sces_sample_tags<-sumexp_sces_sample_tags[,rownames(colData(sce))]
+
+# Adding as altExp sce
+
+altExp(sce, "sample_tag") <- sumexp_sces_sample_tags
+
+rm(sces_sample_tags,sumexp_sces_sample_tags)
+
+```
+
+### Defining which cell belongs to which sample tag and adding info as colData 
+
+```{r}
+
+# removing cells with less than 10 reads for sample tags
+
+colData(altExp(sce,"sample_tag",withColData=TRUE))$sample_tag_sum<-colSums(assay(altExp(sce,"sample_tag",withColData=TRUE)))
+
+sce<-sce[,!colData(altExp(sce,"sample_tag",withColData=TRUE))$sample_tag_sum<10]
+
+# defining that cell belongs to sample tag if has more than 10 reads for sample tag
+
+sce$sample_tag<-"no_tag"
+sce$sample_tag[assay(altExp(sce,"sample_tag",withColData=TRUE))["human_sampletag_10",]>10]<-"sample_10"
+sce$sample_tag[assay(altExp(sce,"sample_tag",withColData=TRUE))["human_sampletag_11",]>10]<-"sample_11"
+
+table(sce$sample_tag)
+
+sce_sample_tag<-sce[,!sce$sample_tag=="no_tag"]
+
+#saveRDS(sce_sample_tag,file.path(datadir,"sce_sample_tag.rds"))
+readRDS(file.path(datadir, "sce_sample_tag.rds"))
+
+rm(sce)
+
+```
+
+### QC on WTA
+
+```{r}
+
+rowData(sce_sample_tag)$type %>% table
+
+rd <- rowData(sce_sample_tag)
+sce_sample_tag <- addPerCellQCMetrics(sce_sample_tag, assay.type = "wta",
+                           subsets=list(capture=rd$type=="capture",
+                                        human_gene=rd$type=="human_gene",
+                                        human_mito=rd$type=="human_mito"))
+
+cd <- colData(sce_sample_tag) %>% as.data.frame
+
+ggplot(cd, aes(x = total,
+               y = detected,
+               colour = subsets_human_mito_percent)) +
+  geom_point() +
+  scale_x_log10() + scale_y_log10() +
+  geom_density_2d() +
+  facet_wrap(~sample_tag)
+
+ggplot(cd, aes(x = total, y = subsets_human_mito_percent)) +
+  geom_point() + scale_x_log10() + scale_y_sqrt() +
+  facet_wrap(~sample_tag) + 
+  geom_hline(yintercept=c(1,48), colour="orange") +
+  geom_vline(xintercept=c(1000), colour="orange") +
+  geom_density2d()
+
+dim(sce_sample_tag)
+
+```
+
+### Filtering and saving filtered object
+
+```{r}
+
+mito <- sce_sample_tag$subsets_human_mito_percent
+sce_sample_tag <- sce_sample_tag[,sce_sample_tag$total>1000 & mito>1 & mito<48]
+sce_sample_tag_filt <- sce_sample_tag[rowSums(assay(sce_sample_tag,1))>2 | rowData(sce_sample_tag)$type=="capture" ,] 
+
+dim(sce_sample_tag_filt)
+
+#saveRDS(sce_sample_tag_filt,file.path(datadir, "sce_sample_tag_filt.rds"))
+readRDS(file.path(datadir, "sce_sample_tag_filt.rds"))
+
+rm(sce_sample_tag)
+
+```
+
+### Look at TSO
+
+```{r}
+
+rowData(sce_sample_tag_filt) %>% as.data.frame %>% tail(29)
+
+rds <- rowData(sce_sample_tag_filt)
+tso_qc <- perCellQCMetrics(sce_sample_tag_filt, assay.type = "tso_off_and_ontarget_unique",
+                           subsets=list(capture=rds$type=="capture",
+                                        human_gene=rds$type=="human_gene",
+                                        human_mito=rds$type=="human_mito"))
+
+all(rownames(tso_qc)==colnames(sce_sample_tag_filt))
+
+df <- data.frame(tso_total = tso_qc$total,
+                 tso_capture_sum = tso_qc$subsets_capture_sum,
+                 tso_mito_percent = tso_qc$subsets_human_mito_percent,
+                 wta_total = sce_sample_tag_filt$total,
+                 wta_capture_sum = sce_sample_tag_filt$subsets_capture_sum,
+                 wta_mito_percent = sce_sample_tag_filt$subsets_human_mito_percent,
+                 sample_tag = sce_sample_tag_filt$sample_tag)
+
+ggplot(df, aes(x = tso_total, y = wta_total)) +
+  geom_point() +
+  scale_x_log10() + scale_y_log10() +
+  facet_wrap(~sample_tag, ncol = 1)
+
+# a bit confused with this plot, since the wta is higher than the tso??
+
+ggplot(df, aes(x = tso_capture_sum, y = wta_capture_sum)) + 
+  geom_jitter(height = .2) +
+  # scale_x_log10() + scale_y_log10() +
+  facet_wrap(~sample_tag)
+
+ggplot(df, aes(x = tso_mito_percent, y = wta_mito_percent)) +
+  geom_point() +
+  # scale_x_log10() + scale_y_log10() +
+  facet_wrap(~sample_tag) +
+  geom_abline(intercept = 0, slope = 1)
+
+ggplot(df, aes(x = tso_total, y = tso_mito_percent)) +
+  geom_point(size = .3) +
+  scale_x_sqrt() +
+  scale_y_sqrt() +
+  # geom_density2d() +
+  facet_wrap(~sample_tag)
+
+(rn <- rownames(altExp(sce_sample_tag_filt)))
+
+exprs <- assay(altExp(sce_sample_tag_filt),1)
+
+sort(rowSums(exprs, na.rm = TRUE), decreasing = TRUE) -> sorted
+
+par(mfrow=c(3,6))
+for(tso in names(sorted))
+  smoothScatter(sce_sample_tag_filt$subsets_human_mito_percent,
+             jitter(exprs[tso,]), pch=19, main=tso,
+       xlab="human percent",
+       ylab=tso)
+
+par(mfrow=c(1,1)) # resetting for other plots 
+
+```
+
+## Dim reduction 
+
+### Heatmap function
+
+```{r}
+
+save_pheatmap_pdf <- function(x, filename, width=7, height=7) {
+   stopifnot(!missing(x))
+   stopifnot(!missing(filename))
+   pdf(filename, width=width, height=height)
+   grid::grid.newpage()
+   grid::grid.draw(x$gtable)
+   dev.off()
+}
+
+```
+
+### Normalize, HVGs
+
+```{r}
+
+sce_sample_tag_filt <- logNormCounts(sce_sample_tag_filt, assay.type = "wta")
+
+# find HVGs
+mgv <- modelGeneVar(sce_sample_tag_filt, block = sce_sample_tag_filt$sample_tag)
+
+mgv_pb  <- lapply(mgv$per.block, function(u) {
+ o <- order(u$p.value)
+ u <- u[o,]
+ head(rownames(u), 1000)
+})
+
+upset(fromList(mgv_pb))
+
+# arbitrary cutoff to pick some HVGs
+hvg <- mgv$bio > .01 & mgv$p.value < .01 & mgv$mean > .2
+mgv[hvg,] %>% 
+  as.data.frame %>% rownames -> hvg
+length(hvg) # very low number highly variable genes, but maybe can expect this between patient samples?
+
+all(rownames(sce_sample_tag_filt)==rownames(mgv))
+
+mgv <- cbind(mgv, gene_type = rowData(sce_sample_tag_filt)$type)
+
+rowData(sce_sample_tag_filt)[hvg,]$type %>% table
+
+```
+
+### Remove mito genes
+
+```{r}
+
+hvg <- mgv$bio > .01 & mgv$p.value < .01 & mgv$mean > .2 & mgv$gene_type=="human_gene"
+rn <- rownames(mgv)[hvg]
+length(rn)
+
+ggplot(mgv %>% data.frame %>% filter(gene_type != "capture"),
+       aes(x=mean, y=bio, colour=p.value<.05, shape = gene_type)) +
+  geom_point() + facet_wrap(~gene_type)
+
+```
+
+### Dim reduction, UMAP
+
+```{r}
+
+sce_sample_tag_filt <- fixedPCA(sce_sample_tag_filt, subset.row=rn, rank = 30) 
+sce_sample_tag_filt <- runUMAP(sce_sample_tag_filt, dimred="PCA")
+
+plotUMAP(sce_sample_tag_filt, colour_by = "sample_tag") + facet_wrap(~colour_by)
+
+plotUMAP(sce_sample_tag_filt, colour_by = "total", shape_by = "sample_tag", point_size = 4) + 
+  facet_wrap(~shape_by)
+
+```
+
+### Doublet removal
+
+```{r}
+
+counts(sce_sample_tag_filt) <- assay(sce_sample_tag_filt, 1)
+colnames(sce_sample_tag_filt) <- sce_sample_tag_filt$sample_id.barcode
+
+sces_nd <- scDblFinder(sce_sample_tag_filt, samples = "sample_tag")
+
+plotUMAP(sces_nd, colour_by = "scDblFinder.score")
+
+table(sces_nd$scDblFinder.class)
+
+boxplot(sces_nd$scDblFinder.score ~ sces_nd$scDblFinder.class)
+
+sces_nd <- sces_nd[,sces_nd$scDblFinder.class=="singlet"]
+
+#saveRDS(sces_nd, file.path(datadir, "sce_sample_tag_filt_nodoublets.rds"))
+readRDS(file.path(datadir, "sce_sample_tag_filt_nodoublets.rds"))
+
+rm(sce_sample_tag_filt); gc()
+
+```
+
+### Clustering
+
+```{r}
+
+myscale <- c(color("muted")(8))
+length(myscale)
+
+names(myscale) <- as.character(1:8)
+
+set.seed(1976)
+nn.clusters <- clusterCells(sces_nd, use.dimred="PCA",
+                            BLUSPARAM=NNGraphParam(k=30))
+table(nn.clusters)
+
+sces_nd$cluster <- nn.clusters
+
+plotUMAP(sces_nd, colour_by="cluster", shape_by = "sample_tag",
+         point_size = 4, point_alpha = .9) + 
+  scale_color_manual(values = myscale) +
+  facet_wrap(~shape_by)
+
+table(sces_nd$sample_tag, sces_nd$cluster)
+
+mm <- model.matrix(~cluster, 
+                   data=as.data.frame(colData(sces_nd)))
+
+lcounts <- logcounts(sces_nd)
+
+table(rs <- rowSums(lcounts)>50 & rowData(sces_nd)$type == "human_gene" )
+
+f <- lmFit(as.matrix(lcounts[rs,]), mm)
+
+f <- eBayes(f)
+
+topTable(f, coef=2:ncol(mm), number = 10)
+
+tt <- topTable(f, coef=2:ncol(mm), number = 1e6, sort.by = "none")
+
+aac <- aggregateAcrossCells(sces_nd, sces_nd$cluster,use.assay.type="wta")
+
+calc_entropy <- function(u) {
+  p <- u[u>0]
+  p <- p/sum(p)
+  -sum(p*log(p))
+}
+
+# adjust the aggregated counts for the number of cells
+agg_counts <- assay(aac,"wta")[rs,]
+for(i in 1:ncol(agg_counts))
+  agg_counts[,i] <- agg_counts[,i]/sum(agg_counts[,i])*1e6
+
+ents <- apply(agg_counts, 1, calc_entropy)
+
+plot(ents, tt$F, log="y")
+
+gs <- rownames(tt)[tt$F > 100 & ents < 1]
+
+
+df <- data.frame(gene = names(ents), 
+                 entropy=ents, Fstat=tt$F,
+                 cluster.max = apply(agg_counts, 1, which.max)) %>%
+  mutate(order_by = Fstat / entropy) %>%
+  filter(Fstat > 400, entropy < 2) %>%
+  arrange(desc(order_by)) %>%
+  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 5)
+
+col_anno <- colData(sces_nd)[,c("sample_tag","cluster")] %>% as.data.frame
+
+inds <- split(seq_len(ncol(sces_nd)), sces_nd$cluster)
+
+set.seed(1976)
+
+cluster_order <- c(1,2,3,4,5,6,7,8)
+inds <- inds[cluster_order]
+
+inds <- lapply(inds, sample, min(table(sces_nd$cluster)), 
+               replace = FALSE)
+
+ann_colors = list(cluster = myscale[seq_len(length(inds))])
+
+co <- unlist(inds)
+
+genes <- split(df$gene, df$cluster.max) %>% unlist
+
+ph <- pheatmap(lcounts[genes,co], show_rownames = TRUE,
+        show_colnames = FALSE, scale="none",
+        annotation_col = col_anno[co,],
+        clustering_distance_rows = "correlation",
+        clustering_distance_cols = "correlation",
+        cluster_rows = TRUE,
+        treeheight_row = 0,
+        cluster_cols = FALSE, fontsize_row = 8,
+        annotation_colors = ann_colors)
+
+save_pheatmap_pdf(ph, "cluster.pdf", width = 10, height = 10)
+
+rownames(altExp(sces_nd))
+
+sort(rowSums(assay(altExp(sces_nd), 1)), decreasing = TRUE)
+
+mm<-sces_nd # in this case using both samples
+
+df <- data.frame(colData(mm)[,c("sample_tag","sum","detected",
+                                "cluster","scDblFinder.score")],
+                 as.matrix(t(logcounts(mm)[genes,])),
+                 as.matrix(t(assay(altExp(mm), 1))),
+                 reducedDim(mm,"UMAP"))
+
+df$cluster <- factor(df$cluster, levels=as.character(cluster_order))
+
+ggplot(df, aes(x=cluster, y=e1a2_roi, colour=cluster)) + 
+  geom_jitter(width=.2, size=3, height = .1) +
+  scale_y_sqrt() +
+  scale_color_manual(values = myscale)+
+  facet_wrap(~sample_tag)
+
+ggplot(df, aes(x=cluster, y=e14a2_roi_e14, colour=cluster)) + 
+  geom_jitter(width=.2, size=3, height = .1) +
+  scale_y_sqrt() +
+  scale_color_manual(values = myscale)+
+  facet_wrap(~sample_tag)
+
+ggplot(df, aes(x=cluster, y=e14a2_roi_e13, colour=cluster)) + 
+  geom_jitter(width=.2, size=3, height = .1) +
+  scale_y_sqrt() +
+  scale_color_manual(values = myscale)+
+  facet_wrap(~sample_tag)
+
+ggplot(df, aes(x=cluster, y=e13a2_roi, colour=cluster)) + 
+  geom_jitter(width=.2, size=3, height = .1) +
+  scale_y_sqrt() +
+  scale_color_manual(values = myscale)+
+  facet_wrap(~sample_tag)
+
+ggplot(df, aes(x=cluster, y=e13a2_roi, colour=cluster)) + 
+  geom_jitter(width=.2, size=3, height = .1) +
+  scale_y_sqrt() +
+  scale_color_manual(values = myscale)+
+  facet_wrap(~sample_tag)
+
+#saveRDS(sces_nd,file.path(datadir,"sces_nd_with_clusters.rds"))
+readRDS(file.path(datadir, "sces_nd_with_clusters.rds"))
+
+```
+
+
