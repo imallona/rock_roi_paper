@@ -154,28 +154,6 @@ df <- cbind(df, as.matrix(t( assay(altExp(sce),1)[gfp_ids,] )))
 ```
 
 
-## Annotation
-
-
-```{r}
-
-# epi_cols <- grep("^Epithelial__", colnames(df), value = TRUE)
-# mes_cols <- grep("^Mesenchymal__", colnames(df), value = TRUE)
-# 
-# 
-# ggpairs(df %>% filter(broad_classification=="mesenchymal"),
-#         columns = mes_cols,
-#         mapping = aes(colour = cluster)) +
-#     scale_color_manual(values = myscale)
-# 
-# 
-# mes_cells <- df %>% filter(broad_classification=="mesenchymal") %>%
-#   select(all_of(mes_cols))
-
-
-```
-
-
 
 ## Focus on epithelial
 
@@ -220,20 +198,23 @@ sce_epi <- runUMAP(sce_epi, dimred="PCA")
 # myscale <- rainbow(13)
 # names(myscale) <- as.character(1:13)
 
-myscale <- c(color("muted")(9), gray="lightgray", black="black")
-names(myscale) <- as.character(1:11)
+myscale <- c(color("muted")(9), gray="lightgray", 
+             black="black", orange = "darkorange")
+names(myscale) <- as.character(1:12)
 
 
 set.seed(1976)
 nn.clusters <- clusterCells(sce_epi, use.dimred="PCA",
-                            BLUSPARAM=NNGraphParam(k=30))
+                            BLUSPARAM=NNGraphParam(k=25))
 table(nn.clusters)
 sce_epi$cluster <- nn.clusters
 
-plotUMAP(sce_epi, colour_by="cluster", shape_by = "sample_id",
-         point_size = 4, point_alpha = .9) + 
+(p <- plotUMAP(sce_epi, colour_by="cluster", shape_by = "sample_id",
+         point_size = 3, point_alpha = .9) + 
   scale_color_manual(values = myscale) +
-  facet_wrap(~shape_by)
+  facet_wrap(~shape_by))
+
+ggsave("epithelial_umap.pdf", p, width = 11, height = 5)
 
 table(sce_epi$sample_id, sce_epi$cluster)
 
@@ -246,7 +227,7 @@ mm <- model.matrix(~ cluster,
 
 lcounts <- logcounts(sce_epi)
 
-table(rs <- rowSums(lcounts)>20 & rowData(sce_epi)$gene_type == "mouse_gene" )
+table(rs <- rowSums(lcounts)>10 & rowData(sce_epi)$gene_type == "mouse_gene" )
 f <- lmFit(as.matrix(lcounts[rs,]), mm)
 f <- eBayes(f)
 
@@ -257,11 +238,17 @@ grep("Trpm5", rownames(sce_epi), value = TRUE)
 
 plotUMAP(sce_epi, colour_by = "ENSMUSG00000025934.15__Gsta3")
 plotUMAP(sce_epi, colour_by = "ENSMUSG00000009246.14__Trpm5")
-plotExpression(sce_epi, x = "cluster", features = c("ENSMUSG00000033740.17__St18",
-                                                    "ENSMUSG00000092083.4__Kcnb2",
-                                                    "ENSMUSG00000009246.14__Trpm5"),
-               colour_by = "cluster") +
-  scale_color_manual(values = myscale)
+plotUMAP(sce_epi, colour_by = "ENSMUSG00000033740.17__St18")
+
+# plotExpression(sce_epi, x = "cluster", features = "ENSMUSG00000043366.16__Olfr78")
+
+# plotExpression(sce_epi, x = "cluster", features = c("ENSMUSG00000033740.17__St18",
+#                                                     "ENSMUSG00000092083.4__Kcnb2",
+#                                                     "ENSMUSG00000009246.14__Trpm5",
+#                                                     "ENSMUSG00000033740.17__St18"),
+#                colour_by = "cluster") +
+#   scale_color_manual(values = myscale)
+
 # plotUMAP(sce_epi, colour_by = "ENSMUSG00000026193.15__Fn1")
 
 aac <- aggregateAcrossCells(sce_epi, sce_epi$cluster,use.assay.type="wta")
@@ -288,7 +275,19 @@ df <- data.frame(gene = names(ents),
   mutate(order_by = Fstat / entropy) %>%
   filter(Fstat > 50, entropy < 1.5) %>%
   arrange(desc(order_by)) %>%
-  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 5)
+  group_by(cluster.max)
+
+(df %>% filter(Fstat > 200, entropy < 1.2) %>% 
+  slice_max(order_by = order_by, n = 3) %>%
+  select(-order_by) -> cream)
+
+plotExpression(sce_epi, x = "cluster",
+               features = cream %>% pull("gene"), 
+               ncol = 3, colour_by = "cluster") +
+  scale_color_manual(values = myscale)
+
+
+df <- df %>% slice_max(order_by = order_by, n = 7)
 
 col_anno <- colData(sce_epi)[,c("sample_id","cluster")] %>% as.data.frame
 
@@ -335,7 +334,7 @@ ph <- pheatmap(lcounts[genes,co], show_rownames = TRUE,
         annotation_row = rowanno,
         cluster_rows = TRUE,
         treeheight_row = 0,
-        cluster_cols = FALSE, fontsize_row = 9,
+        cluster_cols = FALSE, fontsize_row = 7,
         annotation_colors = ann_colors)
 
 save_pheatmap_pdf(ph, "epithelial_clustering.pdf", width = 12, height = 14)
@@ -362,12 +361,12 @@ agg_counts %>% as.data.frame %>% round(3) %>%
 
 p <- plotExpression(sce_epi, x = "cluster", colour_by = "cluster",
                features = markers$Marker[markers$Broad_cell_type=="Epithelial"],
-               ncol = 4) +
+               ncol = 5) +
   scale_color_manual(values = myscale)
 p
 
 
-ggsave("epithelial_markers_by_cluster.pdf", p, height = 12, width = 12)
+ggsave("epithelial_markers_by_cluster.pdf", p, height = 12, width = 15)
 
 ```
 
@@ -429,27 +428,26 @@ names(myscale) <- as.character(1:10)
 
 set.seed(1976)
 nn.clusters <- clusterCells(sce_mes, use.dimred="PCA",
-                            BLUSPARAM=NNGraphParam(k=30))
+                            BLUSPARAM=NNGraphParam(k=20))
 table(nn.clusters)
 sce_mes$cluster <- nn.clusters
 
-plotUMAP(sce_mes, colour_by="cluster", shape_by = "sample_id",
-         point_size = 4, point_alpha = .9) + 
+(p <- plotUMAP(sce_mes, colour_by="cluster", shape_by = "sample_id",
+         point_size = 3, point_alpha = .9) + 
   scale_color_manual(values = myscale) +
-  facet_wrap(~shape_by)
+  facet_wrap(~shape_by))
+
+ggsave("mesenchymal_umap.pdf", p, width = 11, height = 5)
 
 table(sce_mes$sample_id, sce_mes$cluster)
 
-# logcounts <- as.matrix(logcounts(sce_mes))
-# mm <- model.matrix(~sample_id + cluster, 
-#                    data=as.data.frame(colData(sce_mes)))
 mm <- model.matrix(~cluster, 
                    data=as.data.frame(colData(sce_mes)))
 
 
 lcounts <- logcounts(sce_mes)
 
-table(rs <- rowSums(lcounts)>20 & rowData(sce_mes)$gene_type == "mouse_gene" )
+table(rs <- rowSums(lcounts)>10 & rowData(sce_mes)$gene_type == "mouse_gene" )
 f <- lmFit(as.matrix(lcounts[rs,]), mm)
 f <- eBayes(f)
 
@@ -509,9 +507,6 @@ inds <- lapply(inds, function(u) {
 
 # cluster_order <- c(1, 8, 2, 6, 5, 3, 4, 7)
 # inds <- inds[cluster_order]
-
-myscale <- c(color("muted")(9), gray="lightgray")
-names(myscale) <- as.character(1:10)
 
 
 ann_colors = list(cluster = myscale[seq_len(length(inds))])
