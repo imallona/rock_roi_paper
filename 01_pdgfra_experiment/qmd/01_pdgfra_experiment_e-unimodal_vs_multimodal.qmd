@@ -1,0 +1,213 @@
+---
+title: "01_pdgfra_experiment_e-unimodal_vs_multimodal.qmd"
+author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+### From Izaskun to do: 
+
+```{r}
+
+# subtract and show the three heatmaps (downsampled cells x downsampled HVGs for uni, for multi, and for the delta): logCPMs. 
+
+#And a corr coefficient collapsing the rows/columns and correlating them perhaps
+
+```
+
+
+
+## Load packages, load data
+
+```{r, warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(scuttle)
+library(plotROC)
+library(here)
+library(Matrix)
+library(scDblFinder)
+library(edgeR)
+library(ggpubr)
+library(corrplot)
+library(viridis)
+
+rdss <- dir(here("01_pdgfra_experiment"), "^pd.*rds$", 
+            recursive = TRUE, full.names = TRUE)
+
+datadir <- dirname(rdss)[1]
+
+sce<-readRDS(file.path(datadir, "sce_qc-filtered-nodoublets.rds"))
+
+sce<-sce[,sce$sample_id==c("pdgfra_rockroi_multimodal","pdgfra_rockroi_unimodal")]
+
+```
+
+### From previous analysis 
+
+```{r}
+
+#length(colnames(sce[,sce$sample_id=="pdgfra_rockroi_unimodal"])) #4980
+#length(colnames(sce[,sce$sample_id=="pdgfra_rockroi_multimodal"])) #5079
+
+#length(intersect(colnames(sce[,sce$sample_id=="pdgfra_rockroi_unimodal"]),colnames(sce[,sce$sample_id=="pdgfra_rockroi_multimodal"]))) #4951
+
+```
+
+### Calculating HVGs and logcpms
+
+```{r}
+
+# calculating lognormcounts
+
+sce <- logNormCounts(sce, assay.type = "wta")
+
+# finding HVGs
+
+mgv <- modelGeneVar(sce, block = sce$sample_id)
+
+table(sce$sample_id)
+
+mgv_pb  <- lapply(mgv$per.block, function(u) {
+ o <- order(u$p.value)
+ u <- u[o,]
+ head(rownames(u), 500)
+})
+
+# subsetting objects
+
+pdgfra_unimodal<-sce[,sce$sample_id==c("pdgfra_rockroi_unimodal")]
+pdgfra_multimodal<-sce[,sce$sample_id==c("pdgfra_rockroi_multimodal")]
+
+# finding overlapping barcodes
+
+colnames(pdgfra_unimodal)<-gsub("pdgfra_rockroi_unimodal.","",colnames(pdgfra_unimodal))
+colnames(pdgfra_multimodal)<-gsub("pdgfra_rockroi_multimodal.","",colnames(pdgfra_multimodal))
+
+common<-intersect(colnames(pdgfra_unimodal),colnames(pdgfra_multimodal))
+
+# subsetting with common barcodes --> the order of the barcodes will be the same
+
+pdgfra_unimodal<-pdgfra_unimodal[,common]
+pdgfra_multimodal<-pdgfra_multimodal[,common]
+
+# generating DGE
+
+dge_unimodal<-convertTo(pdgfra_unimodal,type="edgeR")
+dge_multimodal<-convertTo(pdgfra_multimodal,type="edgeR")
+
+# calculating cpms
+
+dge_unimodal_logcpm<-cpm(dge_unimodal,log=TRUE,prior.count=1) #prior.count: number to sum to not have 0
+dge_multimodal_logcpm<-cpm(dge_multimodal,log=TRUE,prior.count=1)
+
+# subsetting dge for top HVGs in common between the two samples and take top 100
+
+common_genes<-intersect(mgv_pb$pdgfra_rockroi_multimodal,mgv_pb$pdgfra_rockroi_unimodal) [1:100]
+
+dge_unimodal_logcpm<-dge_unimodal_logcpm[common_genes,]
+dge_multimodal_logcpm<-dge_multimodal_logcpm[common_genes,]
+
+# generating list from the dge objects
+
+l_dge_unimodal_logcpm<-split(dge_unimodal_logcpm, 1:nrow(dge_unimodal_logcpm))
+names(l_dge_unimodal_logcpm)<-rownames(dge_unimodal_logcpm)
+
+l_dge_multimodal_logcpm<-split(dge_multimodal_logcpm, 1:nrow(dge_multimodal_logcpm))
+names(l_dge_multimodal_logcpm)<-rownames(dge_multimodal_logcpm)
+
+# putting them in a dataframe
+
+pdgfra_dataframe<-data.frame(as.numeric(unlist(l_dge_unimodal_logcpm)),as.numeric(unlist(l_dge_multimodal_logcpm)))
+colnames(pdgfra_dataframe)<-c("unimodal","multimodal")
+
+
+# calculating correlation 
+
+cor(pdgfra_dataframe$unimodal,pdgfra_dataframe$multimodal,method="pearson")
+cor(pdgfra_dataframe$unimodal,pdgfra_dataframe$multimodal,method="spearman")
+
+```
+
+### Trying to make a correlation plot
+
+```{r}
+
+df_dge_unimodal_logcpm<-as.data.frame(dge_unimodal_logcpm)
+df_dge_multimodal_logcpm<-as.data.frame(dge_multimodal_logcpm)
+
+test<-cor(t(df_dge_unimodal_logcpm),t(df_dge_multimodal_logcpm),method="spearman")
+
+corrplot(test,method="color",tl.cex = 0.5)
+
+# with ggplot
+
+melted_test<-melt(test)
+
+ggplot(data = melted_test, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile()+
+  scale_fill_gradient(low = "blue", high = "red")+
+  theme(axis.text.x=element_text(angle=90,size=7),axis.text.y=element_text(size=7))
+
+```
+
+### Heatmap with subtracting logcpms and using 100 cells
+
+```{r}
+
+df_dge_unimodal_logcpm<-as.data.frame(dge_unimodal_logcpm)[,1:100]
+df_dge_multimodal_logcpm<-as.data.frame(dge_multimodal_logcpm)[,1:100]
+diff_unimodal_multimodal<-df_dge_unimodal_logcpm-df_dge_multimodal_logcpm[,1:100]
+
+# unimodal heatmap 
+
+#ph <- pheatmap(lcounts[genes,co], show_rownames = TRUE,
+#        show_colnames = FALSE, scale="none",
+#        annotation_col = col_anno[co,],
+ #       clustering_distance_rows = "correlation",
+ #       clustering_distance_cols = "correlation",
+ #       cluster_rows = TRUE,
+ #       treeheight_row = 0,
+ #       cluster_cols = FALSE, fontsize_row = 8,
+ #       annotation_colors = ann_colors)
+
+pheatmap(df_dge_unimodal_logcpm,
+         cluster_rows=FALSE,
+         cluster_cols=FALSE,
+         fontsize_col=5,
+         fontsize_row=5)
+
+# multimodal heatmap
+
+pheatmap(df_dge_multimodal_logcpm,
+         cluster_rows=FALSE,
+         cluster_cols=FALSE,
+         fontsize_col=5,
+         fontsize_row=5)
+
+# difference heatmap
+
+pheatmap(diff_unimodal_multimodal,
+         cluster_rows=FALSE,
+         cluster_cols=FALSE,
+         fontsize_col=5,
+         fontsize_row=5)
+
+```
+
+
