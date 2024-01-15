@@ -61,7 +61,7 @@ names(myscale) <- as.character(1:10)
 
 ```{r}
 
-sce <- sce[,sce$cluster==8]
+sce <- sce[,sce$cluster==2]
 mgv <- modelGeneVar(sce, block = sce$sample_id)
 
 mgv_pb  <- lapply(mgv$per.block, function(u) {
@@ -95,23 +95,19 @@ sce <- runUMAP(sce, dimred="PCA")
 #   scale_colour_manual()
 
 
-# myscale <- rainbow(13)
-# names(myscale) <- as.character(1:13)
-
-myscale <- c(color("muted")(9), gray="lightgray", black="black")
-names(myscale) <- as.character(1:11)
-
-
 set.seed(1976)
 nn.clusters <- clusterCells(sce, use.dimred="PCA",
                             BLUSPARAM=NNGraphParam(k=10))
 table(nn.clusters)
 sce$cluster <- nn.clusters
 
-plotUMAP(sce, colour_by="cluster", shape_by = "sample_id",
-         point_size = 4, point_alpha = .9) + 
+(p <- plotUMAP(sce, colour_by="cluster", shape_by = "sample_id",
+         point_size = 3, point_alpha = .9) + 
   scale_color_manual(values = myscale) +
-  facet_wrap(~shape_by)
+  facet_wrap(~shape_by))
+
+ggsave("tuft_umap.pdf", p, width = 11, height = 5)
+
 
 table(sce$sample_id, sce$cluster)
 
@@ -124,7 +120,7 @@ mm <- model.matrix(~ cluster,
 
 lcounts <- logcounts(sce)
 
-table(rs <- rowSums(lcounts)>20 & rowData(sce)$gene_type == "mouse_gene" )
+table(rs <- rowSums(lcounts)>5 & rowData(sce)$gene_type == "mouse_gene" )
 f <- lmFit(as.matrix(lcounts[rs,]), mm)
 f <- eBayes(f)
 
@@ -133,7 +129,7 @@ tt <- topTable(f, coef=2:ncol(mm), number = 1e6, sort.by = "none")
 
 grep("Trpm5", rownames(sce), value = TRUE)
 
-plotUMAP(sce, colour_by = "ENSMUSG00000025934.15__Gsta3")
+# plotUMAP(sce, colour_by = "ENSMUSG00000025934.15__Gsta3")
 plotUMAP(sce, colour_by = "ENSMUSG00000009246.14__Trpm5")
 plotExpression(sce, x = "cluster", features = c("ENSMUSG00000033740.17__St18",
                                                     "ENSMUSG00000092083.4__Kcnb2",
@@ -216,7 +212,7 @@ ph <- pheatmap(lcounts[genes,co], show_rownames = TRUE,
         cluster_cols = FALSE, fontsize_row = 9,
         annotation_colors = ann_colors)
 
-save_pheatmap_pdf(ph, "tuft_clustering.pdf", width = 12, height = 14)
+save_pheatmap_pdf(ph, "tuft_clustering.pdf", width = 12, height = 8)
 
 # rownames(altExp(sce))
 # sort(rowSums(assay(altExp(sce), 1)), decreasing = TRUE)
@@ -239,13 +235,14 @@ agg_counts %>% as.data.frame %>% round(3) %>%
             row.names = FALSE, quote = FALSE)
 
 p <- plotExpression(sce, x = "cluster", colour_by = "cluster",
-               features = markers$Marker[markers$Broad_cell_type=="Epithelial"],
-               ncol = 4) +
+               features = markers$Marker[markers$Cell_type=="Tuft" |
+                                         markers$Cell_type=="Enteroendocrine" ],
+               ncol = 3) +
   scale_color_manual(values = myscale)
 p
 
 
-ggsave("tuft_markers_by_cluster.pdf", p, height = 12, width = 12)
+ggsave("tuft_markers_by_cluster.pdf", p, height = 6, width = 10)
 
 ```
 
