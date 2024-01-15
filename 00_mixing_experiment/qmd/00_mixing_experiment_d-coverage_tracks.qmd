@@ -14,7 +14,6 @@ format:
 ```{r}
 
 # Change objects to subset with two peaks 
-# Add alpha
 
 ```
 
@@ -224,7 +223,7 @@ bam<-dir(here("00_mixing_experiment"), "*.bam",
             recursive = TRUE, full.names = TRUE)
 
 names(bam) <- gsub(".bam", "", basename(bam))
-names(bam) <- gsub("_subset", "",names(bam))
+names(bam) <- gsub("sub_", "",names(bam))
 
 datadir <- dirname(bam)[1] # folder where the .bam files are 
 
@@ -240,6 +239,10 @@ for (i in 1:length(bam)){
 
 bam_coverages<-list()
 bam_coverages_overlayed<-list()
+
+chr<-c("egfp","tdtomato")
+
+modality<-c("unmod","unmod_roi","rock","rockroi")
 
 for (x in chr){
   coverage_chr<-list()
@@ -277,11 +280,11 @@ for (x in chr){
   }
 
   overlays_bam<-list()
-  
+
   for (i in modality){
-    overlays_bam[[paste0(i,"_",x)]]<-OverlayTrack(trackList=list(covs[[paste0(i,"_wta")]],covs[[paste0(i,"_tso")]]))
+    overlays_bam[[paste0(i,"_",x)]]<-OverlayTrack(trackList=list(covs[[paste0("wta_",i)]],covs[[paste0("tso_",i)]]))
   }
-  
+
   plotTracks(c(overlays_bam,
              gms[[x]]),
            type="histogram",
@@ -310,10 +313,10 @@ for (x in chr){
   
   ranges_bam<-c()
   modality<-c("unmod","unmod_roi","rock","rockroi")
-  
+
   for (i in modality){
-    ranges_bam[paste0("ylims_",i,"_",x)]<-max(range(c(values(bam_coverages[[x]][[paste0(i,"_wta")]]), 
-                                                                 values(bam_coverages[[x]][[paste0(i,"_tso")]]))))[[2]]
+    ranges_bam[paste0("ylims_",i,"_",x)]<-max(range(c(values(bam_coverages[[x]][[paste0("wta_",i)]]), 
+                                                                 values(bam_coverages[[x]][[paste0("tso_",i)]]))))
   }
   
       plotTracks(c(bam_coverages_overlayed[[x]][[paste0("unmod_",x)]],
@@ -385,13 +388,13 @@ for (x in chr){
 
   tail_overlays_bam<-list()
   for (i in modality){
-    tail_overlays_bam[[paste0(i,"_",x)]]<-OverlayTrack(trackList=list(tail_covs[[paste0(i,"_wta")]],tail_covs[[paste0(i,"_tso")]]))
+    tail_overlays_bam[[paste0(i,"_",x)]]<-OverlayTrack(trackList=list(tail_covs[[paste0("wta_",i)]],tail_covs[[paste0("tso_",i)]]))
   }
 
   ranges<-c()
   for (i in modality){
-    ranges[paste0("ylims_",i,"_",x)]<-max(range(c(values(tail_covs[[paste0(i,"_wta")]]), 
-                                                                 values(tail_covs[[paste0(i,"_tso")]]))))
+    ranges[paste0("ylims_",i,"_",x)]<-max(range(c(values(tail_covs[[paste0("wta_",i)]]), 
+                                                                 values(tail_covs[[paste0("tso_",i)]]))))
   }
   plotTracks(c(tail_overlays_bam[[paste0("unmod_",x)]],
                bw_coverages[[x]][[paste0("unmod_",x)]],
