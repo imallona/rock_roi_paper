@@ -1,0 +1,209 @@
+---
+title: "Bringing the manual annotations into the objects"
+format:
+  html:
+    toc: true
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Load packages, load data
+
+```{r, warning=FALSE, message=FALSE}
+library(SingleCellExperiment)
+library(ggplot2)
+library(dplyr)
+library(pheatmap)
+library(here)
+library(tibble)
+library(khroma)
+library(googlesheets4)
+library(tidyr)
+
+#   3907972 Jan 15 09:13 sce_qc-filtered-nodoublets-clustered-epithelial-tuft.rds
+# 119139716 Jan 15 08:47 sce_qc-filtered-nodoublets-clustered-epithelial.rds
+#  78719462 Jan 15 08:49 sce_qc-filtered-nodoublets-clustered-mesenchymal.rds
+# 200338546 Dec 20 17:32 sce_qc-filtered-nodoublets-clustered.rds
+
+save_pheatmap_pdf <- function(x, filename, width=7, height=7) {
+   stopifnot(!missing(x))
+   stopifnot(!missing(filename))
+   pdf(filename, width=width, height=height)
+   grid::grid.newpage()
+   grid::grid.draw(x$gtable)
+   dev.off()
+}
+
+datadir <- file.path(here("01_pdgfra_experiment"), "data")
+
+# read filtered-clustered object to SCE
+sce_epi <- readRDS(file.path(datadir,
+                             "sce_qc-filtered-nodoublets-clustered-epithelial.rds"))
+sce_mes <- readRDS(file.path(datadir,
+                             "sce_qc-filtered-nodoublets-clustered-mesenchymal.rds"))
+sce_tuft <- readRDS(file.path(datadir,
+                              "sce_qc-filtered-nodoublets-clustered-epithelial-tuft.rds"))
+sce <- readRDS(file.path(datadir,
+                         "sce_qc-filtered-nodoublets-clustered.rds"))
+
+
+
+anno <- read_sheet("https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=1756474524",
+                   sheet = "cell-type-annotations")
+
+markers <- read_sheet("https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=1756474524",
+                   sheet = "markers-pdgfra")
+
+
+epi_df <- data.frame(key = rownames(colData(sce_epi)),
+                     cluster = sce_epi$cluster) %>%
+  mutate(cluster = as.integer(cluster)) %>%
+  left_join(anno %>% filter(Broad_cell_type=="epithelial")) %>%
+  select(key, annotation)
+
+mes_df <- data.frame(key = rownames(colData(sce_mes)),
+                     cluster = sce_mes$cluster) %>%
+  mutate(cluster = as.integer(cluster)) %>%
+  left_join(anno %>% filter(Broad_cell_type=="mesenchymal")) %>%
+  select(key, annotation)
+
+tuft_df <- data.frame(key = rownames(colData(sce_tuft)),
+                     cluster = sce_tuft$cluster) %>%
+  mutate(cluster = as.integer(cluster)) %>%
+  left_join(anno %>% filter(Broad_cell_type=="tuft")) %>%
+  select(key, annotation)
+
+# verify that tuft cells are a specific cluster in the epithelials
+epi_df %>% filter((key %in% tuft_df$key)) %>% pull(annotation) %>% table
+
+epi_df <- epi_df %>% filter(!(key %in% tuft_df$key))
+
+df <- data.frame(key = rownames(colData(sce))) %>%
+  left_join(rbind(epi_df, mes_df, tuft_df)) %>%
+  mutate(annotation = replace_na(annotation, "doublets"))
+
+# check
+all(df$key == rownames(colData(sce)))
+table(df$annotation, useNA = "ifany")
+
+sce$annotation <- df$annotation
+
+
+# myscale <- rainbow(13)
+# names(myscale) <- as.character(1:13)
+myscale <- c(color("muted")(9), gray="lightgray", 
+             black = "black", darkorange = "darkorange",
+             yellowgreen = "yellowgreen")
+names(myscale) <- as.character(1:13)
+
+plot(1:13, col=myscale, pch=19, cex=4)
+
+```
+
+
+## Do a spot check on annotations
+
+
+```{r}
+
+sce <- sce[,!(sce$annotation %in% c("Contamination_immune_cells",
+                                    "Contamination_muscle_cells",
+                                    "doublets"))]
+
+
+inds <- split(seq_len(ncol(sce)), sce$annotation)
+set.seed(1976)
+inds <- lapply(inds, function(u) {
+  sample(u, ifelse(length(u)>=100, 100, length(u)),
+         replace = FALSE)
+})
+
+names(myscale) <- levels(factor(sce$annotation))
+ann_colors = list(annotation = myscale[seq_len(length(inds))])
+
+co <- unlist(inds)
+genes <- markers$Marker
+
+
+# make row annotation
+rowanno <- data.frame(Marker = genes) %>% 
+  left_join(markers %>% select(Marker, Broad_cell_type, Cell_type)) %>%
+  transmute(Marker = Marker,
+            broad_ct = replace_na(Broad_cell_type, ""),
+            celltype = replace_na(Cell_type, "")) %>%
+  tibble::column_to_rownames("Marker")
+
+lcounts <- logcounts(sce)
+
+col_anno <- colData(sce)[,c("sample_id","annotation")] %>% 
+  as.data.frame
+
+
+ph <- pheatmap(lcounts[genes,co], show_rownames = TRUE,
+        show_colnames = FALSE, scale="none",
+        annotation_col = col_anno[co,],
+        clustering_distance_rows = "correlation",
+        clustering_distance_cols = "correlation",
+        annotation_row = rowanno,
+        cluster_rows = TRUE,
+        treeheight_row = 0,
+        cluster_cols = FALSE, fontsize_row = 9,
+        annotation_colors = ann_colors)
+
+
+
+save_pheatmap_pdf(ph, "overall_annotation.pdf", width = 18, height = 8)
+
+```
+
+
+## Do a pseudo-bulk level comparison of the populations
+
+
+```{r}
+
+with(colData(sce) %>% as.data.frame,
+     table(annotation, sample_id))
+
+inds <- split(seq_len(ncol(sce)), 
+              paste0(sce$sample_id, "__", sce$annotation))
+
+set.seed(1976)
+inds <- lapply(inds, function(u) {
+  sample(u, ifelse(length(u)>=11, 11, length(u)),
+         replace = FALSE)
+})
+
+
+pbs <- sapply(inds, function(u) rowMeans(lcounts[,u]))
+
+m <- rowMeans(pbs)
+v <- rowVars(pbs)
+
+smoothScatter(m, v)
+
+keep <- m > .1 & v > .5
+
+pheatmap(cor(pbs[keep,]))
+
+
+```
+
+
+
+
+# Save output
+
+```{r}
+# save clustered object to RDS
+saveRDS(sce, file.path(datadir, "sce_qc-filtered-nodoublets-clustered-annotated.rds"))
+```
+
+
+## `sessionInfo()`
+
+```{r}
+sessionInfo()
+```
+
