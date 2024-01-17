@@ -50,22 +50,84 @@ library(viridis)
 rdss <- dir(here("01_pdgfra_experiment"), "^pd.*rds$", 
             recursive = TRUE, full.names = TRUE)
 
+names(rdss) <- gsub("_sce.rds", "", basename(rdss))
+rdss
+
 datadir <- dirname(rdss)[1]
 
-sce<-readRDS(file.path(datadir, "sce_qc-filtered-nodoublets.rds"))
+sces <- mapply(function(u,v)  {
+  rds <- readRDS(u)
+  rds$sample_id <- v
+  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
+  colnames(rowData(rds)) <- c("name", "type", "value")
+  g <- grepl("^ENS", rownames(rds))
+  rownames(rds)[g] <- paste0(rownames(rds)[g], 
+                             "__", rowData(rds)$name[g])
+  rowData(rds)$gene_type <- "capture"
+  k <- grepl("^ENSG", rownames(rds))
+  rowData(rds)$gene_type[k] <- "human_gene"
+  k <- grepl("^ENSMUS", rownames(rds))
+  rowData(rds)$gene_type[k] <- "mouse_gene"
+  k <- grepl("^mt", rowData(rds)$name)
+  rowData(rds)$gene_type[k] <- "mouse_mito"
+  k <- grepl("^MT", rowData(rds)$name)
+  rowData(rds)$gene_type[k] <- "human_mito"
+  rds
+}, rdss, names(rdss))
 
-sce<-sce[,sce$sample_id==c("pdgfra_rockroi_multimodal","pdgfra_rockroi_unimodal")]
+sces<-sces[c("pdgfra_rockroi_multimodal","pdgfra_rockroi_unimodal")]
+sce <- Reduce(cbind, sces)
+
+table(sce$sample_id)
 
 ```
 
-### From previous analysis 
+### Filtering dataset
 
 ```{r}
 
-#length(colnames(sce[,sce$sample_id=="pdgfra_rockroi_unimodal"])) #4980
-#length(colnames(sce[,sce$sample_id=="pdgfra_rockroi_multimodal"])) #5079
+rd <- rowData(sce)
+sce <- addPerCellQCMetrics(sce, assay.type = "wta",
+                           subsets=list(capture=rd$gene_type=="capture",
+                                        mouse_gene=rd$gene_type=="mouse_gene",
+                                        mouse_mito=rd$gene_type=="mouse_mito"))
 
-#length(intersect(colnames(sce[,sce$sample_id=="pdgfra_rockroi_unimodal"]),colnames(sce[,sce$sample_id=="pdgfra_rockroi_multimodal"]))) #4951
+cd <- colData(sce) %>% as.data.frame
+
+ggplot(cd, aes(x = total, y = subsets_mouse_mito_percent)) +
+  geom_point() + scale_x_log10() + scale_y_sqrt() +
+  facet_wrap(~sample_id) + 
+  geom_hline(yintercept=c(1,30), colour="orange") +
+  geom_vline(xintercept=c(2000), colour="orange") +
+  geom_density2d()
+
+# crude filter
+
+mito <- sce$subsets_mouse_mito_percent
+sces <- sce[,sce$total>2000 & mito>1 & mito<30]
+sces <- sces[rowSums(assay(sces,1))>2 | rowData(sces)$gene_type=="capture" ,] 
+
+```
+
+### Doublet removal
+
+```{r}
+
+sces_adj <- sces
+counts(sces_adj) <- assay(sces, 1)
+colnames(sces_adj) <- sces_adj$sample_id.barcode
+
+sces_nd <- scDblFinder(sces_adj, samples = "sample_id")
+
+sces_nd <- sces_nd[,sces_nd$scDblFinder.class=="singlet"]
+
+saveRDS(sces, file.path(datadir, "uni_multi_filtered_doublet_removed.rds"))
+
+rm(sces,sces_nd,sce)
+
+sce<-readRDS(file.path(datadir, "uni_multi_filtered_doublet_removed.rds"))
+
+table(sce$sample_id)
 
 ```
 
@@ -77,17 +139,16 @@ sce<-sce[,sce$sample_id==c("pdgfra_rockroi_multimodal","pdgfra_rockroi_unimodal"
 
 sce <- logNormCounts(sce, assay.type = "wta")
 
-# finding HVGs
+# finding HVGs and getting the most variable
 
-mgv <- modelGeneVar(sce, block = sce$sample_id)
+mgv <- modelGeneVar(sce) #removed sample block
+mgv_pb<-head(rownames(mgv[order(mgv$p.value),]),500)
 
-table(sce$sample_id)
+# most highly expressed HVGs (to prevent having too many 0s) and taking top 100
 
-mgv_pb  <- lapply(mgv$per.block, function(u) {
- o <- order(u$p.value)
- u <- u[o,]
- head(rownames(u), 500)
-})
+common_genes<-mgv_pb
+expression_common_genes<-assay(sce)[common_genes,]
+high_hvgs<-names(sort(rowSums(expression_common_genes),decreasing=TRUE)[1:100])
 
 # subsetting objects
 
@@ -100,6 +161,10 @@ colnames(pdgfra_unimodal)<-gsub("pdgfra_rockroi_unimodal.","",colnames(pdgfra_un
 colnames(pdgfra_multimodal)<-gsub("pdgfra_rockroi_multimodal.","",colnames(pdgfra_multimodal))
 
 common<-intersect(colnames(pdgfra_unimodal),colnames(pdgfra_multimodal))
+
+length(colnames(pdgfra_unimodal))
+length(colnames(pdgfra_multimodal))
+length(common)
 
 # subsetting with common barcodes --> the order of the barcodes will be the same
 
@@ -118,10 +183,8 @@ dge_multimodal_logcpm<-cpm(dge_multimodal,log=TRUE,prior.count=1)
 
 # subsetting dge for top HVGs in common between the two samples and take top 100
 
-common_genes<-intersect(mgv_pb$pdgfra_rockroi_multimodal,mgv_pb$pdgfra_rockroi_unimodal) [1:100]
-
-dge_unimodal_logcpm<-dge_unimodal_logcpm[common_genes,]
-dge_multimodal_logcpm<-dge_multimodal_logcpm[common_genes,]
+dge_unimodal_logcpm<-dge_unimodal_logcpm[high_hvgs,]
+dge_multimodal_logcpm<-dge_multimodal_logcpm[high_hvgs,]
 
 # generating list from the dge objects
 
@@ -136,33 +199,10 @@ names(l_dge_multimodal_logcpm)<-rownames(dge_multimodal_logcpm)
 pdgfra_dataframe<-data.frame(as.numeric(unlist(l_dge_unimodal_logcpm)),as.numeric(unlist(l_dge_multimodal_logcpm)))
 colnames(pdgfra_dataframe)<-c("unimodal","multimodal")
 
-
-# calculating correlation 
+# calculating correlations
 
 cor(pdgfra_dataframe$unimodal,pdgfra_dataframe$multimodal,method="pearson")
 cor(pdgfra_dataframe$unimodal,pdgfra_dataframe$multimodal,method="spearman")
-
-```
-
-### Trying to make a correlation plot
-
-```{r}
-
-df_dge_unimodal_logcpm<-as.data.frame(dge_unimodal_logcpm)
-df_dge_multimodal_logcpm<-as.data.frame(dge_multimodal_logcpm)
-
-test<-cor(t(df_dge_unimodal_logcpm),t(df_dge_multimodal_logcpm),method="spearman")
-
-corrplot(test,method="color",tl.cex = 0.5)
-
-# with ggplot
-
-melted_test<-melt(test)
-
-ggplot(data = melted_test, aes(x=Var1, y=Var2, fill=value)) + 
-  geom_tile()+
-  scale_fill_gradient(low = "blue", high = "red")+
-  theme(axis.text.x=element_text(angle=90,size=7),axis.text.y=element_text(size=7))
 
 ```
 
@@ -173,18 +213,6 @@ ggplot(data = melted_test, aes(x=Var1, y=Var2, fill=value)) +
 df_dge_unimodal_logcpm<-as.data.frame(dge_unimodal_logcpm)[,1:100]
 df_dge_multimodal_logcpm<-as.data.frame(dge_multimodal_logcpm)[,1:100]
 diff_unimodal_multimodal<-df_dge_unimodal_logcpm-df_dge_multimodal_logcpm[,1:100]
-
-# unimodal heatmap 
-
-#ph <- pheatmap(lcounts[genes,co], show_rownames = TRUE,
-#        show_colnames = FALSE, scale="none",
-#        annotation_col = col_anno[co,],
- #       clustering_distance_rows = "correlation",
- #       clustering_distance_cols = "correlation",
- #       cluster_rows = TRUE,
- #       treeheight_row = 0,
- #       cluster_cols = FALSE, fontsize_row = 8,
- #       annotation_colors = ann_colors)
 
 pheatmap(df_dge_unimodal_logcpm,
          cluster_rows=FALSE,
@@ -207,6 +235,18 @@ pheatmap(diff_unimodal_multimodal,
          cluster_cols=FALSE,
          fontsize_col=5,
          fontsize_row=5)
+
+# histograms and density plots with deltas
+
+hist(unlist(diff_unimodal_multimodal),
+     main="")
+
+df<-as.data.frame(unlist(diff_unimodal_multimodal))
+
+ggplot(df,aes(x=`unlist(diff_unimodal_multimodal)`))+
+  geom_density()+
+  theme_bw()+
+  xlab("delta")
 
 ```
 
