@@ -20,6 +20,7 @@ library(tibble)
 library(khroma)
 library(googlesheets4)
 library(tidyr)
+library(reshape2)
 
 #   3907972 Jan 15 09:13 sce_qc-filtered-nodoublets-clustered-epithelial-tuft.rds
 # 119139716 Jan 15 08:47 sce_qc-filtered-nodoublets-clustered-epithelial.rds
@@ -187,9 +188,77 @@ keep <- m > .1 & v > .5
 
 pheatmap(cor(pbs[keep,]))
 
-
 ```
 
+
+
+
+## Look at the sensitivity question
+
+
+```{r}
+
+exprs_wta <- assay(altExp(sce,"wta_ontarget_multi"))
+exprs_tso <- assay(altExp(sce,"tso_ontarget_multi"))
+
+sort(rowSums(exprs_tso, na.rm = TRUE), decreasing = TRUE) -> sorted_tso
+sort(rowSums(exprs_wta, na.rm = TRUE), decreasing = TRUE) -> sorted_wta
+
+ids <- gsub("pdgfra_", "", sce$sample_id)
+ids <- gsub("_multimodal", "", ids)
+sce$sample_id <- gsub("_unimodal", "", ids)
+
+df <- data.frame(tso = as.matrix(t(exprs_tso)),
+                 wta = as.matrix(t(exprs_wta)),
+                 colData(sce)[,c("sample_id","annotation")])
+
+dfm <- melt(df, id.vars = c("sample_id","annotation"))
+
+sorted <- dfm %>% group_by(variable) %>% 
+  summarise(mv = mean(value)) %>% 
+  arrange(desc(mv)) %>% 
+  pull(variable)
+
+(p <- ggplot(dfm %>% filter(variable %in% sorted[1:16]),
+            aes(x = annotation, y = value, group = sample_id,
+                colour = annotation, shape=sample_id)) +
+    geom_point(size = 2, 
+               position=position_jitterdodge(jitter.width = .1,
+                                             dodge.width = .8)) +
+    facet_wrap(~variable, nrow = 4, scales = "free_y") +
+    scale_colour_manual(values = myscale) +
+  theme(legend.position="bottom",
+        axis.text.x = element_text(angle = 25, vjust = 1, hjust=1)) )
+
+
+feats <- grep("^[wt][ts][ao]", 
+              colnames(df), value = TRUE)
+
+feats_s <- split(feats, substr(feats, 5, 100))
+
+i <- 1
+
+pdf("tso_vs_wta.pdf", width = 14, height = 4.5)
+for(i in 1:length(feats_s)) {
+# for(i in 1:2) {
+  p <- ggplot(df, aes(x = .data[[feats_s[[i]][2]]],
+                      y = .data[[feats_s[[i]][1]]],
+                      colour = annotation,
+                      shape = sample_id) ) +
+    geom_jitter() +
+    scale_colour_manual(values = myscale) +
+    facet_grid(sample_id~annotation) +
+    xlab("WTA") + ylab("TSO") +
+    ggtitle(names(feats_s)[i]) +
+    theme(legend.position="bottom")
+  print(p)
+}
+dev.off()
+
+
+# logcounts(sce)["ENSMUSG00000020122.16__Egfr",]
+
+```
 
 
 
