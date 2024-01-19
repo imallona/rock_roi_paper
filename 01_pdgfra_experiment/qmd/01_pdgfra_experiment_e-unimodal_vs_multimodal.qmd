@@ -44,8 +44,9 @@ library(Matrix)
 library(scDblFinder)
 library(edgeR)
 library(ggpubr)
+library(gridExtra)
 library(corrplot)
-library(viridis)
+library(RColorBrewer)
 
 rdss <- dir(here("01_pdgfra_experiment"), "^pd.*rds$", 
             recursive = TRUE, full.names = TRUE)
@@ -97,14 +98,14 @@ cd <- colData(sce) %>% as.data.frame
 ggplot(cd, aes(x = total, y = subsets_mouse_mito_percent)) +
   geom_point() + scale_x_log10() + scale_y_sqrt() +
   facet_wrap(~sample_id) + 
-  geom_hline(yintercept=c(1,30), colour="orange") +
+  geom_hline(yintercept=c(1,75), colour="orange") +
   geom_vline(xintercept=c(2000), colour="orange") +
   geom_density2d()
 
 # crude filter
 
 mito <- sce$subsets_mouse_mito_percent
-sces <- sce[,sce$total>2000 & mito>1 & mito<30]
+sces <- sce[,sce$total>2000 & mito>1 & mito<75]
 sces <- sces[rowSums(assay(sces,1))>2 | rowData(sces)$gene_type=="capture" ,] 
 
 ```
@@ -121,7 +122,7 @@ sces_nd <- scDblFinder(sces_adj, samples = "sample_id")
 
 sces_nd <- sces_nd[,sces_nd$scDblFinder.class=="singlet"]
 
-saveRDS(sces, file.path(datadir, "uni_multi_filtered_doublet_removed.rds"))
+#saveRDS(sces, file.path(datadir, "uni_multi_filtered_doublet_removed.rds")) # commented out so always use same object 
 
 rm(sces,sces_nd,sce)
 
@@ -199,54 +200,114 @@ names(l_dge_multimodal_logcpm)<-rownames(dge_multimodal_logcpm)
 pdgfra_dataframe<-data.frame(as.numeric(unlist(l_dge_unimodal_logcpm)),as.numeric(unlist(l_dge_multimodal_logcpm)))
 colnames(pdgfra_dataframe)<-c("unimodal","multimodal")
 
-# calculating correlations
+# calculating correlations for whole dataset
 
 cor(pdgfra_dataframe$unimodal,pdgfra_dataframe$multimodal,method="pearson")
 cor(pdgfra_dataframe$unimodal,pdgfra_dataframe$multimodal,method="spearman")
 
 ```
 
-### Heatmap with subtracting logcpms and using 100 cells
+### Density plots of Spearman correlation of logCPMs between all cells 
 
 ```{r}
 
-df_dge_unimodal_logcpm<-as.data.frame(dge_unimodal_logcpm)[,1:100]
-df_dge_multimodal_logcpm<-as.data.frame(dge_multimodal_logcpm)[,1:100]
-diff_unimodal_multimodal<-df_dge_unimodal_logcpm-df_dge_multimodal_logcpm[,1:100]
+df_dge_unimodal_logcpm<-as.data.frame(dge_unimodal_logcpm)
+df_dge_multimodal_logcpm<-as.data.frame(dge_multimodal_logcpm)
 
-pheatmap(df_dge_unimodal_logcpm,
-         cluster_rows=FALSE,
-         cluster_cols=FALSE,
-         fontsize_col=5,
-         fontsize_row=5)
+test<-cor(df_dge_unimodal_logcpm,df_dge_multimodal_logcpm,method="spearman")
 
-# multimodal heatmap
+diagonal<-diag(test) # use the diagonal because they will be the same cells 
 
-pheatmap(df_dge_multimodal_logcpm,
-         cluster_rows=FALSE,
-         cluster_cols=FALSE,
-         fontsize_col=5,
-         fontsize_row=5)
+df_diagonal<-as.data.frame(diagonal)
 
-# difference heatmap
-
-pheatmap(diff_unimodal_multimodal,
-         cluster_rows=FALSE,
-         cluster_cols=FALSE,
-         fontsize_col=5,
-         fontsize_row=5)
-
-# histograms and density plots with deltas
-
-hist(unlist(diff_unimodal_multimodal),
-     main="")
-
-df<-as.data.frame(unlist(diff_unimodal_multimodal))
-
-ggplot(df,aes(x=`unlist(diff_unimodal_multimodal)`))+
+ggplot(df_diagonal,aes(x=diagonal))+
   geom_density()+
   theme_bw()+
-  xlab("delta")
+  xlab("spearman corr")
+
+```
+
+### Based on cell type annotation 
+
+```{r}
+
+sce_labelled<-readRDS(file.path(datadir, "sce_qc-filtered-nodoublets-clustered-annotated.rds"))
+
+cd<-as.data.frame(colData(sce_labelled))
+
+# in dataset have the rock_roi_multimodal so taking that sample
+
+cd_multi<-cd[cd$sample_id=="rockroi",]
+
+# subsetting for same barcodes in the different objects
+
+rownames(cd_multi)<-gsub("pdgfra_rockroi_multimodal.","",rownames(cd_multi))
+cd_multi<-cd_multi[intersect(common,rownames(cd_multi)),] # some barcodes were filtered out during QC
+
+df_dge_unimodal_logcpm<-df_dge_unimodal_logcpm[,intersect(common,rownames(cd_multi))]
+df_dge_multimodal_logcpm<-df_dge_multimodal_logcpm[,intersect(common,rownames(cd_multi))]
+
+combined<-data.frame(unimodal=unlist(df_dge_unimodal_logcpm, use.names = TRUE),multimodal=unlist(df_dge_multimodal_logcpm, use.names = TRUE))
+
+# adding annotation --> this takes looong time, need to optimize 
+
+combined$annotation<-NA
+
+for (i in unique(gsub('[[:digit:]]+', '', rownames(combined)))){
+  rows<-grep(i,rownames(combined))
+  combined$annotation[rows]<-cd_multi[i,]$annotation
+}
+
+table(combined$annotation)/100 
+
+# generating list with correlations for each cell type so easier to plot later (also takes some time)
+
+all_cors<-list()
+
+for (i in unique(combined$annotation)){
+  corrs<-c()
+  sub<-combined[combined$annotation==i,]
+  
+  for (k in unique(gsub('[[:digit:]]+', '', rownames(sub)))){
+    x<-cor(sub[grep(k,rownames(sub)),]$unimodal,
+          sub[grep(k,rownames(sub)),]$multimodal,
+          method="spearman")
+    corrs<-c(corrs,x)
+  }
+  
+  all_cors[[i]]<-corrs
+}
+
+# separate correlations for all cell types
+
+for (i in 1:length(all_cors)){
+  p<-ggplot(data.frame(x=all_cors[[i]]),aes(x=x))+
+  geom_density()+
+  theme_bw()+
+  xlab("spearman corr")+
+  ggtitle(names(all_cors)[i])+
+  xlim(0,1)
+  
+  print(p)
+}
+
+# plotting all correlations overlayed
+
+all_cors_list<-list()
+
+for (i in 1:length(all_cors)){
+  all_cors_list[[names(all_cors)[i]]]<-data.frame(values=all_cors[[i]],name=names(all_cors)[i])
+}
+
+p_all_cors_list<-bind_rows(all_cors_list)
+
+p<-ggplot(p_all_cors_list,aes(x=values,color=name,fill=name))+
+geom_density(alpha=0.1)+
+theme_bw()+
+xlab("spearman corr")+
+xlim(0,1)
+  
+print(p)
 
 ```
 
