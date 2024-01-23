@@ -1,0 +1,800 @@
+---
+title: "00_mixing_experiment_f-paper_figures"
+author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+
+### setting up knitr 
+
+```{r}
+
+knitr::opts_chunk$set(fig.width = 10,
+               fig.height = 10,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache=TRUE,
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+### Load packages, load data 
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(plotROC)
+library(ggpubr)
+library(here)
+library(RColorBrewer)
+library(ggnewscale)
+library(scales)
+library(rmarkdown)
+library(irlba)
+library(viridis)
+library(gridExtra)
+library(googlesheets4)
+library(tools)
+library(gridExtra)
+library(khroma)
+
+packageVersion("Matrix")
+
+rdss <- dir(here("00_mixing_experiment"), "^mixing.*rds$", 
+            recursive = TRUE, full.names = TRUE)
+
+names(rdss) <- gsub("_sce.rds", "", basename(rdss))
+names(rdss) <- gsub("mixing_", "", names(rdss))
+
+datadir <- dirname(rdss)[1] # folder where the .rds files are 
+
+### objects generated in report 00_mixing_experiment_c-figures
+
+# unfiltered object 
+
+sces <- mapply(function(u,v)  {
+  rds <- readRDS(u)
+  rds$sample_id <- v
+  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
+  # colnames(rowData(rds)) <- c("name", "type", "value","captured")
+  g <- grepl("^ENS", rownames(rds))
+  rownames(rds)[g] <- paste0(rownames(rds)[g], 
+                             "__", rowData(rds)$name[g])
+  rowData(rds)$type <- "capture"
+  k <- grepl("^ENSG", rownames(rds))
+  rowData(rds)$type[k] <- "human_gene"
+  k <- grepl("^ENSMUS", rownames(rds))
+  rowData(rds)$type[k] <- "mouse_gene"
+  k <- grepl("^mt", rowData(rds)$name)
+  rowData(rds)$type[k] <- "mouse_mito"
+  k <- grepl("^MT", rowData(rds)$name)
+  rowData(rds)$type[k] <- "human_mito"
+  rds
+}, rdss, names(rdss))
+
+sce <- Reduce(cbind, sces)
+
+# filtered object
+
+sce_filt<-readRDS(file.path(datadir, "sce_filt.rds"))
+
+# filtered after doublet removal 
+
+sce_nd<-readRDS(file.path(datadir, "sce_nd.rds"))
+
+```
+
+### Defining colors to use
+
+```{r}
+
+myscale<-c(color("muted")(9), gray="darkgrey", 
+             black = "black", darkorange = "darkorange",
+             yellowgreen = "yellowgreen")
+
+# defining colors for samples and for species
+
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtom_cds","no_detection","doublets")
+
+plot(1:11, col=myscale, pch=19, cex=4)
+
+```
+
+### Violin plots, colored by library size factors
+
+```{r}
+
+rd <- rowData(sce)
+sce <- addPerCellQCMetrics(sce, assay.type = "wta",
+                           subsets=list(capture=rd$type=="capture",
+                                        human_gene=rd$type=="human_gene",
+                                        human_mito=rd$type=="human_mito",
+                                        mouse_gene=rd$type=="mouse_gene",
+                                        mouse_mito=rd$type=="mouse_mito"))
+
+# adding species
+
+sce$species<-"unknown"
+sce$species[which(sce$subsets_mouse_gene_percent>50)]<-"mouse"
+sce$species[which(sce$subsets_human_gene_percent>50)]<-"human"
+
+cd <- colData(sce) %>% as.data.frame %>% 
+  mutate(total_mito_percent = subsets_mouse_mito_percent+subsets_human_mito_percent)
+
+
+table(sce$species) # not removing the unknown species yet
+
+ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=detected)) +
+        geom_violin()+  
+  theme_bw()+
+  xlab("")+
+  ylab("number of genes")+ 
+  geom_jitter(aes(color=sce$species),shape=16, position=position_jitter(0.2),alpha=0.1,size=1)+
+  geom_boxplot(width=0.1)+
+  theme(axis.text = element_text(size = 7), 
+        plot.title=element_text(size=7,face="bold"),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7),
+        legend.text=element_text(size=7),
+        aspect.ratio=1,
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  labs(colour="species")+
+  guides(colour = guide_legend(override.aes = list(alpha = 1,size=3)))+
+  scale_color_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))
+
+ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=total)) +
+        geom_violin()+  
+  theme_bw()+
+  xlab("")+
+  ylab("number of UMIs")+ 
+  geom_jitter(aes(color=sce$species),shape=16, position=position_jitter(0.2),alpha=0.1,size=1)+
+  geom_boxplot(width=0.1)+
+  theme(axis.text = element_text(size = 7), 
+        plot.title=element_text(size=7,face="bold"),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7),
+        legend.text=element_text(size=7),
+        aspect.ratio=1,
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  labs(colour="species")+
+  scale_color_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))+
+  guides(colour = guide_legend(override.aes = list(alpha = 1,size=3)))
+
+ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=subsets_mouse_mito_percent)) +
+        geom_violin()+  
+  theme_bw()+
+  xlab("")+
+  ylab("% mitochondrial transcripts")+ 
+  geom_jitter(aes(color=sce$species),shape=16, position=position_jitter(0.2),alpha=0.2,size=1)+
+  theme(axis.text = element_text(size = 7), 
+        plot.title=element_text(size=7,face="bold"),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7),
+        legend.text=element_text(size=7),
+        aspect.ratio=1,   
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  labs(colour="species")+
+  guides(colour = guide_legend(override.aes = list(alpha = 1,size=3)))+
+  scale_color_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))
+
+```
+
+### Barnyard plot for detection eGFP and tdTom
+
+```{r}
+
+# read annotation info from GS
+anno_url <- "https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=978414281"
+anno_df <- read_sheet(anno_url, "transcript-regions-mark") %>%
+  filter(Experiment=="Mixing")
+regs <- split(anno_df$Name_in_gtf_file, anno_df$region_name)
+
+# compute aggregates for egfp/tdtomato for TSO
+ae <- altExp(sce_filt,"tso_ontarget_multi")
+cd <- colData(ae)
+
+for(i in 1:length(regs))
+  cd[[ names(regs)[i] ]] <- colSums(assay(ae,1)[regs[[i]],,drop=FALSE])
+
+colData(altExp(sce_filt,"tso_ontarget_multi")) <- cd
+# ---------------
+
+# compute aggregates for egfp/tdtomato for WTA
+ae <- altExp(sce_filt,"wta_ontarget_multi")
+cd <- colData(ae)
+
+for(i in 1:length(regs))
+  cd[[ names(regs)[i] ]] <- colSums(assay(ae,1)[regs[[i]],,drop=FALSE])
+
+colData(altExp(sce_filt,"wta_ontarget_multi")) <- cd
+# ---------------
+
+```
+
+### Score regions tso_multi filt dataset 
+
+```{r}
+
+ae <- altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)
+
+ae$tso_egfp_detection_score <- 0
+ae$tso_egfp_detection_score[ae$egfp_tx>0] <- 1
+ae$tso_egfp_detection_score[ae$egfp_cds>0] <- 2
+ae$tso_egfp_detection_score[ae$egfp_roi>0] <- 3
+ae$tso_egfp_detection_score[ae$egfp_roi>0] <- 4
+
+ae$tso_tdtom_detection_score<-0
+ae$tso_tdtom_detection_score[ae$tdtom_tx>0] <- 1
+ae$tso_tdtom_detection_score[ae$tdtom_cds>0] <- 2
+ae$tso_tdtom_detection_score[ae$tdtom_roi1>0] <- 3
+ae$tso_tdtom_detection_score[ae$tdtom_roi2>0] <- 3
+ae$tso_tdtom_detection_score[ae$tdtom_roi2>0 & ae$tdtom_roi1>0] <- 4
+
+table(ae$tso_egfp_detection_score)
+table(ae$tso_tdtom_detection_score)
+
+altExp(sce_filt,"tso_ontarget_multi") <- ae
+
+```
+
+### Score regions wta_multi filt dataset 
+
+```{r}
+
+ae <- altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE)
+
+ae$wta_egfp_detection_score <- 0
+ae$wta_egfp_detection_score[ae$egfp_tx>0] <- 1
+ae$wta_egfp_detection_score[ae$egfp_cds>0] <- 2
+ae$wta_egfp_detection_score[ae$egfp_roi>0] <- 3
+ae$wta_egfp_detection_score[ae$egfp_roi>0] <- 4
+
+ae$wta_tdtom_detection_score <- 0
+ae$wta_tdtom_detection_score[ae$tdtom_tx>0] <- 1
+ae$wta_tdtom_detection_score[ae$tdtom_cds>0] <- 2
+ae$wta_tdtom_detection_score[ae$tdtom_roi1>0] <- 3
+ae$wta_tdtom_detection_score[ae$tdtom_roi2>0] <- 3
+ae$wta_tdtom_detection_score[ae$tdtom_roi2>0 & ae$tdtom_roi1>0] <- 4
+
+table(ae$wta_egfp_detection_score)
+table(ae$wta_tdtom_detection_score)
+
+altExp(sce_filt,"wta_ontarget_multi") <- ae
+
+```
+
+### Splitting mouse vs human filt dataset and removing cells with unknown species
+
+```{r}
+
+sce_filt$species <- "unknown"
+sce_filt$species[sce_filt$subsets_mouse_gene_percent>50] <- "mouse"
+sce_filt$species[sce_filt$subsets_human_gene_percent>50] <- "human"
+
+sce_filt <- sce_filt[, !sce_filt$species== "unknown"]
+
+cd <- colData(sce_filt) %>% as.data.frame %>% 
+  mutate(total_mito_percent = subsets_mouse_mito_percent+subsets_human_mito_percent)
+
+table(sce_filt$species,
+      altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$tso_egfp_detection_score)
+table(sce_filt$species,
+      altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$tso_tdtom_detection_score)
+
+```
+### Barnyard plot mouse vs human (unknow removed and filtered dataset)
+
+```{r}
+
+sce_filt$sample_id<-gsub("mixing_", "", sce_filt$sample_id)
+
+cd<-colData(sce_filt) %>% as.data.frame
+
+ggplot(cd, aes(x = subsets_mouse_gene_sum,y = subsets_human_gene_sum,color=sce_filt$species))+
+  geom_point(alpha = 0.2,size=0.5) +
+  scale_x_log10() + scale_y_log10() +
+  facet_wrap(~factor(sample_id, levels = c("unmod", "unmod_roi", "rock", "rockroi"))) +
+  theme_bw() +
+  xlab("log10 mouse gene sum") +
+  ylab("log10 gene sum")+
+  ggtitle(" ")+
+  theme(axis.text = element_text(size = 7), 
+        plot.title=element_text(size=7,face="bold"),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7),
+        legend.text=element_text(size=7),
+        aspect.ratio=1,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        panel.border = element_rect(colour = "black", fill = NA))+
+  guides(colour = guide_legend(override.aes = list(alpha = 1)))+
+  scale_color_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]]))+
+  guides(colour = guide_legend(override.aes = list(alpha = 1,size=3)))+
+  labs(colour="species")
+  
+```
+
+### Barnyard plot with CDS detection
+
+```{r}
+
+combined<-colData(sce_filt) %>% as.data.frame
+
+combined$wta_tdtom_detection_score<-altExp(sce_filt,"wta_ontarget_multi")$wta_tdtom_detection_score
+combined$wta_egfp_detection_score<-altExp(sce_filt,"wta_ontarget_multi")$wta_egfp_detection_score
+combined$tso_tdtom_detection_score<-altExp(sce_filt,"tso_ontarget_multi")$tso_tdtom_detection_score
+combined$tso_egfp_detection_score<-altExp(sce_filt,"tso_ontarget_multi")$tso_egfp_detection_score
+
+combined$color<-myscale[["doublets"]] # these will be doublets
+
+combined$color[which(combined$tso_egfp_detection_score==0 & combined$tso_tdtom_detection_score==0)]<-myscale[["no_detection"]] # no detection of either
+combined$color[which(combined$tso_egfp_detection_score==1 & combined$tso_tdtom_detection_score>0)]<-myscale[["no_detection"]]# no detection of either
+combined$color[which(combined$tso_egfp_detection_score>0 & combined$tso_tdtom_detection_score==1)]<-myscale[["no_detection"]] # no detection of either
+
+combined$color[which(combined$tso_egfp_detection_score==2 & combined$tso_tdtom_detection_score<=1)]<-myscale[["egfp_cds"]] # rois are part of the cds
+combined$color[which(combined$tso_egfp_detection_score==3 & combined$tso_tdtom_detection_score<=1)]<-myscale[["egfp_cds"]] # rois are part of the cds
+combined$color[which(combined$tso_egfp_detection_score==4 & combined$tso_tdtom_detection_score<=1)]<-myscale[["egfp_cds"]] # rois are part of the cds
+
+combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_detection_score==2)]<-myscale[["tdtom_cds"]] # rois are part of the cds
+combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_detection_score==3)]<-myscale[["tdtom_cds"]] # rois are part of the cds
+combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_detection_score==4)]<-myscale[["tdtom_cds"]]# rois are part of the cds
+
+ggplot(combined, aes(
+  x = subsets_mouse_gene_sum,
+  y = subsets_human_gene_sum,
+  color = color 
+)) +
+  geom_point(alpha = 0.3,size=0.5) +
+  scale_x_log10() + scale_y_log10() +
+  facet_wrap(~factor(sample_id, levels = c("unmod", "unmod_roi", "rock", "rockroi"))) +
+  theme_bw() +
+  xlab("mouse gene sum") +
+  ylab("human gene sum") +
+  theme(axis.text = element_text(size = 7), 
+        plot.title=element_text(size=7,face="bold"),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        aspect.ratio=1,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.title=element_text(size=7),
+        legend.text=element_text(size=7),
+        legend.title.align=0.5,
+        panel.border = element_rect(colour = "black", fill = NA))+
+  scale_color_identity(
+    name = "Legend Title",
+    guide = "legend")+
+  labs(colour="CDS_detection")+
+  guides(colour = guide_legend(override.aes = list(alpha = 1,size=3)))+
+  scale_color_manual(labels=c("egfp_cds","tdtom_cds","doublets","no_detection"), 
+                     values=c("#117733","#AA4499","black","darkgray"))
+
+```
+
+### TSO vs WTA plot, colored by on target tso_ontarget_multi
+
+```{r}
+
+sce_nd$sample_id<-gsub("mixing_", "", sce_nd$sample_id)
+
+rds <- rowData(sce_nd)
+
+tso_qc <- perCellQCMetrics(sce_nd, assay.type = "tso_off_and_ontarget_unique",
+                           subsets=list(capture=rds$type=="capture",
+                                        human_gene=rds$type=="human_gene",
+                                        human_mito=rds$type=="human_mito",
+                                        mouse_gene=rds$type=="mouse_gene",
+                                        mouse_mito=rds$type=="mouse_mito"))
+
+df <- data.frame(tso_total = tso_qc$total,
+                 tso_capture_sum = tso_qc$subsets_capture_sum,
+                 tso_mito_percent = tso_qc$subsets_mouse_mito_percent+
+                   tso_qc$subsets_human_mito_percent,
+                 wta_total = sce_nd$total,
+                 wta_capture_sum = sce_nd$subsets_capture_sum,
+                 wta_mito_percent = sce_nd$subsets_mouse_mito_percent+
+                   sce_nd$subsets_human_mito_percent,
+                 sample_id = sce_nd$sample_id)
+
+# specifying regions since don't want to include the regulatory regions of egfp and tdtomato
+
+ae_tso <- altExp(sce_nd,"tso_ontarget_multi")
+ae_wta <- altExp(sce_nd,"wta_ontarget_multi")
+
+df$tso_capture_sum<-colSums(assay(ae_tso,1)[regs$egfp_tx,,drop=FALSE])+colSums(assay(ae_tso,1)[regs$tdtom_tx,,drop=FALSE])
+df$wta_capture_sum<-colSums(assay(ae_wta,1)[regs$egfp_tx,,drop=FALSE])+colSums(assay(ae_wta,1)[regs$tdtom_tx,,drop=FALSE])
+
+log_1p_tso_ontarget_multi <- log1p(df$tso_capture_sum)
+
+ggplot(df, aes(x = tso_total, y = wta_total, color = log_1p_tso_ontarget_multi)) +
+  geom_point(alpha=0.2,size=0.5) +
+  scale_x_log10() + scale_y_log10() +
+  theme_bw() +
+  xlab("total TSO UMIs") +
+  ylab("total WTA UMIs") +
+  theme(axis.text = element_text(size = 7), 
+        plot.title=element_text(size=7,face="bold"),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        aspect.ratio=1,
+        legend.title=element_text(size=7),
+        legend.text=element_text(size=7),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.key.width=unit(0.2,"cm"),
+        legend.title.align=0.5,
+        panel.border=element_rect(colour="black",
+                                    fill=NA))+
+  facet_wrap(~factor(sample_id, levels = c("unmod", "unmod_roi", "rock", "rockroi")))+
+  labs(colour="TSO ontarget")+
+  scale_colour_gradient2(low=myscale[["no_detection"]],
+                         mid=myscale[["no_detection"]],
+                         high=myscale[["human"]])
+
+```
+
+### False positive vs true positive
+
+```{r}
+
+exprs_nd <- assay(altExp(sce_nd,"tso_ontarget_multi",withColData=TRUE),1)
+
+sort(rowSums(exprs_nd, na.rm = TRUE), decreasing = TRUE) -> sorted
+
+df <- data.frame(mouse = (sce_nd$species == "mouse")+0,
+                 human = (sce_nd$species == "human")+0,
+                 sample = sce_nd$sample_id,
+                 as.matrix(t(exprs_nd[names(sorted),])))
+
+dfm <- melt(df, id.vars = c("human","mouse","sample"))
+
+human_targets <- grep("tdtomato", names(sorted), value = TRUE)
+
+p <- ggplot(dfm %>% filter(variable %in% c("roi_1_tdtomato", "roi_2_tdtomato","rock_tdtomato")),
+                      aes(m = value, d = human, colour=sample, group=sample)) + 
+  geom_roc(size = 1.2, alpha = .8,
+           position = position_dodge2(width=.001),
+           labelsize=5,
+           linealpha=0.5) +
+  facet_grid(~variable) +
+  xlim(0, .018) +
+  ggtitle("Human targets") +
+  theme(legend.position="bottom") +
+  theme_bw()+
+  xlab("false positive fraction")+
+  ylab("true positive fraction")+
+  theme(axis.text = element_text(size = 7),
+        axis.title = element_text(size = 7, face = "bold"),
+        strip.text = element_text(size = 7, face = "bold"),
+        legend.title=element_text(size=7),
+        legend.text=element_text(size=7),
+        aspect.ratio=1,
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        plot.title = element_text(size = 10, face = "bold",hjust=0.5),
+        panel.border = element_rect(colour = "black", fill = NA))+
+  scale_color_manual(labels=c("unmod","unmod_roi","rock","rockroi"), 
+                     values=c(myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rockroi"]]))+
+  guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))
+
+mouse_targets <- grep("egfp", names(sorted), value = TRUE)
+
+q <- ggplot(dfm %>% filter(variable %in% c("rock_egfp","roi_egfp")),
+                      aes(m = value, d = mouse, colour=sample, group=sample)) + 
+  geom_roc(size = 1.2, alpha = .8,
+           position = position_dodge2(width=.001),
+           labelsize=5,
+           linealpha=0.5) +
+  facet_grid(~variable) +
+  xlim(0, .018) +
+  ggtitle("Mouse targets") +
+  theme(legend.position="none") +
+  theme_bw()+
+  xlab("false positive fraction")+
+  ylab("true positive fraction")+
+  theme(axis.text = element_text(size = 7),
+        axis.title = element_text(size = 7, face = "bold"),
+        strip.text = element_text(size = 7, face = "bold"),
+        aspect.ratio=1,
+        legend.title.align=0.5,
+        legend.title=element_text(size=7),
+        legend.text=element_text(size=7),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        plot.title = element_text(size = 10, face = "bold",hjust=0.5),
+        panel.border = element_rect(colour = "black", fill = NA))+
+  scale_color_manual(labels=c("unmod","unmod_roi","rock","rockroi"), 
+                     values=c(myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rockroi"]]))+
+  guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))
+  
+cowplot::plot_grid(p,q, nrow=2)
+
+```
+
+
+### Fuzznuc ROI
+
+```{r}
+
+sce_nd <- logNormCounts(sce_nd, assay.type = "wta")
+
+m <- sce_nd[rowData(sce_nd)$type=="mouse_gene", 
+             sce_nd$subsets_mouse_gene_percent > 50]
+
+k <- rowSums(assay(m,"wta")) > 0
+
+m <- m[k,]
+
+mgv <- modelGeneVar(m, block = m$sample_id)
+
+hvg <- mgv$bio > .005 & mgv$p.value < .1
+
+rn <- rownames(mgv)[hvg]
+
+m <- fixedPCA(m, subset.row=rn) 
+m <- runUMAP(m, dimred="PCA")
+
+logcounts <- as.matrix(logcounts(m))
+
+mm <- model.matrix(~sample_id, data=as.data.frame(colData(m)))
+
+f <- lmFit(logcounts, mm)
+f <- eBayes(f)
+
+tt <- topTable(f, coef=2:4, number = 1e6, sort.by = "none")
+
+inds <- split(1:ncol(m), m$sample_id)
+s <- unname(unlist(lapply(inds, sample, 200)))
+
+aac <- aggregateAcrossCells(m, m$sample_id,use.assay.type="wta")
+
+calc_entropy <- function(u) {
+  p <- u[u>0]
+  p <- p/sum(p)
+  -sum(p*log(p))
+}
+
+agg_counts <- assay(aac,"wta")
+
+for(i in 1:ncol(agg_counts))
+  agg_counts[,i] <- agg_counts[,i]/sum(agg_counts[,i])*1e6
+
+ents <- apply(agg_counts, 1, calc_entropy)
+
+gs <- rownames(tt)[tt$F > 50 & ents < 1.35]
+
+col_anno <- colData(m)[,c("sample_id","species")] %>% as.data.frame
+
+
+gene_info <- read_tsv(file.path(datadir,
+                                "genes_vs_fuzznuc_mixing.txt.gz"), 
+                      col_names = c("ids", "pattern", "mismatches"))
+
+extract_stuff <- function(u, term = "gene_type", default = "unknown") {
+  g <- grep(term, u, value=TRUE)
+  if(length(g)==0)
+    return(default)
+  else
+    return(g)
+}
+
+ss <- strsplit(gene_info$ids, ";", fixed = TRUE)
+gene_info$g_id <- gsub('\"$',"",
+                       gsub('gene_id \"', '', sapply(ss, .subset, 1)))
+gene_info$tr_id <- gsub('\"$',"",
+                        gsub(' transcript_id \"', '', sapply(ss, .subset, 2)))
+gene_info$gene_name <- gsub('\"$',"",
+                  gsub(' gene_name \"', '',
+                       sapply(ss, extract_stuff, term = "gene_name", default = "")))
+gene_info$gene_type <- gsub('\"$',"",
+                  gsub(' gene_type \"', '',
+                       sapply(ss, extract_stuff, term = "gene_type")))
+
+gene_info$id <- paste0(gene_info$g_id, "__", gene_info$gene_name)
+unk <- gene_info$gene_type=="unknown"
+gene_info$id[unk] <- gene_info$tr_id[unk]
+gene_info$id <- gsub("^ROI", "roi", gene_info$id)
+
+rowanno <- data.frame(match = rep("nomatch", nrow(logcounts)),
+                      row.names = rownames(logcounts))
+common_genes <- intersect(gene_info$id, rownames(rowanno))
+
+m1 <- match(common_genes, rownames(rowanno))
+m2 <- match(common_genes, gene_info$id)
+
+rowanno$match[m1] <- gene_info$mismatches[m2]
+
+ann_colors = list(
+    origin = c(mouse = myscale[["mouse"]], human =  myscale[["human"]]),
+    match = c(nomatch = "grey", `.` = "black", `1` = "red", `2` = "orange"),
+    sample_id = c(unmod = myscale[["unmod"]],
+                  unmod_roi = myscale[["unmod_roi"]],
+                  rock = myscale[["rock"]], 
+                  rockroi = myscale[["rockroi"]])
+)
+
+pheatmap(logcounts[gs,s], show_rownames = TRUE, 
+         show_colnames = FALSE, scale="none",
+         annotation_col = col_anno[s,],
+         annotation_row = rowanno[gs,,drop=FALSE],
+         annotation_colors = ann_colors,
+         cluster_cols = FALSE,
+         fontsize_row = 5,
+         fontsize=7)
+
+```
+
+
+### Library size per cell WTA vs TSO (previous plots from Izaskun)
+
+```{r}
+
+rds <- rowData(sce_nd)
+
+tso_qc <- perCellQCMetrics(sce_nd, assay.type = "tso_off_and_ontarget_unique",
+                           subsets=list(capture=rds$type=="capture",
+                                        human_gene=rds$type=="human_gene",
+                                        human_mito=rds$type=="human_mito",
+                                        mouse_gene=rds$type=="mouse_gene",
+                                        mouse_mito=rds$type=="mouse_mito"))
+
+df <- data.frame(tso_total = tso_qc$total,
+                 tso_capture_sum = tso_qc$subsets_capture_sum,
+                 tso_mito_percent = tso_qc$subsets_mouse_mito_percent+
+                   tso_qc$subsets_human_mito_percent,
+                 wta_total = sce_nd$total,
+                 wta_capture_sum = sce_nd$subsets_capture_sum,
+                 wta_mito_percent = sce_nd$subsets_mouse_mito_percent+
+                   sce_nd$subsets_human_mito_percent,
+                 sample_id = sce_nd$sample_id)
+
+ae_tso <- altExp(sce_nd,"tso_ontarget_multi")
+ae_wta <- altExp(sce_nd,"wta_ontarget_multi")
+
+df$tso_capture_sum<-colSums(assay(ae_tso,1)[regs$egfp_tx,,drop=FALSE])+colSums(assay(ae_tso,1)[regs$tdtom_tx,,drop=FALSE])
+df$wta_capture_sum<-colSums(assay(ae_wta,1)[regs$egfp_tx,,drop=FALSE])+colSums(assay(ae_wta,1)[regs$tdtom_tx,,drop=FALSE])
+
+samples<-c("unmod","unmod_roi","rock","rockroi")
+
+p <- list()
+for (i in samples){
+     p[[i]]<-ggplot(df[df$sample_id==i,], aes(x = wta_capture_sum,
+                    y = tso_capture_sum,
+                    color = wta_total)) +
+      geom_point(alpha = 0.1,size=1) +
+      geom_smooth(colour="black") +
+      scale_x_continuous(trans='log1p') +
+      scale_y_continuous(trans='log1p') +
+      theme_bw() +
+      labs(title=i,) +
+      scale_color_viridis(option="magma")+
+      xlab('on-target WTA # UMIs') +
+      ylab('on-target TSO # UMIs')+
+  theme(axis.text = element_text(size = 5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7),
+        strip.text=element_text(size=7,face="bold"),
+        legend.text=element_text(size=7),
+        legend.title=element_text(size=7,face="bold"),
+        legend.key.width=unit(0.2,"cm"),
+        aspect.ratio=1,
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        panel.border = element_rect(colour = "black", fill = NA))
+     
+      leg<-get_legend(p[[i]])
+      p[[i]]<-p[[i]]+theme(legend.position="none")
+  
+      p[[i]]<-ggExtra::ggMarginal(p[[i]],type = "density")
+}
+
+p$legend<-as_ggplot(leg)
+
+grid.arrange(p[[1]],p[[2]],p[[3]],p[[4]],p[[5]],ncol=5,widths=c(5,5,5,5,2))
+
+```
+
+
+### Barplot with % positive cells, ORF vs tx in same plot for mouse and human
+
+```{r}
+
+df$tso_capture_sum_cds<-colSums(assay(ae_tso,1)[regs$egfp_cds,,drop=FALSE])+colSums(assay(ae_tso,1)[regs$tdtom_cds,,drop=FALSE])
+df$wta_capture_sum_cds<-colSums(assay(ae_wta,1)[regs$egfp_cds,,drop=FALSE])+colSums(assay(ae_wta,1)[regs$tdtom_cds,,drop=FALSE])
+
+df$species<-sce_nd$species
+df$cds_detection_score<-df$wta_capture_sum_cds+df$tso_capture_sum_cds
+df$detection_score<-df$wta_capture_sum+df$tso_capture_sum
+
+mouse<-df[df$species=="mouse",]
+human<-df[df$species=="human",]
+
+positive_cells<-data.frame(matrix(nrow=8,ncol=2))
+
+colnames(positive_cells)<-c("mouse_egfp","human_tdtomato")
+
+rows<-c()
+for (i in unique(df$sample_id)){
+  rows<-c(rows,paste0(i,"_CDS"),paste0(i,"_tx"))
+}
+
+rownames(positive_cells)<-rows
+
+for (i in unique(mouse$sample_id)){
+  positive_cells[paste0(i,"_CDS"),1]<-length(which(mouse[mouse$sample_id==i,]$cds_detection_score>0))/
+    length(mouse[mouse$sample_id==i,]$cds_detection_score)*100
+  positive_cells[paste0(i,"_tx"),1]<-length(which(mouse[mouse$sample_id==i,]$detection_score>0))/
+    length(mouse[mouse$sample_id==i,]$detection_score)*100
+  positive_cells[paste0(i,"_CDS"),2]<-length(which(human[human$sample_id==i,]$cds_detection_score>0))/
+    length(human[human$sample_id==i,]$cds_detection_score)*100
+    positive_cells[paste0(i,"_tx"),2]<-length(which(human[human$sample_id==i,]$detection_score>0))/
+      length(human[human$sample_id==i,]$detection_score)*100
+}
+
+plottable<-melt(positive_cells)
+
+plottable$sample<-rep(rownames(positive_cells),2)
+
+myscale<-c(color("muted")(8))
+names(myscale)<-rownames(positive_cells)
+  
+ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("unmod_CDS","unmod_tx","unmod_roi_CDS","unmod_roi_tx","rock_CDS","rock_tx","rockroi_CDS","rockroi_tx")))) +
+  geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9))+
+  xlab(" ")+
+  ylab("percent positive cells")+
+  theme_bw()+
+  ylim(0,100)+
+  theme(axis.text = element_text(size = 10), 
+        plot.title=element_text(size=15,face="bold"),
+        axis.title=element_text(size=15,face="bold"),
+        strip.text=element_text(size=15,face="bold"),
+        aspect.ratio=1,        
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), 
+            position=position_dodge(width=0.9), 
+            vjust=-0.5,
+            size=3)+
+  labs(fill="Samples")+
+  scale_fill_manual(values=myscale)
+
+
+```
+
