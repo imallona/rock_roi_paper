@@ -125,8 +125,8 @@ for (x in genes_of_interest){
   sub_gtf<-combined_gtf[grep(x,combined_gtf$gene_name),]
   chr<-unique(as.character(as.data.frame(sub_gtf)$seqnames))
   range<-max(end(ranges(sub_gtf)))-min(start(ranges(sub_gtf)))
-  region_start<-min(start(ranges(sub_gtf)))-range/2 # otherwise for short genes will be too long and opposite for long genes
-  region_end<-max(end(ranges(sub_gtf)))+range/2
+  region_start<-min(start(ranges(sub_gtf)))-range # otherwise for short genes will be too long and opposite for long genes
+  region_end<-max(end(ranges(sub_gtf)))+range
 
   gm <- GeneRegionTrack(track,
                            chromosome=chr,
