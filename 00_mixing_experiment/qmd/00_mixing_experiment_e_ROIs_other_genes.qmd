@@ -8,25 +8,6 @@ format:
     keep_md: true
 ---
 
-
-### Setting up knitr 
-
-```{r}
-
-library(knitr)
-
-knitr::opts_chunk$set(fig.width = 14,
-               fig.height = 8,
-               fig.align = "center",
-               include = TRUE,
-               dev = c("png","svg"),
-               cache.lazy = FALSE,
-               cache=TRUE,
-               warning = TRUE,
-               message = TRUE)
-
-```
-
 ### Load packages, load data 
 
 ```{r,warning=FALSE, message=FALSE}
@@ -47,11 +28,30 @@ library(GenomicFeatures)
 
 ```
 
+### Setting up knitr 
+
+```{r}
+
+library(knitr)
+
+knitr::opts_chunk$set(fig.width = 4,
+               fig.height = 4,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache.lazy = FALSE,
+               cache=TRUE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+
 ### Selection of genes is based on the fuzznuc_roi heatmap, took some of the top candidates
 
 ```{r}
 
-genes_of_interest<-c("Rps20","Sem1","Gm7730","Commd7","Exoc1","Ahnak")
+genes_of_interest<-c("Rps20","Sem1","Gm7730","Commd7","Exoc1")
 modality<-c("unmod","unmod_roi","rock","rockroi")
 
 ```
@@ -68,6 +68,23 @@ gtf_path<-dir(here("00_mixing_experiment"), ".*gtf",
 combined_gtf<-import(gtf_path)
 
 ```
+
+### Loading colors
+
+```{r}
+
+myscale<-c(color("muted")(9), gray="darkgrey", 
+             black = "black", darkorange = "darkorange",
+             yellowgreen = "yellowgreen")
+
+# defining colors for samples and for species
+
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtomato_cds","no_detection","doublets","low","high")
+
+#plot(1:13, col=myscale, pch=19, cex=4)
+
+```
+
 
 ### Loading .bw files --> the .bam files are too big 
 
@@ -123,15 +140,13 @@ for (x in genes_of_interest){
   displayPars(gm)<-list(col="black",
                            cex.group=0.5,
                            col.line="black",
-                           fontcolor.group="black")
+                           fontcolor.group="black",
+                           background.title="darkgrey")
   
-  displayPars(gm)<-list(fill="cadetblue2")
-
+  displayPars(gm)<-list(fill="black")
   
   gms[[x]]<-gm # saving object in case want to replot later
   
-
-
   covs_gene<-list()
   for (i in 1:length(coverage)){
     covs_gene[[names(coverage)[[i]]]]<-DataTrack(coverage[[i]],
@@ -140,10 +155,10 @@ for (x in genes_of_interest){
                      to=region_end,
                      name=names(coverage)[[i]])
   }
-  
+
   for (i in names(covs_gene)){
     displayPars(covs_gene[[i]])<-list(col.histogram="black",
-                               fill.histogram=TRUE)
+                                 fill.histogram=TRUE)
   }
   
   tso<- grep("tso",names(covs_gene))
@@ -161,8 +176,10 @@ for (x in genes_of_interest){
   
   for (i in modality){
     overlays_bw_gene[[i]]<-OverlayTrack(trackList=list(covs_gene[[paste0(i,"_wta")]],covs_gene[[paste0(i,"_tso")]]))
+
+    displayPars(overlays_bw_gene[[i]])<-list(background.title=myscale[[i]])
   }
-  
+
   ranges<-c()
   for (i in modality){
     ranges[i]<-max(range(c(values(subset(covs_gene[[paste0(i,"_wta")]], from=region_start, to=region_end,chromosome=chr)),
@@ -177,10 +194,9 @@ for (x in genes_of_interest){
           to=region_end,
           cex.axis = 0.5,
           cex.title=0.5,
-          background.title="cadetblue2",
-          col.axis="black",
-          col.title="black",
-          col.border.title="black",
+          col.axis="white",
+          col.title="white",
+          col.border.title="white",
           showSampleNames = TRUE,
           lwd.title=0.5,
           ylim=c(0,max(ranges)))
