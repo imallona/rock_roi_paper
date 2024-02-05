@@ -10,22 +10,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-### setting up knitr 
-
-```{r}
-
-knitr::opts_chunk$set(fig.width = 10,
-               fig.height = 10,
-               fig.align = "center",
-               include = TRUE,
-               dev = c("png","svg"),
-               cache=TRUE,
-               cache.lazy = FALSE,
-               warning = TRUE,
-               message = TRUE)
-
-```
-
 ### Load packages, load data 
 
 ```{r,warning=FALSE, message=FALSE}
@@ -67,8 +51,6 @@ rdss <- dir(here("00_mixing_experiment"), "^mixing.*rds$",
 names(rdss) <- gsub("_sce.rds", "", basename(rdss))
 rdss # prints the .rds files in the 00_mixing_experiment folder
 
-md5sum(rdss)
-
 datadir <- dirname(rdss)[1] # folder where the .rds files are 
 
 sces <- mapply(function(u,v)  {
@@ -92,6 +74,22 @@ sces <- mapply(function(u,v)  {
 }, rdss, names(rdss))
 
 sce <- Reduce(cbind, sces)
+
+```
+
+### setting up knitr 
+
+```{r}
+
+knitr::opts_chunk$set(fig.width = 1,
+               fig.height = 1,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache=TRUE,
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
 
 ```
 
