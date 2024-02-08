@@ -25,6 +25,7 @@ library(UpSetR)
 library(limma)
 library(cowplot)
 library(pheatmap)
+library(googlesheets4)
 library(readr)
 library(plotROC)
 library(here)
@@ -32,6 +33,7 @@ library(RColorBrewer)
 library(ggnewscale)
 library(scales)
 library(rmarkdown)
+library(khroma)
 library(irlba)
 library(viridis)
 library(gridExtra)
@@ -160,8 +162,8 @@ sce_nd<-readRDS(file.path(datadir, "sce_nd.rds"))
 ```{r}
 
 anno_url <- "https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=978414281"
-anno_df <- read_sheet(anno_url, "transcript-regions-mark") %>%
-  filter(Experiment=="Mixing")
+anno_df <- read_sheet(anno_url, "transcript-regions-mark") 
+anno_df <- anno_df[anno_df$Experiment=="Mixing",]
 
 regs <- split(anno_df$Name_in_gtf_file, anno_df$region_name)
 
@@ -254,11 +256,13 @@ ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=subsets_mouse
 ```{r}
 
 ggplot(cd, aes(x = total, y = total_mito_percent)) +
-  geom_point(aes(color=sce$species),size=0.1) + 
+  geom_point(aes(color=sce$species),size=0.1,alpha=0.5) + 
   scale_x_log10() + 
   scale_y_sqrt() +
   facet_wrap(~factor(sample_id,levels=c("unmod","unmod_n1"))) + 
   theme_bw()+
+  geom_hline(yintercept=c(3,28), colour="orange") +
+  geom_vline(xintercept=c(1400), colour="orange") +
   xlab("total number of transcripts")+
   ylab("percent mitochondrial reads")+
   theme(
@@ -618,6 +622,7 @@ ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=samples))
             size=2,
             angle = 90)+
   labs(fill="samples",fill = NULL)+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+
   scale_fill_manual(labels=samples, 
                      values=alpha(c(myscale[["unmod"]],myscale[["unmod"]],myscale[["unmod_n1"]],myscale[["unmod_n1"]]),c(rep(c(1,0.5),2))))+
   guides(colour = guide_legend(override.aes = list(size=3)))
