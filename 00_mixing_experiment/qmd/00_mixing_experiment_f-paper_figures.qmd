@@ -225,7 +225,7 @@ ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")
 ```{r}
 
 ggplot(cd, aes(x = total, y = total_mito_percent)) +
-  geom_point(aes(color=sce$species),size=0.1) + 
+  geom_point(aes(color=sce$species),size=0.1,alpha=0.5) + 
   scale_x_log10() + 
   scale_y_sqrt() +
   facet_wrap(~factor(sample_id,levels=c("unmod","unmod_roi",
@@ -238,6 +238,8 @@ ggplot(cd, aes(x = total, y = total_mito_percent)) +
     axis.title=element_text(size=20,face="bold"),
     strip.text=element_text(size=15,face="bold"))+
     rock_roi_theme_multiple_panels()+
+  geom_hline(yintercept=c(3,25), colour="orange") +
+  geom_vline(xintercept=c(2750), colour="orange") +
   labs(colour="species")+
   scale_color_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))+
   guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
@@ -251,8 +253,8 @@ ggplot(cd, aes(x = total, y = total_mito_percent)) +
 
 # read annotation info from GS
 anno_url <- "https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=978414281"
-anno_df <- read_sheet(anno_url, "transcript-regions-mark") %>%
-  filter(Experiment=="Mixing")
+anno_df <- read_sheet(anno_url, "transcript-regions-mark") 
+anno_df <- anno_df[anno_df$Experiment=="Mixing",]
 regs <- split(anno_df$Name_in_gtf_file, anno_df$region_name)
 
 # compute aggregates for egfp/tdtomato for TSO
@@ -491,16 +493,15 @@ grid.arrange(grobs=p,nrow=1)
 
 ```{r}
 
-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=tso_total,fill=sample_id)) +
-  geom_violin()+  
+ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=tso_total,fill=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")))) +
+  geom_violin(show.legend = FALSE)+  
   theme_bw()+
   xlab("")+
   ylab("total TSO UMI")+ 
   scale_y_log10()+
-  geom_jitter(shape=16, position=position_jitter(0.2),alpha=0.5,size=0.2)+
+  geom_jitter(shape=16, position=position_jitter(0.2),alpha=0.5,size=0.2,show.legend = FALSE)+
   rock_roi_theme()+
   labs(colour="species")+
-  guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
   scale_fill_manual(labels=c("unmod","unmod_roi","rock","rockroi"),
                      values=c(myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rockroi"]]))
 
