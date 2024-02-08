@@ -95,7 +95,7 @@ options(ucscChromosomeNames=FALSE)
 gtf<-dir(here("00_mixing_experiment"), ".*gtf", 
             recursive = TRUE, full.names = TRUE)
 
-combined_gtf<-import(gtf)
+combined_gtf<-rtracklayer::import(gtf)
 
 ```
 
@@ -262,7 +262,7 @@ for (x in chr){
     bam_coverages[[x]]<-covs
     bam_coverages_overlayed[[x]]<-overlays_bam
 }
-
+packageVersion("GenomicAlignments")
 ```
 
 ### Separating mouse vs human based on barcodes
@@ -294,7 +294,7 @@ for (i in unique(human$sample_id)){
 bam_coverages_mouse<-list()
 bam_coverages_overlayed_mouse<-list()
 
-chr<-c("egfp","tdtomato")
+chr<-c("egfp")
 
 modality<-c("unmod","unmod_roi","rock","rockroi")
 
@@ -337,10 +337,10 @@ for (x in chr){
   }
 
   for (i in wta){
-    displayPars(covs_mouse[[i]])<-list(col.histogram=myscale[["mouse"]],
-                                           fill.histogram=myscale[["mouse"]],
+    displayPars(covs_mouse[[i]])<-list(col.histogram="#D6D5BA",
+                                           fill.histogram="#D6D5BA",
                                            alpha.title = 1, 
-                                           alpha = 0.3)
+                                           alpha = 1)
     covs_mouse[[i]]@name<-gsub("wta_","",covs_mouse[[i]]@name)
   }
 
@@ -387,7 +387,7 @@ for (x in chr){
 bam_coverages_human<-list()
 bam_coverages_overlayed_human<-list()
 
-chr<-c("egfp","tdtomato")
+chr<-c("tdtomato")
 
 modality<-c("unmod","unmod_roi","rock","rockroi")
 
@@ -430,10 +430,10 @@ for (x in chr){
   }
 
   for (i in wta){
-    displayPars(covs_human[[i]])<-list(col.histogram=myscale[["human"]],
-                                           fill.histogram=myscale[["human"]],
+    displayPars(covs_human[[i]])<-list(col.histogram="#B07792",
+                                           fill.histogram="#B07792",
                                            alpha.title = 1, 
-                                           alpha = 0.4)
+                                           alpha = 1)
     covs_human[[i]]@name<-gsub("wta_","",covs_human[[i]]@name)
   }
 
@@ -465,9 +465,193 @@ for (x in chr){
            showSampleNames = TRUE,
            lwd.title=0.5,
            ylim=c(0,max(ranges)))
-  
+
     bam_coverages_human[[x]]<-covs_human
     bam_coverages_overlayed_human[[x]]<-overlays_bam_human
 }
 
 ```
+
+### zoom into polyA tail 
+
+```{r}
+
+chr<-c("egfp")
+
+modality<-c("unmod","unmod_roi","rock","rockroi")
+
+for (x in chr){
+  params_mouse<-list()
+  gals_mouse<-list()
+  for (k in names(barcodes_mouse)){
+    z<- GRanges(x, IRanges(gms[[x]]@end-1180,max(end(gm@range))))
+    params_mouse[[k]] <- ScanBamParam(which=z,
+                        what=c("qname"),
+                        tag="CB",
+                        tagFilter=list(CB=barcodes_mouse[[k]]))
+    gals_mouse[[paste0("tso_",k)]] <- readGAlignments(bam[[paste0("tso_",k)]], use.names = TRUE, param=params_mouse[[k]])
+    gals_mouse[[paste0("wta_",k)]] <- readGAlignments(bam[[paste0("wta_",k)]], use.names = TRUE, param=params_mouse[[k]])
+  }
+
+  coverage_chr_mouse<-list()
+  covs_mouse<-lapply(gals_mouse,coverage)
+  covs_mouse<-lapply(covs_mouse,function(x) as(x,"GRanges"))
+  
+  for (i in 1:length(covs_mouse)){
+  covs_mouse[[i]]<-DataTrack(covs_mouse[[i]],
+                            chromosome=x,
+                            name=names(covs_mouse)[[i]])
+  }
+  
+  for (i in names(covs_mouse)){
+    displayPars(covs_mouse[[i]])<-list(fill.histogram=TRUE)
+  }
+  
+  tso<- grep("tso",names(covs_mouse))
+  wta<- grep("wta",names(covs_mouse))
+  
+  for (i in tso){
+    displayPars(covs_mouse[[i]])<-list(col.histogram=myscale[["mouse"]],
+                                           fill.histogram=myscale[["mouse"]],
+                                           alpha.title = 1, 
+                                           alpha = 1)
+    covs_mouse[[i]]@name<-gsub("tso_","",covs_mouse[[i]]@name)
+  }
+
+  for (i in wta){
+    displayPars(covs_mouse[[i]])<-list(col.histogram="#D6D5BA",
+                                           fill.histogram="#D6D5BA",
+                                           alpha.title = 1, 
+                                           alpha = 1)
+    covs_mouse[[i]]@name<-gsub("wta_","",covs_mouse[[i]]@name)
+  }
+
+  overlays_bam_mouse<-list()
+
+  for (i in modality){
+    overlays_bam_mouse[[paste0(i,"_",x)]]<-OverlayTrack(trackList=list(covs_mouse[[paste0("wta_",i)]],covs_mouse[[paste0("tso_",i)]]))
+    
+    displayPars(overlays_bam_mouse[[paste0(i,"_",x)]])<-list(background.title=myscale[[i]])
+  }
+  
+  ranges<-c()
+  for (i in names(covs_mouse)){
+      ranges[i]<-max(range(c(values(covs_mouse[[i]]), 
+                     values(covs_mouse[[i]]))))
+  }
+
+  plotTracks(c(
+           overlays_bam_mouse,
+           gms[[x]]),
+           type="histogram",
+           from=gms[[x]]@end-1180,
+           to=gms[[x]]@end,
+           cex.axis = 0.5,
+           cex.title=0.5,
+           col.axis="white",
+           col.title="white",
+           col.border.title="white",
+           showSampleNames = TRUE,
+           lwd.title=0.5,
+           ylim=c(0,max(ranges)))
+}
+
+```
+
+### zoom in polyA for tdTomato 
+
+```{r}
+
+chr<-c("tdtomato")
+
+modality<-c("unmod","unmod_roi","rock","rockroi")
+
+for (x in chr){
+  params_human<-list()
+  gals_human<-list()
+  for (k in names(barcodes_human)){
+    z<- GRanges(x, IRanges(gms[[x]]@end-1180,max(end(gm@range))))
+    params_human[[k]] <- ScanBamParam(which=z,
+                        what=c("qname"),
+                        tag="CB",
+                        tagFilter=list(CB=barcodes_human[[k]]))
+    gals_human[[paste0("tso_",k)]] <- readGAlignments(bam[[paste0("tso_",k)]], use.names = TRUE, param=params_human[[k]])
+    gals_human[[paste0("wta_",k)]] <- readGAlignments(bam[[paste0("wta_",k)]], use.names = TRUE, param=params_human[[k]])
+  }
+
+  coverage_chr_human<-list()
+  covs_human<-lapply(gals_human,coverage)
+  covs_human<-lapply(covs_human,function(x) as(x,"GRanges"))
+  
+  for (i in 1:length(covs_human)){
+  covs_human[[i]]<-DataTrack(covs_human[[i]],
+                            chromosome=x,
+                            name=names(covs_human)[[i]])
+  }
+  
+  for (i in names(covs_human)){
+    displayPars(covs_human[[i]])<-list(fill.histogram=TRUE)
+  }
+  
+  tso<- grep("tso",names(covs_human))
+  wta<- grep("wta",names(covs_human))
+  
+  for (i in tso){
+    displayPars(covs_human[[i]])<-list(col.histogram=myscale[["human"]],
+                                           fill.histogram=myscale[["human"]],
+                                           alpha.title = 1, 
+                                           alpha = 1)
+    covs_human[[i]]@name<-gsub("tso_","",covs_human[[i]]@name)
+  }
+
+  for (i in wta){
+    displayPars(covs_human[[i]])<-list(col.histogram="#B07792",
+                                           fill.histogram="#B07792",
+                                           alpha.title = 1, 
+                                           alpha = 1)
+    covs_human[[i]]@name<-gsub("wta_","",covs_human[[i]]@name)
+  }
+
+  overlays_bam_human<-list()
+
+  for (i in modality){
+    overlays_bam_human[[paste0(i,"_",x)]]<-OverlayTrack(trackList=list(covs_human[[paste0("wta_",i)]],covs_human[[paste0("tso_",i)]]))
+    
+    displayPars(overlays_bam_human[[paste0(i,"_",x)]])<-list(background.title=myscale[[i]])
+  }
+  
+  ranges<-c()
+  for (i in names(covs_human)){
+      ranges[i]<-max(range(c(values(covs_human[[i]]), 
+                     values(covs_human[[i]]))))
+  }
+
+  plotTracks(c(
+           overlays_bam_human,
+           gms[[x]]),
+           type="histogram",
+           from=gms[[x]]@end-1180,
+           to=gms[[x]]@end,
+           cex.axis = 0.5,
+           cex.title=0.5,
+           col.axis="white",
+           col.title="white",
+           col.border.title="white",
+           showSampleNames = TRUE,
+           lwd.title=0.5,
+           ylim=c(0,max(ranges)))
+
+    bam_coverages_human[[x]]<-covs_human
+    bam_coverages_overlayed_human[[x]]<-overlays_bam_human
+}
+
+```
+
+### Session info 
+
+```{r}
+
+sessionInfo()
+
+```
+
