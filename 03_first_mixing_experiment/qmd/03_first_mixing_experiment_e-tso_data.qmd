@@ -1,0 +1,567 @@
+---
+title: "03_first_mixing_experiment/qmd/03_first_mixing_experiment_e-tso_data"
+author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+
+### Load packages
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(googlesheets4)
+library(readr)
+library(plotROC)
+library(here)
+library(RColorBrewer)
+library(ggnewscale)
+library(scales)
+library(rmarkdown)
+library(khroma)
+library(irlba)
+library(viridis)
+library(gridExtra)
+library(quarto)
+library(Biostrings)
+library(BSgenome)
+library(rtracklayer)
+
+```
+
+### Setting up knitr 
+
+```{r}
+
+knitr::opts_chunk$set(fig.width = 2.7,
+               fig.height = 2.7,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache=TRUE,
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+### Themes
+
+```{r}
+
+rock_roi_theme<-function(){
+  theme(axis.text = element_text(size=7), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=7),
+        aspect.ratio=1,
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+}
+
+rock_roi_theme_multiple_panels<-function(){
+    theme(axis.text = element_text(size=7), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        aspect.ratio=1,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.title=element_text(size=5,face="bold"),
+        legend.text=element_text(size=5),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.border = element_rect(colour = "black", fill = NA))
+}
+
+```
+
+### Defining colors
+
+```{r}
+
+myscale<-c(color("muted")(9), gray="darkgrey", 
+             black = "black", darkorange = "darkorange",
+             yellowgreen = "yellowgreen")
+
+# defining colors for samples and for species
+
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtom_cds","no_detection","doublets","unmod_n1","high")
+
+#plot(1:13, col=myscale, pch=19, cex=4)
+
+```
+
+### Load data
+
+```{r}
+
+getwd() # after opening the .Rproj file, getwd() should be "/Users/gimoro/figure_making_paper/rock_roi_paper"
+
+rdss <- dir(here("03_first_mixing_experiment"), "^mixing.*rds", 
+            recursive = TRUE, full.names = TRUE)
+
+names(rdss) <- gsub("_sce.rds", "", basename(rdss))
+names(rdss) <- gsub("mixing_", "", names(rdss))
+
+datadir <- dirname(rdss)[1] # folder where the .rds files are 
+
+sce_nd <- readRDS(file.path(datadir, "sce_nd.rds")) # running analysis on filtered object
+
+```
+
+### Comparison top 100 WTA of unmod_n1 and TSO unmod_n1
+
+```{r,fig.height=7,fig.width=5.4}
+
+sce_nd$sample_id <- gsub("mixing_", "", sce_nd$sample_id)
+
+n1 <- sce_nd[,sce_nd$sample_id==c("unmod_n1")]
+n1_wta <- assay(n1,"wta")
+n1_tso <- assay(n1,"tso_off_and_ontarget_unique")
+
+top_100_wta<-sort(rowSums(n1_wta),decreasing=TRUE)[1:100]
+top_100_tso<-sort(rowSums(n1_tso),decreasing=TRUE)[1:100]
+
+length(intersect(names(top_100_wta),names(top_100_tso))) # 50
+
+tso_only<-names(top_100_tso)
+tso_only[!tso_only %in% names(top_100_wta)] <- "" # this way in heatmap remove gene name
+
+wta_for_top_100_tso<-rowSums(n1_wta[names(top_100_tso),])
+
+top_100<-data.frame(wta=wta_for_top_100_tso,tso=top_100_tso)
+
+# for all top 100, only labelling the TSO only 
+
+pheatmap(top_100,
+         show_rownames = TRUE,
+         show_colnames = TRUE, 
+         scale="none",
+         fontsize_row = 5,
+         fontsize_col = 7,
+         fontsize = 5,
+         treeheight_row = 0,
+         treeheight_col = 0,
+         cellwidth=15,
+         labels_row = tso_only)
+
+```
+
+### From this checking the % mt of TSO vs WTA
+
+```{r}
+
+rds <- rowData(sce_nd)
+
+tso_qc <- perCellQCMetrics(n1, assay.type = "tso_off_and_ontarget_unique",
+                           subsets=list(capture=rds$type=="capture",
+                                        human_gene=rds$type=="human_gene",
+                                        human_mito=rds$type=="human_mito",
+                                        mouse_gene=rds$type=="mouse_gene",
+                                        mouse_mito=rds$type=="mouse_mito"))
+
+df_tso <- data.frame(tso_total = tso_qc$total,
+                 tso_detected = tso_qc$detected,
+                 tso_capture_sum = tso_qc$subsets_capture_sum,
+                 tso_mito_percent = tso_qc$subsets_mouse_mito_percent+
+                   tso_qc$subsets_human_mito_percent)
+
+wta_qc <- perCellQCMetrics(n1, assay.type = "wta",
+                           subsets=list(capture=rds$type=="capture",
+                                        human_gene=rds$type=="human_gene",
+                                        human_mito=rds$type=="human_mito",
+                                        mouse_gene=rds$type=="mouse_gene",
+                                        mouse_mito=rds$type=="mouse_mito"))
+
+df_wta <- data.frame(wta_total = wta_qc$total,
+                 wta_detected = wta_qc$detected,
+                 wta_capture_sum = wta_qc$subsets_capture_sum,
+                 wta_mito_percent = wta_qc$subsets_mouse_mito_percent+
+                   wta_qc$subsets_human_mito_percent)
+
+df<-data.frame(df_wta$wta_mito_percent,df_tso$tso_mito_percent)
+colnames(df)<-c("wta","tso")
+plottable<-melt(df)
+
+ggplot(plottable,aes(x=variable,y=value,fill=variable)) +
+  geom_violin(show.legend = FALSE) +  
+  theme_bw() +
+  xlab("") +
+  ylab("percent mitochondrial transcripts")+ 
+  geom_jitter(shape=16, position=position_jitter(0.2),alpha=0.5,size=0.2,show.legend = FALSE) +
+  rock_roi_theme() +
+  scale_fill_manual(labels=c("wta","tso"),
+                     values=alpha(c(myscale[["unmod_n1"]],myscale[["unmod_n1"]]),c(1,0.3)))
+
+
+
+```
+
+## Detecting TSO motif in the TSO specific highly expressed transcripts
+
+### First of all need to get the transcript sequences for the genes of interest --> need the .gtf and .fa file 
+
+```{r}
+
+gtf <- rtracklayer::import(file.path(datadir,"mixing.gtf"))
+
+library("BSgenome.Hsapiens.UCSC.hg38") # object: Hsapiens, different patch than the one we used 
+library("BSgenome.Mmusculus.UCSC.mm10") # object: Mmusculus, same patch as the one we used
+
+seqnames(Hsapiens)<-paste0("human_",seqnames(Hsapiens))
+seqnames(Mmusculus)<-paste0("mouse_",seqnames(Mmusculus))
+
+```
+
+### Test with Biostrings matching for mouse genome
+
+```{r}
+
+# rules based on manually viewing some examples
+
+# TSO sequence "TATGCGTAGTAGGTATG"
+# need 7 in a row with no mismatches
+# not considerering the last 5 at the 5' end --> "GTAGTAGGTAT"
+
+dnaseq1 <- DNAString("GTAGTAG")
+dnaseq2 <- DNAString("TAGTAGG")
+dnaseq3 <- DNAString("AGTAGGT")
+dnaseq4 <- DNAString("GTAGGTA")
+dnaseq5 <- DNAString("TAGGTAT")
+
+match_mouse1<-vmatchPattern(dnaseq1, Mmusculus, max.mismatch=0, min.mismatch=0, exclude = seqnames(Mmusculus)[-(1:22)])
+match_mouse2<-vmatchPattern(dnaseq2, Mmusculus, max.mismatch=0, min.mismatch=0, exclude = seqnames(Mmusculus)[-(1:22)])
+match_mouse3<-vmatchPattern(dnaseq3, Mmusculus, max.mismatch=0, min.mismatch=0, exclude = seqnames(Mmusculus)[-(1:22)])
+match_mouse4<-vmatchPattern(dnaseq4, Mmusculus, max.mismatch=0, min.mismatch=0, exclude = seqnames(Mmusculus)[-(1:22)])
+match_mouse5<-vmatchPattern(dnaseq5, Mmusculus, max.mismatch=0, min.mismatch=0, exclude = seqnames(Mmusculus)[-(1:22)])
+
+match_mouse<-list(match_mouse1,match_mouse2,match_mouse3,match_mouse4,match_mouse5)
+match_mouse<-do.call(c, as(match_mouse, "GRangesList"))
+
+count_mouse1<-vcountPattern(dnaseq1, Mmusculus, max.mismatch=0, min.mismatch=0, exclude = seqnames(Mmusculus)[-(1:22)])
+count_mouse2<-vcountPattern(dnaseq2, Mmusculus, max.mismatch=0, min.mismatch=0, exclude = seqnames(Mmusculus)[-(1:22)])
+count_mouse3<-vcountPattern(dnaseq3, Mmusculus, max.mismatch=0, min.mismatch=0, exclude = seqnames(Mmusculus)[-(1:22)])
+count_mouse4<-vcountPattern(dnaseq4, Mmusculus, max.mismatch=0, min.mismatch=0, exclude = seqnames(Mmusculus)[-(1:22)])
+count_mouse5<-vcountPattern(dnaseq5, Mmusculus, max.mismatch=0, min.mismatch=0, exclude = seqnames(Mmusculus)[-(1:22)])
+
+count_mouse<-count_mouse1
+count_mouse$count<-count_mouse1$count+count_mouse2$count+count_mouse3$count+count_mouse4$count+count_mouse5$count
+
+count_mouse$chr_length<-as.vector(rep(seqlengths(Mmusculus)[1:22],each=2))
+
+count_mouse$scaled_count<-count_mouse$count/count_mouse$chr_length
+
+ggplot(data=count_mouse,aes(x=seqname,y=scaled_count,fill=strand))+
+  geom_bar(stat='identity')+
+  theme_bw()+
+  rock_roi_theme()+
+  scale_y_log10()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  scale_fill_manual(labels=c("+","-"),
+                     values=alpha(c(myscale[["high"]],myscale[["high"]]),c(1,0.3)))
+  
+```
+
+### Test with Biostrings matching for human genome
+
+```{r}
+
+match_human1<-vmatchPattern(dnaseq1, Hsapiens, max.mismatch=0, min.mismatch=0, exclude = seqnames(Hsapiens)[-(1:25)])
+match_human2<-vmatchPattern(dnaseq2, Hsapiens, max.mismatch=0, min.mismatch=0, exclude = seqnames(Hsapiens)[-(1:25)])
+match_human3<-vmatchPattern(dnaseq3, Hsapiens, max.mismatch=0, min.mismatch=0, exclude = seqnames(Hsapiens)[-(1:25)])
+match_human4<-vmatchPattern(dnaseq4, Hsapiens, max.mismatch=0, min.mismatch=0, exclude = seqnames(Hsapiens)[-(1:25)])
+match_human5<-vmatchPattern(dnaseq5, Hsapiens, max.mismatch=0, min.mismatch=0, exclude = seqnames(Hsapiens)[-(1:25)])
+
+match_human<-list(match_human1,match_human2,match_human3,match_human4,match_human5)
+match_human<-do.call(c, as(match_human, "GRangesList"))
+
+count_human1<-vcountPattern(dnaseq1, Hsapiens, max.mismatch=0, min.mismatch=0, exclude = seqnames(Hsapiens)[-(1:25)])
+count_human2<-vcountPattern(dnaseq2, Hsapiens, max.mismatch=0, min.mismatch=0, exclude = seqnames(Hsapiens)[-(1:25)])
+count_human3<-vcountPattern(dnaseq3, Hsapiens, max.mismatch=0, min.mismatch=0, exclude = seqnames(Hsapiens)[-(1:25)])
+count_human4<-vcountPattern(dnaseq4, Hsapiens, max.mismatch=0, min.mismatch=0, exclude = seqnames(Hsapiens)[-(1:25)])
+count_human5<-vcountPattern(dnaseq5, Hsapiens, max.mismatch=0, min.mismatch=0, exclude = seqnames(Hsapiens)[-(1:25)])
+
+count_human<-count_human1
+count_human$count<-count_human1$count+count_human2$count+count_human3$count+count_human4$count+count_human5$count
+
+count_human$chr_length<-as.vector(rep(seqlengths(Hsapiens)[1:25],each=2))
+
+count_human$scaled_count<-count_human$count/count_human$chr_length
+
+ggplot(data=count_human,aes(x=seqname,y=scaled_count,fill=strand))+
+  geom_bar(stat='identity')+
+  theme_bw()+
+  rock_roi_theme()+
+  scale_y_log10()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  scale_fill_manual(labels=c("+","-"),
+                     values=alpha(c(myscale[["high"]],myscale[["high"]]),c(1,0.3)))
+
+```
+
+### Associating regions to gene names (with .gtf file) --> want a list with the genes and the number of matches 
+
+```{r}
+
+human_genes<-subsetByOverlaps(gtf,match_human)
+mouse_genes<-subsetByOverlaps(gtf,match_mouse)
+
+human_genes$combined_name<-paste0(human_genes$gene_id,"__",human_genes$gene_name)
+mouse_genes$combined_name<-paste0(mouse_genes$gene_id,"__",mouse_genes$gene_name)
+
+# just take genes, reasoning:
+# 1. the rev complement will be the one captured by the TSO so the TSO motif should be on the gene
+# 2. removes the issue that may have multiple transcripts for single gene
+# problem: will also get introns
+
+human_genes<-human_genes[human_genes$type=="gene",]
+mouse_genes<-mouse_genes[mouse_genes$type=="gene",]
+
+df_mouse<-data.frame(presence_match=as.vector(table(mouse_genes$combined_name)))
+rownames(df_mouse)<-names(table(mouse_genes$combined_name))
+
+df_human<-data.frame(presence_match=as.vector(table(human_genes$combined_name)))
+rownames(df_human)<-names(table(human_genes$combined_name))
+
+```
+
+### Check pattern of matches for the top 100 expressed TSO genes
+
+```{r,fig.height=7,fig.width=5.4}
+
+# need to split mouse and human
+top_100 # Actb and ACTB are both in the TSO data
+top_100_tso_mouse<-names(top_100_tso[grep("^ENSMUSG",names(top_100_tso))])
+top_100_tso_human<-names(top_100_tso[grep("^ENSG",names(top_100_tso))])
+
+n_matches_top_100_tso<-data.frame(matrix(nrow=100,ncol=1))
+rownames(n_matches_top_100_tso)<-rownames(top_100)
+colnames(n_matches_top_100_tso)<-c("presence_match")
+
+n_matches_top_100_tso$presence_match<-0
+
+for (i in intersect(rownames(df_mouse),rownames(n_matches_top_100_tso))){
+  n_matches_top_100_tso[i,1]<-df_mouse[i,1]
+}
+
+for (i in intersect(rownames(df_human),rownames(n_matches_top_100_tso))){
+  n_matches_top_100_tso[i,1]<-df_human[i,1]
+}
+
+n_matches_top_100_tso$presence_match<-as.character(n_matches_top_100_tso$presence_match)
+
+# With true and false
+
+pheatmap(top_100,
+         show_rownames = TRUE,
+         show_colnames = TRUE, 
+         scale="none",
+         fontsize_row = 5,
+         fontsize_col = 7,
+         fontsize = 5,
+         treeheight_row = 0,
+         treeheight_col = 0,
+         labels_row = tso_only,
+         cluster_rows = F,
+         cellwidth=15,
+         annotation_row=n_matches_top_100_tso,
+         annotation_colors = list(presence_match = c("0"="#EDF8FB","1"="#8856A7")))
+
+```
+
+### Checking in general if TSO pattern match == higher gene expression
+
+```{r,fig.height=2.7,fig.width=5.4}
+
+# need to get the gene expression for the transcripts with the TSO motif
+
+n1_tso_sums<-data.frame(tso_count=rowSums(n1_tso))
+
+n1_tso_sums$presence_match<-0
+
+for (i in intersect(rownames(df_mouse),rownames(n1_tso_sums))){
+  n1_tso_sums[i,2]<-df_mouse[i,1]
+}
+
+for (i in intersect(rownames(df_human),rownames(n1_tso_sums))){
+  n1_tso_sums[i,2]<-df_human[i,1]
+}
+
+### based on true or false
+
+ggplot(data=n1_tso_sums,aes(x=as.character(presence_match),y=tso_count,fill=as.character(presence_match)))+
+  geom_boxplot(outlier.size=1)+
+  geom_jitter(shape=16, position=position_jitter(0.1),size=0.1,alpha=0.2)+
+  scale_y_log10()+
+  theme_bw()+
+  xlab("presence_match")+
+  rock_roi_theme()+
+  theme(legend.position = "none")+
+  scale_fill_manual(labels=c("0","1"),
+    values=c("#EDF8FB","#8856A7"))
+
+table(n1_tso_sums$presence_match)
+
+```
+
+### Since have high mt --> checking if mt genes have pattern
+
+```{r,fig.height=7,fig.width=5.4}
+
+n1_tso_sums_mt<-n1_tso_sums[grep("__mt-|__MT-",rownames(n1_tso_sums)),]
+
+### getting the ones that have expression more than 0 
+
+n1_tso_sums_mt<-n1_tso_sums_mt[which(n1_tso_sums_mt$tso_count>0),]
+
+### adding wta info
+
+n1_tso_sums_mt$wta_count<-as.data.frame(rowSums(n1_wta))[rownames(n1_tso_sums_mt),]
+
+### reordering data for heatmap
+
+colnames(n1_tso_sums_mt)<-c("tso","presence_match","wta")
+sorted_n1_tso_sums_mt<-n1_tso_sums_mt[order(n1_tso_sums_mt$tso,decreasing=TRUE),]
+
+rm(n1_tso_sums_mt)
+
+presence_match_mt<-data.frame(sorted_n1_tso_sums_mt$presence_match)
+rownames(presence_match_mt)<-rownames(sorted_n1_tso_sums_mt)
+colnames(presence_match_mt)<-c("presence_match")
+sorted_n1_tso_sums_mt<-sorted_n1_tso_sums_mt[,c("tso","wta")]
+sorted_n1_tso_sums_mt<-sorted_n1_tso_sums_mt[,c(2,1)]
+
+presence_match_mt$presence_match<-as.character(presence_match_mt$presence_match)
+
+pheatmap(sorted_n1_tso_sums_mt,
+         show_rownames = TRUE,
+         show_colnames = TRUE, 
+         scale="none",
+         fontsize_row = 5,
+         fontsize_col = 7,
+         fontsize = 5,
+         treeheight_row = 0,
+         treeheight_col = 0,
+         cellwidth=15,
+         cluster_rows = F,
+         annotation_row=presence_match_mt,
+         annotation_colors = list(presence_match = c("0"="#EDF8FB","1"="#8856A7")))
+
+```
+
+### Checking correlation between tso_count and presence_match
+
+```{r}
+
+model_presence<-lm(tso_count ~ presence_match,data=n1_tso_sums)
+
+# checking if the presence counts 
+
+summary(model_presence) # small correlation but very low R-squared
+
+```
+
+### Checking if genes detected in TSO overlap with genes detected in WTA
+
+```{r}
+
+n1_wta<-n1_wta[names(which(rowSums(n1_wta)>10)),]
+n1_tso<-n1_tso[names(which(rowSums(n1_tso)>10)),]
+
+### compare expression level of WTA only compared to both
+
+wta_only<-data.frame(wta_count=rowSums(n1_wta[setdiff(rownames(n1_wta),rownames(n1_tso)),]))
+wta_only$name<-"wta_only"
+both_wta_tso<-data.frame(wta_count=rowSums(n1_wta[intersect(rownames(n1_wta),rownames(n1_tso)),]))
+both_wta_tso$name<-"both"
+
+plottable<-melt(rbind(wta_only,both_wta_tso))
+
+ggplot(data=plottable,aes(x=name,y=value,fill=name))+
+  geom_boxplot(outlier.size=1)+
+  geom_jitter(shape=16, position=position_jitter(0.1),size=0.1,alpha=0.2)+
+  theme_bw()+
+  scale_y_log10()+
+  xlab("")+
+  rock_roi_theme()+
+  ylab("wta_count")+
+  theme(legend.position = "none")+
+  scale_fill_manual(labels=c("wta_only","both"),
+                    values=alpha(c(myscale[["unknown"]],myscale[["unknown"]]),c(1,0.3)))
+
+```
+
+### Same with the ones only detected in TSO
+
+```{r}
+
+n1_wta<-n1_wta[names(which(rowSums(n1_wta)>10)),]
+n1_tso<-n1_tso[names(which(rowSums(n1_tso)>10)),]
+
+### compare expression level of WTA only compared to both
+
+tso_only<-data.frame(wta_count=rowSums(n1_tso[setdiff(rownames(n1_tso),rownames(n1_wta)),]))
+tso_only$name<-"tso_only"
+both_wta_tso<-data.frame(wta_count=rowSums(n1_tso[intersect(rownames(n1_wta),rownames(n1_tso)),]))
+both_wta_tso$name<-"both"
+
+plottable<-melt(rbind(tso_only,both_wta_tso))
+
+ggplot(data=plottable,aes(x=name,y=value,fill=name))+
+  geom_boxplot(outlier.size=1)+
+  geom_jitter(shape=16, position=position_jitter(0.1),size=0.1,alpha=0.2)+
+  theme_bw()+
+  scale_y_log10()+
+  xlab("")+
+  rock_roi_theme()+
+  ylab("tso_count")+
+  theme(legend.position = "none")+
+  scale_fill_manual(labels=c("tso_only","both"),
+                    values=alpha(c(myscale[["human"]],myscale[["human"]]),c(1,0.3)))
+
+```
+
+
+### To do in more in depth analysis (after submission)
+
+```{r}
+
+# check distance match to end of transcript
+# check distance match to polyA tail 
+
+```
+
+### Session info
+
+```{r}
+
+sessionInfo()
+
+```
+
+
