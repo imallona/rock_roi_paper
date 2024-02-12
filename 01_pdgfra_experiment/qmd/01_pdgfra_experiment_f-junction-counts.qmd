@@ -22,6 +22,9 @@ library(googlesheets4)
 library(tidyr)
 library(reshape2)
 library(readr)
+library(Matrix)
+library(rtracklayer)
+library(Gviz)
 
 save_pheatmap_pdf <- function(x, filename, width=7, height=7) {
    stopifnot(!missing(x))
@@ -45,10 +48,34 @@ names(myscale) <- as.character(1:13)
 
 plot(1:13, col=myscale, pch=19, cex=4)
 
+uct <- unique(sce$annotation)
+names(uct) <- uct
+uct[grepl("Crypt_bottom", uct)] <- "Crypt_bottom"
+uct[!grepl("Crypt", uct)] <- "Epithelial"
+
+sce$celltype <- uct[sce$annotation] 
+
+
+# write files of barcodes -- to be used with `samtools`
+ss <- strsplit(rownames(colData(sce)), ".", fixed=TRUE)
+
+df <- data.frame(sample_celltype = paste0(sce$sample_id, "__",
+                                          sce$celltype),
+                 barcode = sapply(ss, .subset2, 2))
+
+dfs <- split(df[,-1,drop=FALSE], df$sample_celltype)
+for(i in 1:length(dfs)) {
+  fo <- file.path(datadir, paste0(names(dfs)[i],".barcode"))
+  writeLines(dfs[[i]]$barcode, con = fo)
+}
+
+dir(datadir, ".barcode$")
+
+
 ```
 
 
-## Read in junction counts
+## Read in junction counts to sparse matrix
 
 
 ```{r}
@@ -104,45 +131,254 @@ this_aE <- SummarizedExperiment(assays = list(tso_junction = cnts_sparse),
   
 
 
-# for(i in 1:nrow(cnts_sparse)) {
-#   print(feat_tab[i,])
-#   print(table(cnts_sparse[i,]>0, sce$annotation, sce$sample_id))
-#   cat("\n")
-# }
-
-
-a <- apply(cnts_sparse, 1, function(u) 
-  table(u>0, sce$annotation, sce$sample_id) %>% 
+b <- apply(cnts_sparse, 1, function(u) {
+  table(u>0, sce$celltype, sce$sample_id) %>% 
     as.data.frame %>%
     setNames(c("expressed","celltype","sample","freq")) %>%
-    melt, 
-  simplify = FALSE) %>% 
+    group_by(celltype, sample) %>%
+    summarise(perc_expressed = 100*weighted.mean(expressed==TRUE, freq)) %>%
+    ungroup
+  }, simplify = FALSE) %>%
   setNames(with(feat_tab, paste0(Geneid,"__",Chr,":",Start,"-",End))) 
 
+for(i in 1:length(b)) b[[i]]$region <- names(b)[i]
+
+b <- b %>% bind_rows
+
+ss <- strsplit(b$region, "__")
+b$location <- sapply(ss, .subset, 2)
+b$roi <- sapply(ss, .subset, 1)
+
+
+```
+
+# Plots of junctions detected
+
+```{r}
+
+# b <- b %>% mutate(celltype__sample = paste0(newcelltype,"__", sample)) %>%
+#   select(region, celltype__sample, perc_expressed)
+
+# (aa <- ggplot(b %>% filter(grepl("__egfp", region)),
+#                     aes(x = celltype, y = perc_expressed,
+#                         colour = sample, group = sample)) +
+#   geom_point(size = 3, position = position_dodge(width = .35)) +
+#   facet_wrap(~location, nrow = 1) +
+#   theme_classic() +
+#   theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+#   ylab("Percent cells expressed"))
+
+# (bb <- ggplot(b %>% filter(grepl("roi_[456]", region)),
+#                     aes(x = celltype, y = perc_expressed,
+#                           colour = sample, group = sample)) +
+#   geom_point(size = 3, position = position_dodge(width=.35)) +
+#   facet_wrap(~location, nrow = 1) +
+#   theme_classic() +
+#   theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+#   ylab("Percent cells expressed"))
+
+
+(aa <- ggplot(b %>% filter(grepl("__egfp", region)),
+                    aes(x = celltype, y = perc_expressed, fill = sample,
+                        colour = sample, group = sample,
+                        label = perc_expressed)) +
+  geom_bar(position = position_dodge2(), stat = "identity") +
+  geom_text(aes(label = round(perc_expressed, 1), 
+                y = perc_expressed+1.5), colour = "black",
+            position = position_dodge2(width = 1)) +
+  facet_wrap(~location, nrow = 1) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+  ylab("Percent cells expressed"))
+
+
+(bb <- ggplot(b %>% filter(grepl("roi_[456]", region)),
+                    aes(x = celltype, y = perc_expressed, fill = sample,
+                        colour = sample, group = sample,
+                        label = perc_expressed)) +
+  geom_bar(position = position_dodge2(), stat = "identity") +
+  geom_text(aes(label = round(perc_expressed, 1), 
+                y = perc_expressed+1.5), colour = "black",
+            position = position_dodge2(width = 1)) +
+  facet_wrap(~location, nrow = 1) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+  ylab("Percent cells expressed"))
+
+(cc <- ggplot(b %>% filter(grepl("roi_1[3456]", region)),
+                    aes(x = celltype, y = perc_expressed, fill = sample,
+                        colour = sample, group = sample,
+                        label = perc_expressed)) +
+  geom_bar(position = position_dodge2(), stat = "identity") +
+  geom_text(aes(label = round(perc_expressed, 1), 
+                y = perc_expressed+1.5), colour = "black",
+            position = position_dodge2(width = 1)) +
+  facet_wrap(~location, nrow = 1) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+  ylab("Percent cells expressed"))
+
+
+library(cowplot)
+plot_grid(aa,bb,cc, ncol = 1)
+
+# bd <- dcast(b, region ~ celltype__sample, 
+#             mean, margins = FALSE)
+
+# ss <- strsplit(bd$region, "__", fixed = TRUE)
+# ss2 <- lapply(ss, function(u) {
+#   v <- strsplit(u[2], ":")[[1]]
+#   sten <- sapply(v, function(z) {
+#   })
+#   x <- strsplit(v[2], "-")[[1]]
+#   data.frame(chromosome=v[1], start=x[1], end=x[2])
+# }) %>% bind_rows
+# 
+# nrow(ss2)==nrow(bd)
+# bd <- cbind(region = sapply(ss, .subset, 2), ss2, 
+#             bd %>% select(-region))
+
+# 
+# 
+# bd %>% filter(chromosome=="egfp")
+
+a <- apply(cnts_sparse, 1, function(u)
+  table(u>0, sce$celltype, sce$sample_id) %>%
+    as.data.frame %>%
+    setNames(c("expressed","celltype","sample","freq")) %>%
+    melt,
+  simplify = FALSE) %>%
+  setNames(with(feat_tab, paste0(Geneid,"__",Chr,":",Start,"-",End)))
 for(i in 1:length(a)) a[[i]]$region <- names(a)[i]
 
 a <- a %>% bind_rows
 
+ss <- strsplit(a$region, "__")
+a$location <- sapply(ss, .subset, 2)
+a$roi <- sapply(ss, .subset, 1)
 
+# # make a simplified celltype
+# uct <- as.character(unique(a$celltype))
+# names(uct) <- uct
+# uct[grepl("Crypt_bottom", uct)] <- "Crypt_bottom"
+# uct[!grepl("Crypt", uct)] <- "Epithelial"
+# 
+# a <- a %>% mutate(newcelltype = uct[celltype])
 
-ggplot(a %>% filter(grepl("egfp",region)),
+ggplot(a %>% filter(grepl("roi_[456]", region)),
        aes(x = celltype,fill = expressed,
-           by = celltype, weight=value)) + 
-  geom_bar(position ="fill") +
-  facet_grid(sample~region, ) +
-  theme(axis.text.x = element_text(angle = 45, 
+           by = celltype, weight=value)) +
+  geom_bar(position ="stack") +
+  facet_grid(sample~location, ) +
+  scale_y_sqrt() +
+  theme(axis.text.x = element_text(angle = 30, size = 8,
                                    vjust = 1, hjust=1))
 
-
-# for(i in 1:nrow(cnts_sparse)) {
-#   print(feat_tab[i,])
-#   print(table(cnts_sparse[i,]>0, sce$annotation, sce$sample_id))
-#   cat("\n")
-# }
+```
 
 
-ggplot(m,aes(x = Var1,fill = Var2, weight=value, by=Var1)) + 
-  geom_bar(position = "fill")
+# Plots of sashimis by cell type
+
+```{r}
+
+
+options(ucscChromosomeNames=FALSE)
+
+anno <- import(file.path(datadir, "subset.gtf")) %>% as.data.frame
+colnames(anno)[1] <- "chromosome"
+
+axisTrack <- GenomeAxisTrack()
+
+grt <- GeneRegionTrack(anno, genome = "hg19",
+                       chromosome = "chr5",
+                       name = "Pdgfra")
+
+# > list.files("01_pdgfra_experiment/data", ".bam$")
+# [1] "rockroi__Crypt_bottom.bam" "rockroi__Crypt_top.bam"   
+# [3] "rockroi__Epithelial.bam"   "unmod__Crypt_bottom.bam"  
+# [5] "unmod__Crypt_top.bam"      "unmod__Epithelial.bam" 
+
+
+# didn't see a more elegant way
+rr_cryptb <- AlignmentsTrack(file.path(datadir, "rockroi__Crypt_bottom.bam"),
+                             ylim = c(0,2000), name = "ROCKROI Crypt_bottom",
+                             isPaired = FALSE)
+um_cryptb <- AlignmentsTrack(file.path(datadir, "unmod__Crypt_bottom.bam"),
+                             ylim = c(0,2000), name = "ROCKROI Crypt_bottom",
+                             isPaired = FALSE)
+
+
+plotTracks(c(axisTrack,rr_cryptb, um_cryptb),
+           from = 75166756, to = 75183142,
+           chromosome = "chr5",
+           main = "Pdgfra",
+           type = c("coverage", "sashimi"))
+
+
+# 
+# 
+# 
+# 
+# plotTracks(alTrack)
+
+# gr_rr <- gr_um <- GRanges(bd$region)
+# mcols(gr_rr) <- DataFrame(bd[,grep("rockroi", colnames(bd))])
+# mcols(gr_um) <- DataFrame(bd[,grep("unmod", colnames(bd))])
+# dTrack_rr <- DataTrack(gr_rr, name = "percent\nexpressed\n(rockroi)", 
+#                        ylim = c(0,.5))
+# dTrack_um <- DataTrack(gr_um, name = "percent\nexpressed\n(unmod)",
+#                        ylim = c(0,.5))
+# dTrack4 <- DataTrack(range = file.path(datadir, "pdgfra_rockroi_multimodal", 
+#                                        "subset.bam"), 
+#                      genome = "hg19", type = "l", 
+#                      name = "Coverage", window = -1, 
+#                      chromosome = "chr5")
+
+
+
+# alTrack <- AlignmentsTrack(
+#   system.file(package = "Gviz", "extdata", "gapped.bam"), 
+#   isPaired = FALSE)
+
+# axisTrack <- GenomeAxisTrack()
+# plotTracks(axisTrack, from = 75166756-500, to = 75185560+500, main = "chr5")
+
+# options(ucscChromosomeNames=FALSE) 
+
+# grt <- GeneRegionTrack(anno, genome = "hg19",
+#                        chromosome = "egfp", 
+#                        name = "Egfp")
+
+# 
+# # plotTracks(c(axisTrack, grt, dTrack_rr, dTrack_um), from = 1, to = 1029, 
+# #            main = "egfp", type = "p")
+# 
+# plotTracks(c(axisTrack, grt, dTrack_rr, dTrack_um), 
+#            from = 75166756, to = 75183142, 
+#            main = "Pdgfra", type = "p")
+
+
+axisTrack <- GenomeAxisTrack(gr_rr)
+
+alTrack <- AlignmentsTrack(
+  file.path(datadir, "pdgfra_rockroi_multimodal",
+                                       "subset.bam"),
+  ylim = c(0,2000), name = "ROCKROI",
+  isPaired = FALSE)
+
+alTrack1 <- AlignmentsTrack(
+  file.path(datadir, "pdgfra_unmod_unimodal",
+                                       "subset.bam"),
+  ylim=c(0,2000), name = "UNMOD",
+  isPaired = FALSE)
+
+
+plotTracks(c(axisTrack,alTrack, alTrack1),
+           from = 75166756, to = 75183142,
+           chromosome = "chr5",
+           main = "Pdgfra",
+           type = c("coverage", "sashimi"))
+
 
 ```
 
@@ -151,9 +387,23 @@ ggplot(m,aes(x = Var1,fill = Var2, weight=value, by=Var1)) +
 # Save output
 
 ```{r}
-# save clustered object to RDS
-saveRDS(sce, file.path(datadir, "sce_qc-filtered-nodoublets-clustered-.rds"))
+
+
+# plotTracks(list(axisTrack, grt))
+# 
+# plotTracks(c(bmt, alTrack), from = afrom + 12700, 
+#            to = afrom + 15200, chromosome = "chr12",
+#            type = c("coverage", "sashimi"))
+
 ```
+
+
+<!-- # Save output -->
+
+<!-- ```{r} -->
+<!-- # save clustered object to RDS -->
+<!-- saveRDS(sce, file.path(datadir, "sce_qc-filtered-nodoublets-clustered-.rds")) -->
+<!-- ``` -->
 
 
 ## `sessionInfo()`
