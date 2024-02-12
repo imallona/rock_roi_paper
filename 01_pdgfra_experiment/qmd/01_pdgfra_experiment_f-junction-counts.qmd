@@ -48,6 +48,11 @@ names(myscale) <- as.character(1:13)
 
 plot(1:13, col=myscale, pch=19, cex=4)
 
+inds <- split(seq_len(ncol(sce)), sce$annotation)
+names(myscale) <- levels(factor(sce$annotation))
+ann_colors = list(annotation = myscale[seq_len(length(inds))])
+
+
 uct <- unique(sce$annotation)
 names(uct) <- uct
 uct[grepl("Crypt_bottom", uct)] <- "Crypt_bottom"
@@ -100,9 +105,7 @@ keep <- key %in% sce$sample_id.barcode
 juncfs <- juncfs[keep]
 key <- key[keep]
 
-
 # manually construct sparse matrix
-
 col_num <- match(key, sce$sample_id.barcode)
 
 feat_tab <- read_delim(juncfs[1], delim = "\t", skip = 1,
@@ -205,6 +208,9 @@ b$roi <- sapply(ss, .subset, 1)
   theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
   ylab("Percent cells expressed"))
 
+b %>% filter(grepl("roi_[456]", region), 
+             celltype=="Epithelial", sample=="rockroi")
+
 (cc <- ggplot(b %>% filter(grepl("roi_1[3456]", region)),
                     aes(x = celltype, y = perc_expressed, fill = sample,
                         colour = sample, group = sample,
@@ -284,14 +290,15 @@ ggplot(a %>% filter(grepl("roi_[456]", region)),
 
 options(ucscChromosomeNames=FALSE)
 
-anno <- import(file.path(datadir, "subset.gtf")) %>% as.data.frame
+anno <- import(file.path(datadir, "subset.gtf")) %>% 
+  as.data.frame %>% filter(type=="exon")
 colnames(anno)[1] <- "chromosome"
 
 axisTrack <- GenomeAxisTrack()
 
 grt <- GeneRegionTrack(anno, genome = "hg19",
                        chromosome = "chr5",
-                       name = "Pdgfra")
+                       name = "Pdgfra", size = 2)
 
 # > list.files("01_pdgfra_experiment/data", ".bam$")
 # [1] "rockroi__Crypt_bottom.bam" "rockroi__Crypt_top.bam"   
@@ -303,16 +310,69 @@ grt <- GeneRegionTrack(anno, genome = "hg19",
 rr_cryptb <- AlignmentsTrack(file.path(datadir, "rockroi__Crypt_bottom.bam"),
                              ylim = c(0,2000), name = "ROCKROI Crypt_bottom",
                              isPaired = FALSE)
-um_cryptb <- AlignmentsTrack(file.path(datadir, "unmod__Crypt_bottom.bam"),
-                             ylim = c(0,2000), name = "ROCKROI Crypt_bottom",
+displayPars(rr_cryptb) <- list("col"=ann_colors$annotation[["Crypt_bottom_2"]])
+
+rr_cryptt <- AlignmentsTrack(file.path(datadir, "rockroi__Crypt_top.bam"),
+                             ylim = c(0,400), name = "ROCKROI Crypt_top",
                              isPaired = FALSE)
+displayPars(rr_cryptt) <- list("col"=ann_colors$annotation[["Crypt_top"]])
+
+rr_epi <- AlignmentsTrack(file.path(datadir, "rockroi__Epithelial.bam"),
+                             ylim = c(0,100), name = "ROCKROI Epithelial",
+                             isPaired = FALSE)
+displayPars(rr_epi) <- list("col"=ann_colors$annotation[["Stem/TA"]])
+
+um_cryptb <- AlignmentsTrack(file.path(datadir, "unmod__Crypt_bottom.bam"),
+                             ylim = c(0,20), name = "ROCKROI Crypt_bottom",
+                             isPaired = FALSE)
+displayPars(um_cryptb) <- list("col"=ann_colors$annotation[["Crypt_bottom_2"]])
+
+um_cryptt <- AlignmentsTrack(file.path(datadir, "unmod__Crypt_top.bam"),
+                             ylim = c(0,20), name = "ROCKROI Crypt_top",
+                             isPaired = FALSE)
+displayPars(um_cryptt) <- list("col"=ann_colors$annotation[["Crypt_top"]])
+
+um_epi <- AlignmentsTrack(file.path(datadir, "unmod__Epithelial.bam"),
+                             ylim = c(0,20), name = "ROCKROI Epithelial",
+                             isPaired = FALSE)
+displayPars(um_epi) <- list("col"=ann_colors$annotation[["Stem/TA"]])
 
 
-plotTracks(c(axisTrack,rr_cryptb, um_cryptb),
-           from = 75166756, to = 75183142,
+b %>% filter(grepl("__egfp", region)) %>% pull("location") -> regs
+regs <- gsub("egfp:","", regs)
+rng <- range(as.numeric(unlist(strsplit(regs,"-"))))
+
+plotTracks(c(axisTrack,
+             rr_cryptb, um_cryptb,
+             rr_cryptt, um_cryptt,
+             rr_epi, um_epi
+             ),
+           from = rng[1], to = rng[2],
+           chromosome = "egfp",
+           main = "Pdgfra",
+           type = c("coverage", "sashimi"), sashimiNumbers=TRUE, 
+           col.axis="black",
+           fontcolor.title="black")
+
+b %>% filter(grepl("roi_[456]", region)) %>% pull("location") -> regs
+regs <- gsub("chr5:","", regs)
+rng <- range(as.numeric(unlist(strsplit(regs,"-"))))
+
+
+pdf("plot.pdf", height=6, width=12)
+plotTracks(c(axisTrack, grt,
+             rr_cryptb, um_cryptb,
+             rr_cryptt, um_cryptt,
+             rr_epi, um_epi
+             ),
+           from = rng[1], to = rng[2],
            chromosome = "chr5",
            main = "Pdgfra",
-           type = c("coverage", "sashimi"))
+           type = c("coverage", "sashimi"), sashimiNumbers=TRUE, 
+           col.axis="black",
+           fontcolor.title="black")
+dev.off()
+
 
 
 # 
@@ -356,28 +416,28 @@ plotTracks(c(axisTrack,rr_cryptb, um_cryptb),
 # plotTracks(c(axisTrack, grt, dTrack_rr, dTrack_um), 
 #            from = 75166756, to = 75183142, 
 #            main = "Pdgfra", type = "p")
-
-
-axisTrack <- GenomeAxisTrack(gr_rr)
-
-alTrack <- AlignmentsTrack(
-  file.path(datadir, "pdgfra_rockroi_multimodal",
-                                       "subset.bam"),
-  ylim = c(0,2000), name = "ROCKROI",
-  isPaired = FALSE)
-
-alTrack1 <- AlignmentsTrack(
-  file.path(datadir, "pdgfra_unmod_unimodal",
-                                       "subset.bam"),
-  ylim=c(0,2000), name = "UNMOD",
-  isPaired = FALSE)
-
-
-plotTracks(c(axisTrack,alTrack, alTrack1),
-           from = 75166756, to = 75183142,
-           chromosome = "chr5",
-           main = "Pdgfra",
-           type = c("coverage", "sashimi"))
+# 
+# 
+# axisTrack <- GenomeAxisTrack(gr_rr)
+# 
+# alTrack <- AlignmentsTrack(
+#   file.path(datadir, "pdgfra_rockroi_multimodal",
+#                                        "subset.bam"),
+#   ylim = c(0,2000), name = "ROCKROI",
+#   isPaired = FALSE)
+# 
+# alTrack1 <- AlignmentsTrack(
+#   file.path(datadir, "pdgfra_unmod_unimodal",
+#                                        "subset.bam"),
+#   ylim=c(0,2000), name = "UNMOD",
+#   isPaired = FALSE)
+# 
+# 
+# plotTracks(c(axisTrack,alTrack, alTrack1),
+#            from = 75166756, to = 75183142,
+#            chromosome = "chr5",
+#            main = "Pdgfra",
+#            type = c("coverage", "sashimi"))
 
 
 ```

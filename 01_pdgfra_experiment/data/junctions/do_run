@@ -1,0 +1,8 @@
+#drwxrwxr-x 4 imallona robinsonlab 36864 Jan 11 03:50 pdgfra_rockroi_multimodal/
+#drwxrwxr-x 4 imallona robinsonlab 20480 Jan 11 06:51 pdgfra_rockroi_unimodal/
+#drwxrwxr-x 4 imallona robinsonlab 20480 Jan 10 21:17 pdgfra_unmod_unimodal/
+
+./run_junction_counting.sh /home/imallona/ebrunner_spectral/pdgfra/align_tso/pdgfra_rockroi_multimodal/cb_ub_filt_twice.bam regions.bed subset.gtf pdgfra_rockroi_multimodal 2>&1 | tee pdgfra_rockroi_multimodal.log
+./run_junction_counting.sh /home/imallona/ebrunner_spectral/pdgfra/align_tso/pdgfra_rockroi_unimodal/cb_ub_filt_twice.bam regions.bed subset.gtf pdgfra_rockroi_unimodal 2>&1 | tee pdgfra_rockroi_unimodal.log
+./run_junction_counting.sh /home/imallona/ebrunner_spectral/pdgfra/align_tso/pdgfra_unmod_unimodal/cb_ub_filt_twice.bam regions.bed subset.gtf pdgfra_unmod_unimodal 2>&1 | tee pdgfra_unmod_unimodal.log
+

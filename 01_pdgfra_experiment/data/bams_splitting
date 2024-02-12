@@ -1,0 +1,8 @@
+./run_split_bams.sh pdgfra_unmod_unimodal/subset.bam unmod__Crypt_bottom.barcode unmod__Crypt_bottom.bam
+./run_split_bams.sh pdgfra_unmod_unimodal/subset.bam unmod__Epithelial.barcode unmod__Epithelial.bam
+./run_split_bams.sh pdgfra_unmod_unimodal/subset.bam unmod__Crypt_top.barcode unmod__Crypt_top.bam
+
+./run_split_bams.sh pdgfra_rockroi_multimodal/subset.bam rockroi__Crypt_bottom.barcode rockroi__Crypt_bottom.bam
+./run_split_bams.sh pdgfra_rockroi_multimodal/subset.bam rockroi__Crypt_top.barcode rockroi__Crypt_top.bam
+./run_split_bams.sh pdgfra_rockroi_multimodal/subset.bam rockroi__Epithelial.barcode rockroi__Epithelial.bam
+
