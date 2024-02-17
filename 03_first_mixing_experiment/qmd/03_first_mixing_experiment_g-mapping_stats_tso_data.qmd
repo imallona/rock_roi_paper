@@ -144,6 +144,179 @@ qc_stats$name<-rownames(qc_stats)
 
 plottable<-melt(qc_stats,id="name")
 
+# for (i in unique(plottable$name)){
+#   p<-ggplot(plottable[plottable$name==i,],aes(x=variable,y=value,fill=variable))+
+#   geom_bar(stat = "identity")+
+#   ggtitle(i)+
+#   theme_bw()+
+#   rock_roi_theme()+
+#   theme(legend.position = "none")+
+#   scale_fill_manual(labels=c("unmod_wta","unmod_n1_wta","unmod_n1_tso"),
+#                      values=alpha(c(myscale[["unmod"]],myscale[["unmod_n1"]],myscale[["unmod_n1"]]),c(1,1,0.5)))
+#   
+#   print(p)
+# }
+
+```
+
+### Loading data for Summary.csv
+
+```{r}
+
+getwd() # after opening the .Rproj file, getwd() should be "/Users/gimoro/figure_making_paper/rock_roi_paper"
+
+rdss <- dir(here("03_first_mixing_experiment/data/starsolo_stats"), "*.txt", 
+            recursive = TRUE, full.names = TRUE)
+
+datadir <- dirname(rdss)[1] # folder where the .rds files are 
+
+
+samples<-c("unmod_wta","unmod_n1_wta","unmod_n1_tso")
+summary_stats<-list()
+
+for (i in samples){
+    dir<-paste0(here("03_first_mixing_experiment/data/starsolo_stats"),"/",i,"/","Summary.csv")
+    summary_stats[[i]]<-read.csv(dir,header=FALSE)
+    colnames(summary_stats[[i]])<-c("stats","values")
+}
+
+```
+
+### Plots for Summary.csv data frame with values --> TSO has 9, WTA has 20
+
+```{r}
+
+for (i in names(summary_stats)){
+  summary_stats[[i]]<-summary_stats[[i]][1:9,]
+}
+
+# combining everything together
+
+df_summary<-data.frame(matrix(nrow=9,ncol=3))
+rownames(df_summary)<-summary_stats[[i]]$stats
+colnames(df_summary)<-names(summary_stats)
+
+for(i in names(summary_stats)){
+  df_summary[,i]<-summary_stats[[i]]$values
+}
+
+df_summary$name<-rownames(df_summary)
+plottable<-melt(df_summary,id="name")
+
+# for (i in unique(plottable$name)){
+#   p<-ggplot(plottable[plottable$name==i,],aes(x=variable,y=value,fill=variable))+
+#   geom_bar(stat = "identity")+
+#   ggtitle(i)+
+#   theme_bw()+
+#   rock_roi_theme()+
+#   theme(legend.position = "none")+
+#   scale_fill_manual(labels=c("unmod_wta","unmod_n1_wta","unmod_n1_tso"),
+#                      values=alpha(c(myscale[["unmod"]],myscale[["unmod_n1"]],myscale[["unmod_n1"]]),c(1,1,0.5)))
+#   
+#   print(p)
+# }
+
+```
+
+
+### Loading data for Features.stats
+
+```{r}
+
+getwd() # after opening the .Rproj file, getwd() should be "/Users/gimoro/figure_making_paper/rock_roi_paper"
+
+rdss <- dir(here("03_first_mixing_experiment/data/starsolo_stats"), "*.txt", 
+            recursive = TRUE, full.names = TRUE)
+
+datadir <- dirname(rdss)[1] # folder where the .rds files are 
+
+
+samples<-c("unmod_wta","unmod_n1_wta","unmod_n1_tso")
+feature_stats<-list()
+
+for (i in samples){
+    dir<-paste0(here("03_first_mixing_experiment/data/starsolo_stats"),"/",i,"/","Features.stats")
+    feature_stats[[i]]<-read.table(dir,header=FALSE)
+    colnames(feature_stats[[i]])<-c("stats","values")
+}
+
+```
+
+### Plots for Features.stats
+
+```{r}
+
+# combining everything together
+
+df_features<-data.frame(matrix(nrow=11,ncol=3))
+rownames(df_features)<-feature_stats[[i]]$stats
+colnames(df_features)<-names(feature_stats)
+
+for(i in names(feature_stats)){
+  df_features[,i]<-feature_stats[[i]]$values
+}
+
+df_features$name<-rownames(df_features)
+plottable<-melt(df_features,id="name")
+
+# for (i in unique(plottable$name)){
+#   p<-ggplot(plottable[plottable$name==i,],aes(x=variable,y=value,fill=variable))+
+#   geom_bar(stat = "identity")+
+#   ggtitle(i)+
+#   theme_bw()+
+#   rock_roi_theme()+
+#   theme(legend.position = "none")+
+#   scale_fill_manual(labels=c("unmod_wta","unmod_n1_wta","unmod_n1_tso"),
+#                      values=alpha(c(myscale[["unmod"]],myscale[["unmod_n1"]],myscale[["unmod_n1"]]),c(1,1,0.5)))
+#   
+#   print(p)
+# }
+
+```
+
+
+### Selecting relevant features and making pretty plots
+
+```{r}
+
+merged <- do.call("rbind", list(df_features,df_summary,qc_stats))
+
+selected_merged <- merged[c("n_mapped_reads",
+                            "n_alignments",
+                            "n_aligned_genes",
+                            "n_mito_human_bases",
+                            "n_mito_mouse_bases",
+                            "Number of Reads",
+                            "Reads With Valid Barcodes",
+                            "Reads Mapped to Genome: Unique+Multiple",
+                            "Reads Mapped to Gene: Unique Gene",
+                            "Reads Mapped to Genome: Unique",
+                            "noUnmapped",
+                            "noNoFeature"),]
+
+selected_merged$unmod_wta<-as.numeric(selected_merged$unmod_wta)
+selected_merged$unmod_n1_wta<-as.numeric(selected_merged$unmod_n1_wta)
+selected_merged$unmod_n1_tso<-as.numeric(selected_merged$unmod_n1_tso)
+
+for (i in samples){
+  selected_merged["normalised_mito_human_bases",i]<-selected_merged["n_mito_human_bases",i]/selected_merged["n_alignments",i]
+  selected_merged["normalised_mito_mouse_bases",i]<-selected_merged["n_mito_mouse_bases",i]/selected_merged["n_alignments",i]
+  selected_merged["normalised_unmapped",i]<-selected_merged["noUnmapped",i]/selected_merged["Number of Reads",i]
+  selected_merged["normalised_noNoFeature",i]<-selected_merged["noNoFeature",i]/selected_merged["Number of Reads",i]
+}
+
+selected_merged$name<-rownames(selected_merged)
+
+exo_intro <- merged[c("% intronic","% intergenic","% exonic"),]
+
+```
+
+### Plotting barplots
+
+```{r}
+
+plottable<-melt(selected_merged,id="name")
+
 for (i in unique(plottable$name)){
   p<-ggplot(plottable[plottable$name==i,],aes(x=variable,y=value,fill=variable))+
   geom_bar(stat = "identity")+
@@ -156,6 +329,26 @@ for (i in unique(plottable$name)){
   
   print(p)
 }
+
+```
+
+### Plotting stacking barplots
+
+```{r}
+
+exo_intro <- merged[c("% intronic","% intergenic","% exonic"),]
+exo_intro$unmod_wta<-as.numeric(exo_intro$unmod_wta)
+exo_intro$unmod_n1_wta<-as.numeric(exo_intro$unmod_n1_wta)
+exo_intro$unmod_n1_tso<-as.numeric(exo_intro$unmod_n1_tso)
+
+plottable<-melt(exo_intro,id="name")
+
+ggplot(plottable,aes(x=variable,y=value,fill=name))+
+  geom_bar(stat = "identity",position="stack")+
+  theme_bw()+
+  rock_roi_theme()+
+  scale_fill_manual(labels=c("% exonic","% intergenic","% intronic"),
+                    values=alpha(c(myscale[["high"]],myscale[["high"]],myscale[["high"]]),c(1,0.5,0.2)))
 
 ```
 
