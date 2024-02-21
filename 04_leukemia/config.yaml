@@ -1,0 +1,48 @@
+## simulate: True generates fake data and runs the pipeline
+simulate: False
+
+## software stack, will work out of the box if within the supplied docker container
+Rbin: R
+STAR: STAR
+# bamCoverage: bamCoverage ## not used anymore
+featureCounts: featureCounts
+bedtools: bedtools
+bedGraphToBigWig: bedGraphToBigWig
+faSize: faSize
+
+## run limits
+nthreads: 10
+max_mem_mb: 350000 ## these are megabytes
+
+## full or relative path to the `root` of the rock_roi_method cloned repository
+rock_method_path: /home/gmoro/rock_roi_method
+
+## full or relative path where outputs will be generated at
+working_dir: /home/gmoro/kiel_leukemia_data/mapping_patient_data
+
+## fill below these line if `simulate : False` -----------------------------------------
+## if `simulate: True` then all config below this line will be replaced by
+##   hardcoded values (within the Snakefile)
+
+gtf: /home/gmoro/kiel_leukemia_data/mapping_patient_data/genomes/leukemia.gtf
+genome: /home/gmoro/kiel_leukemia_data/mapping_patient_data/genomes/leukemia.fa
+
+sjdbOverhang: 61
+
+## run mode, one of these (please see the README / docs):
+##   'tso off- and ontarget unique'
+##   'tso ontarget multi'
+##   'all'
+run_mode: 'all'
+
+## GTF `source` field identifying on-target rock- or roi- features
+capture_gtf_column_2_pattern : 'captured'
+featurecounts_t: 'exon' ## feature counting unit for featurecounts
+featurecounts_g: 'gene_id' ## feature grouping unit for featurecounts
+
+samples:
+  - name: patient_sample
+    uses:
+      cb_umi_fq: /kiel_leukemia_data/jf_bastian_rock_ro915_hjyltdrx3/r1_patient_samples.fastq.gz
+      cdna_fq: /kiel_leukemia_data/jf_bastian_rock_ro915_hjyltdrx3/r2_patient_samples.fastq.gz
+      whitelist: 96x3
