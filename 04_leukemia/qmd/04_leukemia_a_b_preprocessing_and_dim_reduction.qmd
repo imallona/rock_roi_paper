@@ -111,7 +111,6 @@ sces <- mapply(function(u,v)  {
 ## combine sces
 
 for (i in 1:length(sces)) {
-    colnames(sces[[i]]) <- paste0("leukemia_patients",'_',colnames(sces[[i]]))
     colData(sces[[i]])$experiment <- mainExpName(sces[[i]])
     rownames(sces[[i]]) <- paste0(rowData(sces[[i]])$name, "__", rownames(sces[[i]]))
 }
@@ -132,38 +131,99 @@ st<-readRDS(rdss_sample_tags)
 
 ```{r}
 
-colnames(st) <- paste0('leukemia_patients_', colnames(st))
+fd<- assay(st)        
+fd <- fd[ c('human_sampletag_10', 'human_sampletag_11'), ]
+fd <- fd[,colSums(fd) > 20]
+dim(fd)
+fd <- as.data.frame(as.matrix(fd))
 
-st <- st[c('human_sampletag_10', 'human_sampletag_11'),colnames(sce)]
-st <- as.data.frame(as.matrix(t(assay(st))))
+demux <- data.frame(cb = colnames(fd), st = NA, highqual_counts = 0, total_counts = 0, noise = 0, status = NA)
+rownames(demux) <- demux$cb
 
-standardize <- function(x){
-    (x-min(x))/(max(x)-min(x))
+for (i in 1:ncol(fd)) {
+    cell <- colnames(fd)[i]
+    tmp <- as.data.frame(proportions(fd[,cell]))
+    rownames(tmp) <- rownames(fd)
+    tmp$highqual <- tmp[,1] >= 0.75
+    tmp$counts <- fd[,cell]
+
+    if (any(tmp$highqual)) {
+        demux[cell, 'st'] <- rownames(tmp)[tmp$highqual]
+        demux[cell, 'highqual_counts'] <- tmp$counts[tmp$highqual]
+    }
+
+    demux[cell, 'total_counts']  <-  sum(fd[,cell])
 }
 
-st$sampletag_10_ratio <- standardize(st$human_sampletag_10) / (standardize(st$human_sampletag_10) + standardize(st$human_sampletag_11))
-st$sampletag_11_ratio <- standardize(st$human_sampletag_11) / (standardize(st$human_sampletag_10) + standardize(st$human_sampletag_11))
+demux$noise <- demux$total_counts - demux$highqual_counts
+demux$status <- ifelse(!is.na(demux$st), 'highqual', 'undetermined')
+demux$noise[demux$status == 'undetermined'] <- 0 ## no way of calculating noise for those
 
-hist(st$sampletag_10_ratio)
-hist(st$sampletag_11_ratio)
+thres <- list()
+for (st in rownames(fd)) {
+    highquals <- demux[demux$status == 'highqual' & demux$st == st, 'cb']
+    if (length(highquals) > 0)
+        thres[[st]] <- min(fd[st, highquals])
+    else
+        thres[[st]] <- NA
+}
 
-(s10_q75 <- quantile(st$sampletag_10_ratio, 0.75, na.rm = TRUE))
-(s11_q75 <- quantile(st$sampletag_11_ratio, 0.75, na.rm = TRUE))
+for (st in names(thres)) {
+    demux[,st] <- sapply(fd[st,], function(x) {
+        if ((x) >= thres[[st]]) return(x)
+        else return(NA)
+    })    
+}
 
-st$sampletag <- ifelse(st$sampletag_10_ratio >= s10_q75,
-                       yes = 'sampletag10',
-                       no = ifelse(st$sampletag_11_ratio >= s11_q75,
-                                   yes = 'sampletag11',
-                                   no = 'uncertain'))
+(tags_noise <- data.frame(aggregate(demux$noise, list(st = demux$st), function(x) sum(x)/sum(demux$noise)),
+                          row.names = 1))
 
-plot(st$human_sampletag_10, st$human_sampletag_11, pch = 19, cex = 0.5,
-     col = as.numeric(as.factor(st$sampletag)))
+plot(demux$total_counts, demux$noise, pch = 19, cex = 0.3)
 
-table(st$sampletag)
+(m <- lm(demux$noise ~ 0 + demux$total_counts))
 
-stopifnot(all(rownames(st) == colnames(sce)))
-colData(sce)$sampletag <- st$sampletag
-rm(st)
+abline(m, col = 'red', lwd = 2)
+
+## let's hope the slope is positive!
+stopifnot(m$coefficients > 0)
+
+## predoct
+demux$predicted_noise <- predict(object = m, data = demux$total_counts)
+
+for (st in names(thres)) {
+    demux[paste0('weighted_noise_', st)] <- demux[, 'predicted_noise'] * tags_noise [st, 'x']
+
+    demux[paste0('corrected_', st)] <- demux[, st] - demux[, paste0('weighted_noise_', st)]
+    demux[paste0('corrected_', st)][is.na(demux[paste0('corrected_', st)])] <- 0
+}
+
+demux$called_st <- gsub('corrected_', '',
+                           apply(demux[, paste0('corrected_', names(thres))],
+                                 1,
+                                 function(x) paste0(names(demux[, paste0('corrected_', names(thres))])[x > min(x)], collapse = ',')))
+
+demux$status[demux$status != 'highqual' & nchar(demux$called_st) > 0] <- 'called'
+
+table(demux$status)
+
+demux <- demux[,c('cb', 'st', 'status', 'called_st')]
+
+table(demux$status, demux$called_st)
+
+```
+
+### Adding info to sce object
+
+```{r}
+
+barcodes<-intersect(colnames(sce),demux$cb)
+
+demux<-demux[barcodes,]
+sce<-sce[,barcodes]
+
+sce$sampletag<-demux$st
+
+table(sce$sampletag)
 
 ```
 
@@ -172,8 +232,6 @@ rm(st)
 ```{r}
 
 sce <- sce[,!is.na(sce$sampletag)]
-sce<-sce[,!sce$sampletag=="uncertain"]
-table(sce$sampletag)
 
 ```
 
@@ -207,7 +265,7 @@ ggplot(cd, aes(x = total, y = subsets_human_mito_percent)) +
   scale_x_log10() + 
   scale_y_sqrt() +
   facet_wrap(~sampletag) + 
-  geom_hline(yintercept=c(5,48), colour="orange") +
+  geom_hline(yintercept=c(6,48), colour="orange") +
   geom_vline(xintercept=c(1000), colour="orange") +
   geom_density2d()
 
@@ -220,7 +278,7 @@ dim(sce)
 ```{r}
 
 mito <- sce$subsets_human_mito_percent
-sce <- sce[,sce$total>1000 & mito>5 & mito<48]
+sce <- sce[,sce$total>1000 & mito>6 & mito<48]
 sce <- sce[rowSums(assay(sce,1))>2 | rowData(sce)$type=="capture" ,] 
 
 ```
@@ -453,7 +511,7 @@ inds <- split(seq_len(ncol(sce_nd)), sce_nd$cluster)
 
 set.seed(1976)
 
-cluster_order <- c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17)
+cluster_order <- c(1,2,3,4,5,6,7,8,9,10)
 inds <- inds[cluster_order]
 
 inds <- lapply(inds, sample, min(table(sce_nd$cluster)), 
