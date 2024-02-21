@@ -80,7 +80,7 @@ dir(datadir, ".barcode$")
 ```
 
 
-## Read in junction counts to sparse matrix
+## Read in read counts to sparse matrix
 
 
 ```{r}
@@ -153,6 +153,63 @@ b$location <- sapply(ss, .subset, 2)
 b$roi <- sapply(ss, .subset, 1)
 
 
+```
+
+
+## Read in junctions counts to sparse matrix
+
+
+```{r}
+
+juncfs <- list.files(file.path(datadir, "junctions"),
+                     "featurecounts.jcounts$", recursive = TRUE,
+                     full.names = TRUE)
+
+barcode <- sapply(basename(juncfs) %>% strsplit("CB_"),
+                  function(u) gsub(".bam.featurecounts.jcounts","", u[2]))
+
+samp <- sapply(juncfs %>% dirname %>% basename %>% strsplit("___"),
+       .subset, 1)
+
+key <- paste0(samp, ".", barcode)
+
+length(setdiff(sce$sample_id.barcode, key))
+length(setdiff(key, sce$sample_id.barcode))
+
+# only keep junction counts for barcodes we still have
+keep <- key %in% sce$sample_id.barcode
+juncfs <- juncfs[keep]
+key <- key[keep]
+
+# manually construct sparse matrix
+col_num <- match(key, sce$sample_id.barcode)
+
+fi <- file.info(juncfs)
+
+feat_tab <- read_delim(juncfs[which.max(fi$size)], delim = "\t", skip = 1,
+                       col_types = "ccddcdd") %>% 
+  as.data.frame %>% select(Geneid,Chr,Start,End,Strand,Length)
+
+system.time(
+cnts_tab <- sapply(juncfs %>% setNames(key), 
+                   function(u) {
+  rd <- read_delim(u, delim = "\t", skip = 1,
+                   col_types = "ccddcdd")
+  rd[,ncol(rd), drop = TRUE]
+})
+)
+
+w <- cnts_tab > 0
+rows <- row(cnts_tab)[w]
+cols <- col_num[col(cnts_tab)[w]]
+
+cnts_sparse <- sparseMatrix(rows, cols, x=cnts_tab[w],
+                            dims = c(nrow(feat_tab), ncol(sce)) )
+
+this_aE <- SummarizedExperiment(assays = list(tso_junction = cnts_sparse),
+                                rowData = feat_tab,
+                                colData = colData(sce))
+  
 ```
 
 # Plots of junctions detected

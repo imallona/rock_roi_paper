@@ -39,7 +39,7 @@ echo "Running featureCounts"
 for F in $(ls $tmpdir/split_*)
 do
     echo "- working on $F"
-    featureCounts -a $gtff -o $F.featurecounts $F -F GTF -t exon -g transcript_id -f -O -M -T 2 --fraction
+    featureCounts -a $gtff -o $F.featurecounts $F -F GTF -t exon -g transcript_id -f -J -O -M -T 2 --fraction
 done
 echo "done."
 
