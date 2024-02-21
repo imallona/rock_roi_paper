@@ -1,0 +1,433 @@
+---
+title: "00_mixing_i_wta_analysis"
+author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(googlesheets4)
+library(readr)
+library(plotROC)
+library(here)
+library(RColorBrewer)
+library(ggnewscale)
+library(scales)
+library(rmarkdown)
+library(khroma)
+library(irlba)
+library(viridis)
+library(gridExtra)
+library(quarto)
+library(Biostrings)
+library(BSgenome)
+library(rtracklayer)
+library(Matrix)
+library(Matrix.utils)
+library(edgeR)
+library(DESeq2)
+library(ggrepel)
+
+packageVersion("Matrix")
+
+```
+
+
+### Setting up knitr 
+
+```{r}
+
+knitr::opts_chunk$set(fig.width = 2.7,
+               fig.height = 2.7,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache=TRUE,
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+### Themes
+
+```{r}
+
+rock_roi_theme<-function(){
+  theme(axis.text = element_text(size=7), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=7),
+        aspect.ratio=1, 
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+}
+
+rock_roi_theme_multiple_panels<-function(){
+    theme(axis.text = element_text(size=7), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        aspect.ratio=1,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.title=element_text(size=5,face="bold"),
+        legend.text=element_text(size=5),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.border = element_rect(colour = "black", fill = NA))
+}
+
+```
+
+### Defining colors
+
+```{r}
+
+myscale<-c(color("muted")(9), gray="darkgrey", 
+             black = "black", darkorange = "darkorange",
+             yellowgreen = "yellowgreen")
+
+# defining colors for samples and for species
+
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtom_cds","no_detection","doublets","unmod_n1","high")
+
+#plot(1:13, col=myscale, pch=19, cex=4)
+
+```
+
+### Loading data
+
+```{r}
+
+rdss <- dir(here("00_mixing_experiment"), "^mixing.*rds", 
+            recursive = TRUE, full.names = TRUE)
+
+datadir <- dirname(rdss)[1] # folder where the .rds files are 
+
+sce_nd<-readRDS(file.path(datadir, "sce_nd.rds"))
+
+mouse<-sce_nd[,sce_nd$species=="mouse"]
+human<-sce_nd[,sce_nd$species=="human"]
+
+# also only want mouse genes in mouse and human genes in human
+
+mouse<-mouse[grep("^ENSMUS",rownames(mouse)),]
+human<-human[grep("^ENSG",rownames(human))]
+
+```
+
+### UMAP / PCA first for mouse
+
+```{r}
+
+mouse<-logNormCounts(mouse, assay.type = "wta")
+
+assay(mouse,"counts")<-assay(mouse,"wta")
+
+mouse<-addPerCellQCMetrics(mouse)
+
+mgv <- modelGeneVar(mouse, block = mouse$sample_id)
+
+mgv_pb  <- lapply(mgv$per.block, function(u) {
+ o <- order(u$p.value)
+ u <- u[o,]
+ head(rownames(u), 1000)
+})
+
+upset(fromList(mgv_pb))
+
+hvg <- mgv$bio > .01 & mgv$p.value < .01 & mgv$mean > .2
+mgv[hvg,] %>% 
+  as.data.frame %>% rownames -> hvg
+
+length(hvg)
+
+all(rownames(mouse)==rownames(mgv))
+
+mgv <- cbind(mgv, gene_type = rowData(mouse)$type)
+
+rowData(mouse)[hvg,]$type %>% table
+
+# removing mt genes
+
+hvg <- mgv$bio > .01 & mgv$p.value < .01 & mgv$mean > .2 & mgv$gene_type %in% c("mouse_gene","human_gene")
+rn <- rownames(mgv)[hvg]
+length(rn)
+
+# UMAP and PCA
+
+mouse <- fixedPCA(mouse, subset.row=rn, rank = 20) 
+mouse <- runUMAP(mouse, dimred="PCA")
+
+plotPCA(mouse, colour_by = "subsets_human_gene_percent")
+plotPCA(mouse, colour_by = "subsets_mouse_gene_percent")
+
+plotUMAP(mouse, colour_by = "sample_id")
+
+nn.clusters <- clusterCells(mouse, use.dimred="PCA")
+colLabels(mouse) <- nn.clusters
+plotReducedDim(mouse, "UMAP", colour_by="label")
+
+summed <- aggregateAcrossCells(mouse, 
+    ids=colData(mouse)[,c("sample_id")],use.assay.type="wta")
+
+assay(summed,"wta")
+
+# DEG plots
+
+y <- DGEList(assay(summed), samples=colData(summed))
+
+# MD plot
+
+for (i in seq_len(ncol(y))) {
+    plotMD(y, column=i)
+}
+
+# Logcpms
+
+assay(summed,"counts")<-assay(summed,"wta")
+mouse_logcpm<-as.data.frame(cpm(summed,log=TRUE,prior.count=1))
+mouse_logcpm$genes<-rownames(mouse_logcpm)
+
+# Pearson corr 
+
+pearson_corr<-list()
+
+for (i in 1:4){
+  for (k in 1:4){
+    pearson_corr[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]]<-cor(mouse_logcpm[,i],mouse_logcpm[,k],method="pearson")
+  }
+}
+
+# Dots with highest difference logcpms 
+
+delta_mouse_logcpm<-list()
+top_10<-list()
+
+for (i in 1:4){
+  for (k in 1:4){
+    delta_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]]<-data.frame(value=abs(mouse_logcpm[i]-mouse_logcpm[k]))
+    colnames(delta_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]])<-c("value")
+    rownames(delta_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]])<-rownames(mouse_logcpm)
+    delta_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]]$genes<-rownames(delta_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]])
+    delta_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]]<-delta_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]][order(delta_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]]$value,decreasing = TRUE),]
+  }
+}
+
+l_mouse_logcpm<-list()
+top_10<-list()
+
+for (i in 1:4){
+  for (k in 1:4){
+    l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]]<-mouse_logcpm[delta_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]]$genes,]
+    l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]]$label<-""
+    # just want to take the genes with delta >0 because the ones below 0 anyway have a high delta
+    pos<-which(l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]][,i]>0 & l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]][,k]>0)
+    top_10[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]]<-delta_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]][pos,]$genes[1:10]
+    l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]][top_10[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]],]$label<-top_10[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]]
+  }
+}
+
+# ggplot
+
+for (i in 1:4){
+  for (k in 1:4){
+    p<-ggplot(l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]],aes(x=l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]][,i],
+                                                                                                    y=l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]][,k],
+                                                                                                    label=l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]]$label))+
+    geom_text_repel(size=2,max.overlaps = 10000,colour="red")+
+    geom_point(alpha=0.2,size=0.5,color=ifelse(l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]]$label == "", "black", "red"))+
+    xlab("pseudobulk expression (logcpm) unmod")+
+    ylab("pseudobulk expression (logcpm) unmod_n1")+
+    theme_bw()+
+    ggtitle("Mouse")+
+    xlab(colnames(l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]])[i])+
+    ylab(colnames(l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]])[k])+
+    rock_roi_theme()+
+    theme(axis.title.x=element_text(colour=myscale[[gsub("mixing_","",colnames(mouse_logcpm))[i]]]))+
+    theme(axis.title.y=element_text(colour=myscale[[gsub("mixing_","",colnames(mouse_logcpm))[k]]]))+
+    geom_text(x=5, y=13, label=format(round(pearson_corr[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]],3)),size=3)
+    print(p)
+  }
+}
+
+# many of the top 10 seem to be in common
+
+```
+
+
+
+### UMAP / PCA for human
+
+```{r}
+
+rm(mouse)
+rm(mouse_logcpm)
+rm(l_mouse_logcpm)
+
+human<-logNormCounts(human, assay.type = "wta")
+
+assay(human,"counts")<-assay(human,"wta")
+
+human<-addPerCellQCMetrics(human)
+
+mgv <- modelGeneVar(human, block = human$sample_id)
+
+mgv_pb  <- lapply(mgv$per.block, function(u) {
+ o <- order(u$p.value)
+ u <- u[o,]
+ head(rownames(u), 1000)
+})
+
+upset(fromList(mgv_pb))
+
+hvg <- mgv$bio > .01 & mgv$p.value < .01 & mgv$mean > .2
+mgv[hvg,] %>% 
+  as.data.frame %>% rownames -> hvg
+
+length(hvg)
+
+all(rownames(human)==rownames(mgv))
+
+mgv <- cbind(mgv, gene_type = rowData(human)$type)
+
+rowData(human)[hvg,]$type %>% table
+
+# removing mt genes
+
+hvg <- mgv$bio > .01 & mgv$p.value < .01 & mgv$mean > .2 & mgv$gene_type %in% c("mouse_gene","human_gene")
+rn <- rownames(mgv)[hvg]
+length(rn)
+
+# UMAP and PCA
+
+human <- fixedPCA(human, subset.row=rn, rank = 20) 
+human <- runUMAP(human, dimred="PCA")
+
+plotPCA(human, colour_by = "subsets_human_gene_percent")
+plotPCA(human, colour_by = "subsets_mouse_gene_percent")
+
+plotUMAP(human, colour_by = "sample_id")
+
+nn.clusters <- clusterCells(human, use.dimred="PCA")
+colLabels(human) <- nn.clusters
+plotReducedDim(human, "UMAP", colour_by="label")
+
+summed <- aggregateAcrossCells(human, 
+    ids=colData(human)[,c("sample_id")],use.assay.type="wta")
+
+assay(summed,"wta")
+
+# DEG plots
+
+y <- DGEList(assay(summed), samples=colData(summed))
+
+# MD plot
+
+for (i in seq_len(ncol(y))) {
+    plotMD(y, column=i)
+}
+
+# Logcpms
+
+assay(summed,"counts")<-assay(summed,"wta")
+human_logcpm<-as.data.frame(cpm(summed,log=TRUE,prior.count=1))
+human_logcpm$genes<-rownames(human_logcpm)
+
+# Pearson corr 
+
+pearson_corr<-list()
+
+for (i in 1:4){
+  for (k in 1:4){
+    pearson_corr[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]]<-cor(human_logcpm[,i],human_logcpm[,k],method="pearson")
+  }
+}
+
+# Dots with highest difference logcpms 
+
+delta_human_logcpm<-list()
+top_10<-list()
+
+for (i in 1:4){
+  for (k in 1:4){
+    delta_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]]<-data.frame(value=abs(human_logcpm[i]-human_logcpm[k]))
+    colnames(delta_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]])<-c("value")
+    rownames(delta_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]])<-rownames(human_logcpm)
+    delta_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]]$genes<-rownames(delta_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]])
+    delta_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]]<-delta_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]][order(delta_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]]$value,decreasing = TRUE),]
+  }
+}
+
+l_human_logcpm<-list()
+top_10<-list()
+
+for (i in 1:4){
+  for (k in 1:4){
+    l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]]<-human_logcpm[delta_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]]$genes,]
+    l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]]$label<-""
+    # just want to take the genes with delta >0 because the ones below 0 anyway have a high delta
+    pos<-which(l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]][,i]>0 & l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]][,k]>0)
+    top_10[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]]<-delta_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]][pos,]$genes[1:10]
+    l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]][top_10[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]],]$label<-top_10[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]]
+  }
+}
+
+# ggplot
+
+for (i in 1:4){
+  for (k in 1:4){
+    p<-ggplot(l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]],aes(x=l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]][,i],
+                                                                                                    y=l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]][,k],
+                                                                                                    label=l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]]$label))+
+    geom_text_repel(size=2,max.overlaps = 10000,colour="red")+
+    geom_point(alpha=0.2,size=0.5,color=ifelse(l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]]$label == "", "black", "red"))+
+    xlab("pseudobulk expression (logcpm) unmod")+
+    ylab("pseudobulk expression (logcpm) unmod_n1")+
+    theme_bw()+
+    ggtitle("Human")+
+    xlab(colnames(l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]])[i])+
+    ylab(colnames(l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]])[k])+
+    rock_roi_theme()+
+    theme(axis.title.x=element_text(colour=myscale[[gsub("mixing_","",colnames(human_logcpm))[i]]]))+
+    theme(axis.title.y=element_text(colour=myscale[[gsub("mixing_","",colnames(human_logcpm))[k]]]))+
+    geom_text(x=5, y=13, label=format(round(pearson_corr[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]],3)),size=3)
+    print(p)
+  }
+}
+
+```
+
+### Session info
+
+```{r}
+
+sessionInfo()
+
+```
