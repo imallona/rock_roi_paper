@@ -17,6 +17,9 @@ human_gtf=gencode.v38.basic.annotation.gtf
 wget http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_38/"$human_fa".gz
 wget http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_38/"$human_gtf".gz
 
+mv "$human_fa".gz leukemia.fa.gz
+mv "$human_gtf".gz leukemia.gtf.gz
+
 pigz --decompress *gz
 
 rm $human_fa $human_gtf
