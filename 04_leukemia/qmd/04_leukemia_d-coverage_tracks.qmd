@@ -1,0 +1,315 @@
+---
+title: "04_leukemia_d-coverage_tracks"
+author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+### TO DO
+
+```{r}
+
+# generate a subsetted .bw file so that have umi and cb dedup tracks 
+# substitute the subset_bam with new bam files
+
+```
+
+### Setting up knitr 
+
+```{r}
+
+library(knitr)
+
+knitr::opts_chunk$set(fig.width = 14,
+               fig.height = 8,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache.lazy = FALSE,
+               cache=TRUE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+### Load packages, load data 
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(GenomicRanges)
+library(GenomicAlignments)
+library(rtracklayer)
+library(Gviz)
+library(plyranges)
+library(seqinr)
+library(Rsamtools)
+library(googlesheets4)
+library(tools)
+library(here)
+library(SingleCellExperiment)
+
+```
+
+### In this case can't use bw files since need to subset the objects based on barcodes, start with subsetted .bam files
+
+```{r}
+
+getwd()
+
+bam<-dir(here("04_leukemia"), "*.bam", 
+            recursive = TRUE, full.names = TRUE)
+
+names(bam) <- gsub(".bam", "", basename(bam))
+names(bam) <- gsub("subset_", "",names(bam))
+
+datadir <- dirname(bam)[1] # folder where the .bam files are 
+
+for (i in 1:length(bam)){
+  indexBam(bam[[i]])
+}
+
+```
+
+### Defining barcodes belonging to the patients 
+
+```{r}
+
+rdss <- dir(here("04_leukemia"), ".*rds", 
+            recursive = TRUE, full.names = TRUE)
+
+names(rdss) <- gsub(".rds", "", basename(rdss))
+rdss # prints the .rds files in the 00_mixing_experiment folder
+
+datadir <- dirname(rdss)[1] # folder where the .rds files are 
+
+sces <- mapply(function(u,v)  {
+  rds <- readRDS(u)
+  rds$sample_id <- v
+  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
+  # colnames(rowData(rds)) <- c("name", "type", "value","captured")
+  g <- grepl("^ENS", rownames(rds))
+  rownames(rds)[g] <- paste0(rownames(rds)[g], 
+                             "__", rowData(rds)$name[g])
+  rowData(rds)$type <- "capture"
+  k <- grepl("^ENSG", rownames(rds))
+  rowData(rds)$type[k] <- "human_gene"
+  k <- grepl("^ENSMUS", rownames(rds))
+  rowData(rds)$type[k] <- "mouse_gene"
+  k <- grepl("^mt", rowData(rds)$name)
+  rowData(rds)$type[k] <- "mouse_mito"
+  k <- grepl("^MT", rowData(rds)$name)
+  rowData(rds)$type[k] <- "human_mito"
+  rds
+}, rdss, names(rdss))
+
+sample_tags<-assay(sces$sampletags_summarizedexperiment)[c("human_sampletag_10","human_sampletag_11"),]
+
+sample_tags<-sample_tags[,which(colSums(sample_tags)>0)]
+
+# defining barcode as part of a sample tag with more than 10 reads for a barcode
+
+barcodes_human_10<-colnames(sample_tags[,which(sample_tags["human_sampletag_10",]>10)])
+barcodes_human_11<-colnames(sample_tags[,which(sample_tags["human_sampletag_11",]>10)])
+
+common<-intersect(barcodes_human_10,barcodes_human_11) # there are 532 with both more than 10, removing these just to be sure
+length(common)
+
+barcodes_human_10<-setdiff(barcodes_human_10,common)
+barcodes_human_11<-setdiff(barcodes_human_11,common)
+
+```
+
+### Importing .gtf file
+
+```{r}
+
+options(ucscChromosomeNames=FALSE)
+
+gtf<-dir(here("04_leukemia"), ".*gtf", 
+            recursive = TRUE, full.names = TRUE)
+
+combined_gtf<-import(gtf)
+
+```
+
+### Plots for .bam files (not patient subsetted)
+
+```{r}
+
+chr<-c("bcr_abl1_e1_a2","bcr_abl1_e13_a2","bcr_abl1_e14_a2")
+bam_coverages<-list()
+bam_coverages_overlayed<-list()
+gms<-list()
+modality<-c("wta","tso")
+
+for (x in chr){
+  coverage_chr<-list()
+  
+  gm <- GeneRegionTrack(combined_gtf[which(seqnames(combined_gtf)==x),],
+                           chromosome=x,
+                           name=x,
+                           geneSymbol=TRUE,
+                           showId=TRUE,
+                           transcriptAnnotation="gene")
+  
+  gm@range$gene<-combined_gtf[which(seqnames(combined_gtf)==x),]$gene_id
+  
+
+  displayPars(gm) <- list(fill="cadetblue2")
+  
+  displayPars(gm)<-list(col="black",
+                           cex.group=0.5,
+                           col.line="black",
+                           fontcolor.group="black")
+  
+  gms[[x]]<-gm
+  
+  z<- GRanges(x, IRanges(start(gm@range)[1]-500,max(end(gm@range))))
+  param <- ScanBamParam(which=z)
+  
+  gals <- lapply(bam, function(x) {
+    readGAlignments(x, use.names = TRUE, param=param)
+    })
+  
+  covs<-lapply(gals,coverage)
+  covs<-lapply(covs,function(x) as(x,"GRanges"))
+  
+  for (i in 1:length(covs)){
+  covs[[i]]<-DataTrack(covs[[i]],
+                            chromosome=x,
+                            name=names(covs)[[i]])
+  }
+  
+  for (i in names(covs)){
+    displayPars(covs[[i]])<-list(col.histogram="black",
+                                 fill.histogram=TRUE)
+  }
+
+  overlays_bam<-list()
+  
+  for (i in modality){
+    overlays_bam[[i]]<-OverlayTrack(trackList=list(covs[[i]],covs[[i]]))
+  }
+  
+  plotTracks(c(overlays_bam,
+             gms[[x]]),
+           type="histogram",
+           from=start(gms[[x]]@range)[1]-400,
+           end=gms[[x]]@end,
+           cex.axis = 0.5,
+           cex.title=0.5,
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           lwd.title=0.5)
+  
+    bam_coverages[[x]]<-covs
+    bam_coverages_overlayed[[x]]<-overlays_bam
+}
+
+```
+
+### Plots with subsetting based on sample tags 
+
+```{r}
+
+chr<-c("bcr_abl1_e1_a2","bcr_abl1_e13_a2","bcr_abl1_e14_a2")
+bam_coverages<-list()
+bam_coverages_overlayed<-list()
+gms<-list()
+modality<-c("wta","tso")
+
+barcodes<-list(barcodes_human_10,barcodes_human_11)
+names(barcodes)<-c("barcodes_human_10","barcodes_human_11")
+
+for (x in chr){
+  coverage_chr<-list()
+  
+  gm <- GeneRegionTrack(combined_gtf[which(seqnames(combined_gtf)==x),],
+                           chromosome=x,
+                           name=x,
+                           geneSymbol=TRUE,
+                           showId=TRUE,
+                           transcriptAnnotation="gene")
+  
+  gm@range$gene<-combined_gtf[which(seqnames(combined_gtf)==x),]$gene_id
+  
+
+  displayPars(gm) <- list(fill="cadetblue2")
+  
+  displayPars(gm)<-list(col="black",
+                           cex.group=0.5,
+                           col.line="black",
+                           fontcolor.group="black")
+  
+  gms[[x]]<-gm
+  
+  for (k in 1:length(barcodes)){
+
+    z<- GRanges(x, IRanges(start(gm@range)[1]-500,max(end(gm@range))))
+    param <- ScanBamParam(which=z,
+                          what=c("qname"),
+                          tag="CB",
+                          tagFilter=list(CB=barcodes[[k]]))
+  
+    gals <- lapply(bam, function(x) {
+      readGAlignments(x, use.names = TRUE, param=param)
+    })
+  
+    covs<-lapply(gals,coverage)
+    covs<-lapply(covs,function(x) as(x,"GRanges"))
+  
+    for (i in 1:length(covs)){
+      covs[[i]]<-DataTrack(covs[[i]],
+                            chromosome=x,
+                            name=names(covs)[[i]])
+    }
+  
+    for (i in names(covs)){
+      displayPars(covs[[i]])<-list(col.histogram="black",
+                                  fill.histogram=TRUE)
+    }
+
+    overlays_bam<-list()
+  
+    for (i in modality){
+      overlays_bam[[i]]<-OverlayTrack(trackList=list(covs[[i]],covs[[i]]))
+    }
+    
+    ranges<-c()
+    for (i in modality){
+      ranges[i]<-max(range(c(values(covs[[i]]), 
+                     values(covs[[i]]))))
+    }
+  
+    plotTracks(c(overlays_bam,
+             gms[[x]]),
+           type="histogram",
+           main=names(barcodes)[[k]],
+           from=start(gms[[x]]@range)[1]-400,
+           end=gms[[x]]@end,
+           cex.axis = 0.5,
+           cex.title=0.5,
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           lwd.title=0.5,
+           ylim=c(0,max(ranges)))
+  
+    bam_coverages[[x]][[names(barcodes)[[k]]]]<-covs
+    bam_coverages_overlayed[[x]][[names(barcodes)[[k]]]]<-overlays_bam
+  }
+}
+
+```
+
+

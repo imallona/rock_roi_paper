@@ -1,0 +1,267 @@
+---
+title: "05_FACS_plots_h_new_controls_new_beads"
+author: "Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+### Load packages
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(flowCore)
+library(khroma)
+library(here)
+library(flowViz)
+library(ggcyto)
+library(ggplot2)
+library(ggridges)
+library(ggh4x)
+library(reshape2)
+
+```
+
+### Setting up knitr 
+
+```{r}
+
+knitr::opts_chunk$set(fig.width = 2.7,
+               fig.height = 2.7,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache=TRUE,
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+### Themes
+
+```{r}
+
+rock_roi_theme<-function(){
+  theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        aspect.ratio=1,
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+}
+
+facs_rock_roi_theme_multiple_panels<-function(){
+    theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        aspect.ratio=1,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.border = element_rect(colour = "black", fill = NA))
+}
+
+facs_hist_rock_roi_theme<-function(){
+  theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        aspect.ratio=1,
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.border=element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background=element_rect(colour="white", 
+                                               fill="white"))
+}
+
+```
+
+
+### Importing data
+
+```{r}
+
+rdss <- dir(here("05_facs_plots/data/new controls new beads"), "*.fcs", 
+            recursive = TRUE, full.names = TRUE)
+
+datadir <- dirname(rdss)[1] # folder where the .rds files are 
+
+```
+
+### Reading data
+
+```{r}
+
+titration<-read.flowSet(rdss)
+
+sampleNames(titration) <- gsub("Specimen_001_", "", sampleNames(titration))
+sampleNames(titration) <- gsub(".fcs", "", sampleNames(titration))
+
+# reordering data
+
+titration<-titration[c(9,3,8,10,5,4,2,1,7,6)]
+
+sampleNames(titration)<-c("pos_dt","pos_TSO","neg","unmod","heat_dT","heat_TSO","37_dT","37_TSO","heat_37_dT","heat_37_TSO")
+pData(titration)$name<-c("pos_dt","pos_TSO","neg","unmod","heat_dT","heat_TSO","37_dT","37_TSO","heat_37_dT","heat_37_TSO")
+
+```
+
+### Defining colors
+
+```{r}
+
+myscale<-c(color("muted")(9), gray="darkgrey", 
+             black = "black", darkorange = "darkorange",
+             yellowgreen = "yellowgreen")
+
+# defining colors for samples and for species
+
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtom_cds","no_detection","doublets","low","high")
+
+#plot(1:13, col=myscale, pch=19, cex=4)
+
+```
+
+### Gate
+
+```{r,fig.width=8,fig.height=5}
+
+sqrcut <- matrix(c(45000,60000,70000,80000,90000,100000,120000,110000,90000,80000,70000,60000,45000,
+                   60000,100000,105000,130000,130000,115000,90000,65000,45000,43000,45000,47000,60000),ncol=2,nrow=13)
+colnames(sqrcut) <- c("FSC-A","SSC-A")
+colnames(sqrcut) <- c("FSC-A","SSC-A")
+
+beads <- polygonGate(filterId="beads", gate= sqrcut)
+
+ggcyto(titration, aes(x = FSC.A, y = SSC.A)) + 
+  geom_hex(bins = 100) + 
+  facet_wrap(~factor(name, levels = c("pos_dt","pos_TSO","neg","unmod","heat_dT","heat_TSO","37_dT","37_TSO","heat_37_dT","heat_37_TSO"))) +
+  geom_gate(beads) + 
+  geom_stats(type = c("percent"),size = 2,adjust=c(0.7,1.2)) +
+  theme_bw() +
+  facs_rock_roi_theme_multiple_panels() 
+
+gs <- GatingSet(titration) # create a GatingSet
+gs_pop_add(gs, beads,parent="root")
+recompute(gs)
+
+# check filtering 
+
+filt_titration <- Subset(titration, beads)
+
+ggcyto(filt_titration, aes(x = FSC.A, y = SSC.A)) + 
+  geom_hex(bins = 100) + 
+  facet_wrap(~factor(name, levels = c("pos_dt","pos_TSO","neg","unmod","heat_dT","heat_TSO","37_dT","37_TSO","heat_37_dT","heat_37_TSO"))) +
+  geom_gate(beads) + 
+  theme_bw() +
+  facs_rock_roi_theme_multiple_panels()
+
+```
+
+### Trasformation data biexponential
+
+```{r,fig.width=3,fig.height=5.4}
+
+ggcyto(filt_titration, aes(x = "APC-A", fill = name,color=name)) + 
+  geom_histogram(alpha = 1,bins=256) + 
+  scale_x_flowjo_biexp() +
+  facet_wrap(~factor(name, levels = c("pos_dt","pos_TSO","neg","unmod","heat_dT","heat_TSO","37_dT","37_TSO","heat_37_dT","heat_37_TSO")),ncol=1,switch = "y")+
+  theme_bw() +
+  facs_hist_rock_roi_theme()+
+  theme(strip.placement = "outside")+
+  theme(legend.position = "none")+
+  theme(strip.text = element_text(size=5,face="bold"))+
+  force_panelsizes(rows = unit(0.25, "in"),
+                   cols = unit(2.5, "in"))+
+  theme(panel.spacing = unit(0.1, "lines"))+
+  theme(strip.text.y = element_blank())+
+  theme(axis.line = element_line())+
+  scale_fill_manual(values=c(pos_dt="#882155",
+                             pos_TSO="#CC6677",
+                             neg="#C0C0C0",
+                             unmod="black",
+                             "heat_TSO"="#12783D",
+                             "heat_dT"="#12783D",
+                             "37_TSO"="#12783D",
+                             "37_dT"="#12783D",
+                             "heat_37_TSO"="#12783D",
+                             "heat_37_dT"="#12783D"))+
+    scale_color_manual(values=c(pos_dt="#882155",
+                             pos_TSO="#CC6677",
+                             neg="#C0C0C0",
+                             unmod="black",
+                             "heat_TSO"="#12783D",
+                             "heat_dT"="#12783D",
+                             "37_TSO"="#12783D",
+                             "37_dT"="#12783D",
+                             "heat_37_TSO"="#12783D",
+                             "heat_37_dT"="#12783D"))
+  
+```
+
+### Boxplots
+
+```{r,fig.width=8.1,fig.height=2.7}
+
+list_filt_titration<-list()
+
+for (i in 1:length(filt_titration)){
+  list_filt_titration[[sampleNames(filt_titration)[[i]]]]<-as.data.frame(filt_titration[[i]]@exprs)$"APC-A"
+}
+
+plottable<-melt(list_filt_titration)
+
+ggplot(plottable,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","unmod","heat_dT","heat_TSO","37_dT","37_TSO","heat_37_dT","heat_37_TSO")),y=value))+
+  geom_boxplot(aes(fill=L1),width=0.8,outlier.size = 0.5)+
+  scale_y_flowjo_biexp()+
+  theme_bw()+
+  xlab("sample")+
+  rock_roi_theme()+
+  theme(legend.position = "none")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+
+  ylab("APC-A Atto647N")+
+  scale_fill_manual(values=c(pos_dt="#882155",
+                             pos_TSO="#CC6677",
+                             neg="#C0C0C0",
+                             unmod="black",
+                             "heat_TSO"="#12783D",
+                             "heat_dT"="#12783D",
+                             "37_TSO"="#12783D",
+                             "37_dT"="#12783D",
+                             "heat_37_TSO"="#12783D",
+                             "heat_37_dT"="#12783D"))
+  
+```
+
+### Session info
+
+```{r}
+
+sessionInfo()
+
+```

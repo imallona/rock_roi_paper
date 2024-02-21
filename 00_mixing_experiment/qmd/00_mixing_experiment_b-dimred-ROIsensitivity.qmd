@@ -1,0 +1,446 @@
+---
+title: "Preprocessing of 01_mixing_experiment (Mouse with egfr, Human with tdtomato)"
+format:
+  html:
+    toc: true
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Load packages, load data
+
+```{r, warning=FALSE, message=FALSE}
+library(SingleCellExperiment)
+library(scran)
+library(scater)
+library(ggplot2)
+library(dplyr)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(plotROC)
+library(here)
+
+
+datadir <- file.path(here("00_mixing_experiment"), "data")
+
+# save filtered to RDS
+sces_nd <- readRDS(file.path(datadir, "sce_qc-filtered-nodoublets.rds"))
+
+```
+
+
+## Normalize, HVGs
+
+
+```{r}
+
+sces_nd <- logNormCounts(sces_nd, assay.type = "wta")
+
+# find HVGs
+mgv <- modelGeneVar(sces_nd, block = sces_nd$sample_id)
+
+mgv_pb  <- lapply(mgv$per.block, function(u) {
+ o <- order(u$p.value)
+ u <- u[o,]
+ head(rownames(u), 1000)
+})
+
+# most are sample-wise (?)
+upset(fromList(mgv_pb))
+
+# arbitrary cutoff to pick some HVGs
+hvg <- mgv$bio > .01 & mgv$p.value < .01 & mgv$mean > .2
+mgv[hvg,] %>% 
+  as.data.frame %>% rownames -> hvg
+length(hvg)
+
+all(rownames(sces_nd)==rownames(mgv))
+
+mgv <- cbind(mgv, gene_type = rowData(sces_nd)$gene_type)
+
+rowData(sces_nd)[hvg,]$gene_type %>% table
+# basically all expressed mouse genes are HV; mainly different b/w
+# +ROI and -ROI
+
+# remove mito genes
+hvg <- mgv$bio > .01 & mgv$p.value < .01 & mgv$mean > .2 & mgv$gene_type %in% c("mouse_gene", "human_gene")
+rn <- rownames(mgv)[hvg]
+length(rn)
+
+
+ggplot(mgv %>% data.frame %>% filter(gene_type != "capture"),
+       aes(x=mean, y=bio, colour=p.value<.05, shape = gene_type)) +
+  geom_point() + facet_wrap(~gene_type)
+
+```
+
+## Some genes we know about
+
+```{r}
+# a couple mouse genes we know about
+plotExpression(sces_nd, features="ENSMUSG00000056941.17__Commd7", 
+               x = "sample_id", colour_by = "subsets_mouse_gene_percent",
+               shape_by = "origin") +
+  facet_wrap(~shape_by) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  ggtitle("ENSMUSG00000056941.17__Commd7")
+
+plotExpression(sces_nd, features="ENSMUSG00000110295.1__Gm45319", 
+               x = "total", colour_by = "sample_id",
+               shape_by = "origin") +
+  facet_grid(colour_by~shape_by) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  scale_x_log10() +
+  ggtitle("ENSMUSG00000110295.1__Gm45319")
+
+
+```
+
+## Dim reduction, UMAP
+
+```{r}
+
+sces_nd <- fixedPCA(sces_nd, subset.row=rn, rank = 20) 
+sces_nd <- runUMAP(sces_nd, dimred="PCA")
+
+# km <- kmeans(reducedDim(sces, "UMAP"), centers = 5)
+
+plotPCA(sces_nd, colour_by = "subsets_human_gene_percent")
+plotPCA(sces_nd, colour_by = "sample_id", ncomponents = 4)
+plotPCA(sces_nd, colour_by = "subsets_human_gene_percent", 
+        ncomponents = 4)
+
+plotUMAP(sces_nd, colour_by = "subsets_human_gene_percent")
+plotUMAP(sces_nd, colour_by = "sample_id")
+
+# very crude but works
+set.seed(1976)
+km <- kmeans(reducedDim(sces_nd, "UMAP"), centers = 3, iter.max = 100)
+
+sces_nd$cluster <- as.factor(km$cluster)
+
+plotUMAP(sces_nd, colour_by = "cluster", point_size = 4, point_alpha = .9)
+
+table(sces_nd$sample_id, sces_nd$cluster)
+
+# logcounts <- as.matrix(logcounts(sces_nd))
+mm <- model.matrix(~cluster, 
+                   data=as.data.frame(colData(sces_nd)))
+
+inds <- split(1:ncol(sces_nd), sces_nd$cluster)
+s <- unlist(lapply(inds, sample, 1000))
+
+s1 <- unlist(lapply(inds, sample, 50))
+lcounts <- logcounts(sces_nd)
+corr <- cor( as.matrix(lcounts[,s1]) )
+col_anno <- colData(sces_nd)[s1,c("origin","sample_id")] %>% as.data.frame
+pheatmap(corr, show_rownames = FALSE, show_colnames = FALSE,
+         treeheight_row = 0, treeheight_col = 0,
+         annotation_col = col_anno)
+
+
+table(rs <- rowSums(lcounts)>50 & rowData(sces_nd)$gene_type %in% 
+        c("human_gene", "mouse_gene") )
+f <- lmFit(as.matrix(lcounts[rs,s]), mm[s,])
+f <- eBayes(f)
+
+tt <- topTable(f, coef=2:3, number = 1e6, sort.by = "none")
+topTable(f, coef=2:3, number = 5)
+
+# no big deal .. a human gene distinguishes
+plotUMAP(sces_nd, colour_by = "ENSG00000242485.6__MRPL20")
+
+
+
+# tt_m <- topTable(f, coef=2, number = 1e6)
+# 
+# ggplot(tt, aes(x=AveExpr, y=-log10(adj.P.Val+1e-100))) + 
+#   geom_point()
+
+
+# colData(sces_nd)[s,] %>% as.data.frame
+
+
+p <- plotUMAP(sces_nd[,s], colour_by = "cluster", 
+              point_size = 4)
+q <- plotUMAP(sces_nd[,s], colour_by = "sample_id", 
+              shape_by = "sample_id")
+r <- plotUMAP(sces_nd[,s], colour_by = "origin",
+              point_size = 4)
+
+cowplot::plot_grid(p,q,r,nrow=2)
+
+cds <- colData(sces_nd)[s,] %>% as.data.frame
+with(cds, table(origin, sample_id))
+with(cds, table(cluster, origin))
+
+
+o <- order(cds$origin, cds$sample_id)
+exprs <- as.matrix(logcounts(sces_nd)[hvg,s])
+dim(exprs)
+
+```
+
+
+## Sensitivity analysis
+
+```{r}
+
+exprs_nd <- assay(altExp(sces_nd),1)
+
+# exprs_nd <- assay(sces_nd, "tso_off_and_ontarget_unique")
+# keep <- rownames(exprs_nd)[rownames(exprs_nd) %in% rownames(altExp(sces_nd))]
+# exprs_nd <- exprs_nd[keep,]
+# 
+# par(mfrow=c(2,4))
+# for(tso in names(sorted))
+#   plot(sces_nd$subsets_mouse_gene_percent,
+#        jitter(exprs_nd[tso,]), pch=19, main=tso,
+#        xlab="mouse percent",
+#        ylab=tso)
+
+
+sort(rowSums(exprs_nd, na.rm = TRUE), decreasing = TRUE) -> sorted
+
+df <- data.frame(mouse = (sces_nd$origin == "mouse")+0,
+                 human = (sces_nd$origin == "human")+0,
+                 sample = sces_nd$sample_id,
+                 as.matrix(t(exprs_nd[names(sorted),])))
+dfm <- melt(df, id.vars = c("human","mouse","sample"))
+
+
+human_targets <- grep("tdtomato", names(sorted), value = TRUE)
+
+p <- ggplot(dfm %>% filter(variable %in% c("roi_1_tdtomato", "roi_2_tdtomato")),
+                      aes(m = value, d = human, colour=sample, group=sample)) + 
+  geom_roc(size = 1.2, alpha = .8,
+           position = position_dodge2(width=.001)) +
+  facet_grid(~variable) +
+  xlim(0, .018) +
+  ggtitle("Human targets") +
+  theme(legend.position="bottom")
+
+mouse_targets <- grep("egfp", names(sorted), value = TRUE)
+
+q <- ggplot(dfm %>% filter(variable %in% c("rock_egfp","roi_egfp")),
+                      aes(m = value, d = mouse, colour=sample, group=sample)) + 
+  geom_roc(size = 1.2, alpha = .8,
+           position = position_dodge2(width=.001)) +
+  facet_grid(~variable) +
+  xlim(0, .018) +
+  ggtitle("Mouse targets") +
+  theme(legend.position="none") 
+
+
+cowplot::plot_grid(p,q, nrow=2)
+
+
+```
+
+
+
+## Focus on mouse
+
+```{r}
+
+m <- sces_nd[rowData(sces_nd)$gene_type=="mouse_gene", 
+             sces_nd$subsets_mouse_gene_percent > 50]
+table(k <- rowSums(assay(m,"wta")) > 0)
+m <- m[k,]
+
+length(unique(colnames(m)))
+
+table(m$sample_id)
+
+
+mgv <- modelGeneVar(m, block = m$sample_id)
+
+# not much overlap across 'treatment', but that's probably
+# expected because there are no cell types here
+mgv_pb  <- lapply(mgv$per.block, function(u) {
+ o <- order(u$p.value)
+ u <- u[o,]
+ head(rownames(u), 500)
+})
+upset(fromList(mgv_pb))
+
+
+ggplot(mgv %>% data.frame,
+       aes(x=mean, y=bio, colour=p.value<.05)) +
+  geom_point()
+
+hvg <- mgv$bio > .005 & mgv$p.value < .1
+table(hvg)
+rn <- rownames(mgv)[hvg]
+
+m <- fixedPCA(m, subset.row=rn) 
+m <- runUMAP(m, dimred="PCA")
+
+# plotPCA(ms, colour_by = "mod", ncomponents = 4)
+plotUMAP(m, colour_by = "sample_id", point_size = 4)
+# plotUMAP(m, colour_by = "sample_id") + facet_wrap(~colour_by)
+
+
+logcounts <- as.matrix(logcounts(m))
+mm <- model.matrix(~sample_id, data=as.data.frame(colData(m)))
+
+f <- lmFit(logcounts, mm)
+f <- eBayes(f)
+
+tt <- topTable(f, coef=2:4, number = 1e6, sort.by = "none")
+
+
+inds <- split(1:ncol(m), m$sample_id)
+s <- unname(unlist(lapply(inds, sample, 200)))
+
+
+aac <- aggregateAcrossCells(m, m$sample_id,use.assay.type="wta")
+
+
+calc_entropy <- function(u) {
+  p <- u[u>0]
+  p <- p/sum(p)
+  -sum(p*log(p))
+}
+
+# adjust the aggregated counts for the number of cells
+agg_counts <- assay(aac,"wta")
+# tb_tis <- table(hs$mod)
+# all( colnames(agg_counts)==names(tb_tis) )
+# 
+# for(i in 1:ncol(agg_counts))
+#   agg_counts[,i] <- agg_counts[,i]/tb_tis[i]
+for(i in 1:ncol(agg_counts))
+  agg_counts[,i] <- agg_counts[,i]/sum(agg_counts[,i])*1e6
+
+ents <- apply(agg_counts, 1, calc_entropy)
+
+gs <- rownames(tt)[tt$F > 50 & ents < 1.35]
+# gs <- rownames(tt)[tt$F > 100 & ents < 1.3]
+
+plot(ents, tt$F, log="y")
+
+
+# col_anno <- colData(sces_nd)[s1,c("origin","sample_id")] %>% as.data.frame
+
+# for(i in 1:nrow(logcounts)) {
+#   mn <- min(logcounts[i,])
+#   mx <- max(logcounts[i,])
+#   logcounts[i,] <- (logcounts[i,]-mn)/(mx-mn)
+# }
+
+col_anno <- colData(m)[,c("sample_id","origin")] %>% as.data.frame
+
+pdf("mouse_heatmap_plus-minus-roi.pdf", height=15, width=8)
+pheatmap(logcounts[gs,s], show_rownames = TRUE, 
+         show_colnames = FALSE, scale="none",
+         annotation_col = col_anno[s,],
+         cluster_cols = FALSE,
+         fontsize_row = 8)
+dev.off()
+
+
+# plotExpression(m, features=rownames(head(tt[o,])),
+#                x= "sample_id", colour_by = "sample_id")
+
+# plotExpression(ms, features=c("Gm11599_ENSMUSG00000084333.1",
+#                               "Commd7_ENSMUSG00000056941.17"),
+#                x= "mod",
+#                colour_by = "mod")
+# 
+# plotUMAP(ms, colour_by="TRAPPC3_ENSG00000054116.12",
+#                shape_by= "mod")
+
+
+```
+
+## Explore `fuzznuc`
+
+
+```{r}
+
+gene_info <- read_tsv(file.path(datadir,
+                                "genes_vs_fuzznuc_mixing.txt.gz"), 
+                      col_names = c("ids", "pattern", "mismatches"))
+table(gene_info$pattern, gene_info$mismatches)
+
+
+extract_stuff <- function(u, term = "gene_type", default = "unknown") {
+  g <- grep(term, u, value=TRUE)
+  if(length(g)==0)
+    return(default)
+  else
+    return(g)
+}
+
+
+ss <- strsplit(gene_info$ids, ";", fixed = TRUE)
+gene_info$g_id <- gsub('\"$',"",
+                       gsub('gene_id \"', '', sapply(ss, .subset, 1)))
+gene_info$tr_id <- gsub('\"$',"",
+                        gsub(' transcript_id \"', '', sapply(ss, .subset, 2)))
+gene_info$gene_name <- gsub('\"$',"",
+                  gsub(' gene_name \"', '',
+                       sapply(ss, extract_stuff, term = "gene_name", default = "")))
+gene_info$gene_type <- gsub('\"$',"",
+                  gsub(' gene_type \"', '',
+                       sapply(ss, extract_stuff, term = "gene_type")))
+
+
+gene_info$id <- paste0(gene_info$g_id, "__", gene_info$gene_name)
+unk <- gene_info$gene_type=="unknown"
+gene_info$id[unk] <- gene_info$tr_id[unk]
+gene_info$id <- gsub("^ROI", "roi", gene_info$id)
+
+# gene_info$ids <- NULL
+# gene_info$id <- 
+
+
+
+rowanno <- data.frame(match = rep("nomatch", nrow(logcounts)),
+                      row.names = rownames(logcounts))
+common_genes <- intersect(gene_info$id, rownames(rowanno))
+
+m1 <- match(common_genes, rownames(rowanno))
+m2 <- match(common_genes, gene_info$id)
+
+# rowanno[head(m1),,drop=FALSE]
+# gene_info[head(m2),-c(1:4)]
+
+rowanno$match[m1] <- gene_info$mismatches[m2]
+
+ann_colors = list(
+    origin = c(mouse = "salmon", human = "firebrick"),
+    match = c(nomatch = "grey", `.` = "black", `1` = "red", `2` = "orange"),
+    sample_id = c(mixing_rock = "#7570B3", 
+                  mixing_rockroi = "#E7298A",
+                  mixing_unmod = "#66A61E", 
+                  mixing_unmod_roi = "orange")
+)
+
+
+pheatmap(logcounts[gs,s], show_rownames = TRUE, 
+         show_colnames = FALSE, scale="none",
+         annotation_col = col_anno[s,],
+         annotation_row = rowanno[gs,,drop=FALSE],
+         annotation_colors = ann_colors,
+         cluster_cols = FALSE,
+         fontsize_row = 8)
+
+
+diff <- (f$coef[,1]+f$coef[,3])-f$coef[,2]
+
+par(mfrow=c(1,2))
+boxplot(diff ~ rowanno$match, ylab="+ROI - -ROI")
+boxplot(diff ~ rowanno$match, ylim=c(-1,1), ylab="+ROI - -ROI")
+
+# vioplot(diff ~ rowanno$match)
+# vioplot(diff ~ rowanno$match, ylim=c(-1,1))
+
+```
+

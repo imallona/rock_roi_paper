@@ -1,0 +1,209 @@
+---
+title: "00_mixing_experiment_e_ROIs_other_genes.qmd"
+author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+### Load packages, load data 
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(GenomicRanges)
+library(GenomicAlignments)
+library(rtracklayer)
+library(Gviz)
+library(plyranges)
+library(seqinr)
+library(Rsamtools)
+library(googlesheets4)
+library(tools)
+library(here)
+library(GenomicFeatures)
+
+```
+
+### Setting up knitr 
+
+```{r}
+
+library(knitr)
+
+knitr::opts_chunk$set(fig.width = 4,
+               fig.height = 4,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache.lazy = FALSE,
+               cache=TRUE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+
+### Selection of genes is based on the fuzznuc_roi heatmap, took some of the top candidates
+
+```{r}
+
+genes_of_interest<-c("Rps20","Sem1","Gm7730","Commd7","Exoc1")
+modality<-c("unmod","unmod_roi","rock","rockroi")
+
+```
+
+### Loading .gtf files 
+
+```{r}
+
+options(ucscChromosomeNames=FALSE)
+
+gtf_path<-dir(here("00_mixing_experiment"), ".*gtf", 
+            recursive = TRUE, full.names = TRUE)
+
+combined_gtf<-import(gtf_path)
+
+```
+
+### Loading colors
+
+```{r}
+
+myscale<-c(color("muted")(9), gray="darkgrey", 
+             black = "black", darkorange = "darkorange",
+             yellowgreen = "yellowgreen")
+
+# defining colors for samples and for species
+
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtomato_cds","no_detection","doublets","low","high")
+
+#plot(1:13, col=myscale, pch=19, cex=4)
+
+```
+
+
+### Loading .bw files --> the .bam files are too big 
+
+```{r}
+
+getwd()
+
+bw<-dir(here("00_mixing_experiment"), "coverage.*bw", 
+            recursive = TRUE, full.names = TRUE)
+
+names(bw) <- gsub("_coverage.bw", "", basename(bw))
+names(bw) <- gsub("mixing_", "",names(bw))
+
+datadir <- dirname(bw)[1] # folder where the .bw files are 
+
+coverage<- lapply(bw, function(x) {
+    import.bw(x, as="GRanges")
+  })
+
+```
+
+### Generating TxDb gene track
+
+```{r}
+
+track<-makeTxDbFromGFF(file=gtf_path, format="gtf")
+
+```
+
+### Generating tracks for selected genes
+
+```{r}
+
+bw_coverages<-list()
+gms<-list()
+
+for (x in genes_of_interest){
+  sub_gtf<-combined_gtf[grep(x,combined_gtf$gene_name),]
+  chr<-unique(as.character(as.data.frame(sub_gtf)$seqnames))
+  range<-max(end(ranges(sub_gtf)))-min(start(ranges(sub_gtf)))
+  region_start<-min(start(ranges(sub_gtf)))-range # otherwise for short genes will be too long and opposite for long genes
+  region_end<-max(end(ranges(sub_gtf)))+range
+
+  gm <- GeneRegionTrack(track,
+                           chromosome=chr,
+                           name=x,
+                           from=region_start,
+                           to=region_end,
+                           geneSymbol=TRUE,
+                           showId=TRUE,
+                           transcriptAnnotation="symbol")
+  
+  displayPars(gm)<-list(col="black",
+                           cex.group=0.5,
+                           col.line="black",
+                           fontcolor.group="black",
+                           background.title="darkgrey")
+  
+  displayPars(gm)<-list(fill="black")
+  
+  gms[[x]]<-gm # saving object in case want to replot later
+  
+  covs_gene<-list()
+  for (i in 1:length(coverage)){
+    covs_gene[[names(coverage)[[i]]]]<-DataTrack(coverage[[i]],
+                     chromosome=chr,
+                     from=region_start,
+                     to=region_end,
+                     name=names(coverage)[[i]])
+  }
+
+  for (i in names(covs_gene)){
+    displayPars(covs_gene[[i]])<-list(col.histogram="black",
+                                 fill.histogram=TRUE)
+  }
+  
+  tso<- grep("tso",names(covs_gene))
+  wta<- grep("wta",names(covs_gene))
+  
+  for (i in tso){
+    covs_gene[[i]]@name<-gsub("_tso","",covs_gene[[i]]@name)
+  }
+
+  for (i in wta){
+    covs_gene[[i]]@name<-gsub("_wta","",covs_gene[[i]]@name)
+  }
+
+  overlays_bw_gene<-list()
+  
+  for (i in modality){
+    overlays_bw_gene[[i]]<-OverlayTrack(trackList=list(covs_gene[[paste0(i,"_wta")]],covs_gene[[paste0(i,"_tso")]]))
+
+    displayPars(overlays_bw_gene[[i]])<-list(background.title=myscale[[i]])
+  }
+
+  ranges<-c()
+  for (i in modality){
+    ranges[i]<-max(range(c(values(subset(covs_gene[[paste0(i,"_wta")]], from=region_start, to=region_end,chromosome=chr)),
+                                     values(subset(covs_gene[[paste0(i,"_tso")]], from=region_start, to=region_end,chromosome=chr)))))
+  }
+
+  plotTracks(c(overlays_bw_gene,
+               gm),
+          type="histogram",
+          from=region_start,
+          chromosome=chr,
+          to=region_end,
+          cex.axis = 0.5,
+          cex.title=0.5,
+          col.axis="white",
+          col.title="white",
+          col.border.title="white",
+          showSampleNames = TRUE,
+          lwd.title=0.5,
+          ylim=c(0,max(ranges)))
+  
+    bw_coverages[[x]]<-overlays_bw_gene
+}
+
+```
+
+

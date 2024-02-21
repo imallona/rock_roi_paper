@@ -1,0 +1,314 @@
+---
+title: "01_pdgfra_experiment_e-unimodal_vs_multimodal.qmd"
+author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+### From Izaskun to do: 
+
+```{r}
+
+# subtract and show the three heatmaps (downsampled cells x downsampled HVGs for uni, for multi, and for the delta): logCPMs. 
+
+#And a corr coefficient collapsing the rows/columns and correlating them perhaps
+
+```
+
+
+
+## Load packages, load data
+
+```{r, warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(scuttle)
+library(plotROC)
+library(here)
+library(Matrix)
+library(scDblFinder)
+library(edgeR)
+library(ggpubr)
+library(gridExtra)
+library(corrplot)
+library(RColorBrewer)
+
+rdss <- dir(here("01_pdgfra_experiment"), "^pd.*rds$", 
+            recursive = TRUE, full.names = TRUE)
+
+names(rdss) <- gsub("_sce.rds", "", basename(rdss))
+rdss
+
+datadir <- dirname(rdss)[1]
+
+sces <- mapply(function(u,v)  {
+  rds <- readRDS(u)
+  rds$sample_id <- v
+  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
+  colnames(rowData(rds)) <- c("name", "type", "value")
+  g <- grepl("^ENS", rownames(rds))
+  rownames(rds)[g] <- paste0(rownames(rds)[g], 
+                             "__", rowData(rds)$name[g])
+  rowData(rds)$gene_type <- "capture"
+  k <- grepl("^ENSG", rownames(rds))
+  rowData(rds)$gene_type[k] <- "human_gene"
+  k <- grepl("^ENSMUS", rownames(rds))
+  rowData(rds)$gene_type[k] <- "mouse_gene"
+  k <- grepl("^mt", rowData(rds)$name)
+  rowData(rds)$gene_type[k] <- "mouse_mito"
+  k <- grepl("^MT", rowData(rds)$name)
+  rowData(rds)$gene_type[k] <- "human_mito"
+  rds
+}, rdss, names(rdss))
+
+sces<-sces[c("pdgfra_rockroi_multimodal","pdgfra_rockroi_unimodal")]
+sce <- Reduce(cbind, sces)
+
+table(sce$sample_id)
+
+```
+
+### Filtering dataset
+
+```{r}
+
+rd <- rowData(sce)
+sce <- addPerCellQCMetrics(sce, assay.type = "wta",
+                           subsets=list(capture=rd$gene_type=="capture",
+                                        mouse_gene=rd$gene_type=="mouse_gene",
+                                        mouse_mito=rd$gene_type=="mouse_mito"))
+
+cd <- colData(sce) %>% as.data.frame
+
+ggplot(cd, aes(x = total, y = subsets_mouse_mito_percent)) +
+  geom_point() + scale_x_log10() + scale_y_sqrt() +
+  facet_wrap(~sample_id) + 
+  geom_hline(yintercept=c(1,75), colour="orange") +
+  geom_vline(xintercept=c(2000), colour="orange") +
+  geom_density2d()
+
+# crude filter
+
+mito <- sce$subsets_mouse_mito_percent
+sces <- sce[,sce$total>2000 & mito>1 & mito<75]
+sces <- sces[rowSums(assay(sces,1))>2 | rowData(sces)$gene_type=="capture" ,] 
+
+```
+
+### Doublet removal
+
+```{r}
+
+sces_adj <- sces
+counts(sces_adj) <- assay(sces, 1)
+colnames(sces_adj) <- sces_adj$sample_id.barcode
+
+sces_nd <- scDblFinder(sces_adj, samples = "sample_id")
+
+sces_nd <- sces_nd[,sces_nd$scDblFinder.class=="singlet"]
+
+#saveRDS(sces, file.path(datadir, "uni_multi_filtered_doublet_removed.rds")) # commented out so always use same object 
+
+rm(sces,sces_nd,sce)
+
+sce<-readRDS(file.path(datadir, "uni_multi_filtered_doublet_removed.rds"))
+
+table(sce$sample_id)
+
+```
+
+### Calculating HVGs and logcpms
+
+```{r}
+
+# calculating lognormcounts
+
+sce <- logNormCounts(sce, assay.type = "wta")
+
+# finding HVGs and getting the most variable
+
+mgv <- modelGeneVar(sce) #removed sample block
+mgv_pb<-head(rownames(mgv[order(mgv$p.value),]),500)
+
+# most highly expressed HVGs (to prevent having too many 0s) and taking top 100
+
+common_genes<-mgv_pb
+expression_common_genes<-assay(sce)[common_genes,]
+high_hvgs<-names(sort(rowSums(expression_common_genes),decreasing=TRUE)[1:100])
+
+# subsetting objects
+
+pdgfra_unimodal<-sce[,sce$sample_id==c("pdgfra_rockroi_unimodal")]
+pdgfra_multimodal<-sce[,sce$sample_id==c("pdgfra_rockroi_multimodal")]
+
+# finding overlapping barcodes
+
+colnames(pdgfra_unimodal)<-gsub("pdgfra_rockroi_unimodal.","",colnames(pdgfra_unimodal))
+colnames(pdgfra_multimodal)<-gsub("pdgfra_rockroi_multimodal.","",colnames(pdgfra_multimodal))
+
+common<-intersect(colnames(pdgfra_unimodal),colnames(pdgfra_multimodal))
+
+length(colnames(pdgfra_unimodal))
+length(colnames(pdgfra_multimodal))
+length(common)
+
+# subsetting with common barcodes --> the order of the barcodes will be the same
+
+pdgfra_unimodal<-pdgfra_unimodal[,common]
+pdgfra_multimodal<-pdgfra_multimodal[,common]
+
+# generating DGE
+
+dge_unimodal<-convertTo(pdgfra_unimodal,type="edgeR")
+dge_multimodal<-convertTo(pdgfra_multimodal,type="edgeR")
+
+# calculating cpms
+
+dge_unimodal_logcpm<-cpm(dge_unimodal,log=TRUE,prior.count=1) #prior.count: number to sum to not have 0
+dge_multimodal_logcpm<-cpm(dge_multimodal,log=TRUE,prior.count=1)
+
+# subsetting dge for top HVGs in common between the two samples and take top 100
+
+dge_unimodal_logcpm<-dge_unimodal_logcpm[high_hvgs,]
+dge_multimodal_logcpm<-dge_multimodal_logcpm[high_hvgs,]
+
+# generating list from the dge objects
+
+l_dge_unimodal_logcpm<-split(dge_unimodal_logcpm, 1:nrow(dge_unimodal_logcpm))
+names(l_dge_unimodal_logcpm)<-rownames(dge_unimodal_logcpm)
+
+l_dge_multimodal_logcpm<-split(dge_multimodal_logcpm, 1:nrow(dge_multimodal_logcpm))
+names(l_dge_multimodal_logcpm)<-rownames(dge_multimodal_logcpm)
+
+# putting them in a dataframe
+
+pdgfra_dataframe<-data.frame(as.numeric(unlist(l_dge_unimodal_logcpm)),as.numeric(unlist(l_dge_multimodal_logcpm)))
+colnames(pdgfra_dataframe)<-c("unimodal","multimodal")
+
+# calculating correlations for whole dataset
+
+cor(pdgfra_dataframe$unimodal,pdgfra_dataframe$multimodal,method="pearson")
+cor(pdgfra_dataframe$unimodal,pdgfra_dataframe$multimodal,method="spearman")
+
+```
+
+### Density plots of Spearman correlation of logCPMs between all cells 
+
+```{r}
+
+df_dge_unimodal_logcpm<-as.data.frame(dge_unimodal_logcpm)
+df_dge_multimodal_logcpm<-as.data.frame(dge_multimodal_logcpm)
+
+test<-cor(df_dge_unimodal_logcpm,df_dge_multimodal_logcpm,method="spearman")
+
+diagonal<-diag(test) # use the diagonal because they will be the same cells 
+
+df_diagonal<-as.data.frame(diagonal)
+
+ggplot(df_diagonal,aes(x=diagonal))+
+  geom_density()+
+  theme_bw()+
+  xlab("spearman corr")
+
+```
+
+### Based on cell type annotation 
+
+```{r}
+
+sce_labelled<-readRDS(file.path(datadir, "sce_qc-filtered-nodoublets-clustered-annotated.rds"))
+
+cd<-as.data.frame(colData(sce_labelled))
+
+# in dataset have the rock_roi_multimodal so taking that sample
+
+cd_multi<-cd[cd$sample_id=="rockroi",]
+
+# subsetting for same barcodes in the different objects
+
+rownames(cd_multi)<-gsub("pdgfra_rockroi_multimodal.","",rownames(cd_multi))
+cd_multi<-cd_multi[intersect(common,rownames(cd_multi)),] # some barcodes were filtered out during QC
+
+df_dge_unimodal_logcpm<-df_dge_unimodal_logcpm[,intersect(common,rownames(cd_multi))]
+df_dge_multimodal_logcpm<-df_dge_multimodal_logcpm[,intersect(common,rownames(cd_multi))]
+
+combined<-data.frame(unimodal=unlist(df_dge_unimodal_logcpm, use.names = TRUE),multimodal=unlist(df_dge_multimodal_logcpm, use.names = TRUE))
+
+# adding annotation --> this takes looong time, need to optimize 
+
+combined$annotation<-NA
+
+for (i in unique(gsub('[[:digit:]]+', '', rownames(combined)))){
+  rows<-grep(i,rownames(combined))
+  combined$annotation[rows]<-cd_multi[i,]$annotation
+}
+
+table(combined$annotation)/100 
+
+# generating list with correlations for each cell type so easier to plot later (also takes some time)
+
+all_cors<-list()
+
+for (i in unique(combined$annotation)){
+  corrs<-c()
+  sub<-combined[combined$annotation==i,]
+  
+  for (k in unique(gsub('[[:digit:]]+', '', rownames(sub)))){
+    x<-cor(sub[grep(k,rownames(sub)),]$unimodal,
+          sub[grep(k,rownames(sub)),]$multimodal,
+          method="spearman")
+    corrs<-c(corrs,x)
+  }
+  
+  all_cors[[i]]<-corrs
+}
+
+# separate correlations for all cell types
+
+for (i in 1:length(all_cors)){
+  p<-ggplot(data.frame(x=all_cors[[i]]),aes(x=x))+
+  geom_density()+
+  theme_bw()+
+  xlab("spearman corr")+
+  ggtitle(names(all_cors)[i])+
+  xlim(0,1)
+  
+  print(p)
+}
+
+# plotting all correlations overlayed
+
+all_cors_list<-list()
+
+for (i in 1:length(all_cors)){
+  all_cors_list[[names(all_cors)[i]]]<-data.frame(values=all_cors[[i]],name=names(all_cors)[i])
+}
+
+p_all_cors_list<-bind_rows(all_cors_list)
+
+p<-ggplot(p_all_cors_list,aes(x=values,color=name,fill=name))+
+geom_density(alpha=0.1)+
+theme_bw()+
+xlab("spearman corr")+
+xlim(0,1)
+  
+print(p)
+
+```
+
+

@@ -1,0 +1,844 @@
+---
+title: "01_pdgfra_experiment_d-coverage_tracks.qmd"
+author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+### Setting up knitr 
+
+```{r}
+
+library(knitr)
+
+knitr::opts_chunk$set(fig.width = 14,
+               fig.height = 8,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache.lazy = FALSE,
+               cache=TRUE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+### Load packages, load data 
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(GenomicRanges)
+library(GenomicAlignments)
+library(rtracklayer)
+library(Gviz)
+library(plyranges)
+library(seqinr)
+library(Rsamtools)
+library(googlesheets4)
+library(tools)
+library(here)
+library(GenomicFeatures)
+
+```
+
+### Load .bw files
+
+```{r}
+
+getwd()
+
+bw<-dir(here("01_pdgfra_experiment"), "coverage.*bw", 
+            recursive = TRUE, full.names = TRUE)
+
+names(bw) <- gsub("_coverage.bw", "", basename(bw))
+names(bw) <- gsub("pdgfra_", "",names(bw))
+names(bw) <- gsub("unimodal_", "",names(bw))
+names(bw) <- gsub("multimodal_", "",names(bw))
+
+datadir <- dirname(bw)[1] # folder where the .bw files are 
+
+```
+
+### Importing .gtf and subsetting for egfp or chr5
+
+```{r}
+
+options(ucscChromosomeNames=FALSE)
+
+gtf<-dir(here("01_pdgfra_experiment"), ".*gtf", 
+            recursive = TRUE, full.names = TRUE)
+
+gtf<- import(gtf)
+
+```
+
+### Plot for egfp --> Pdgfra is more complicated since need to subset the bw file for the Pdgfra region 
+
+```{r}
+
+chr<-c("egfp")
+
+bw_coverages<-list()
+gms<-list()
+
+coverage<- lapply(bw, function(x) {
+    import.bw(x, as="GRanges")
+  })
+
+
+for (x in chr){
+  coverage_chr<-list()
+  for (i in 1:length(coverage)){
+    coverage_chr[[names(coverage)[[i]]]]<-DataTrack(coverage[[i]],
+                                chromosome=x,
+                                name=names(coverage)[[i]])
+  }
+
+    gm <- GeneRegionTrack(gtf[which(seqnames(gtf)==x),],
+                           chromosome=x,
+                           name=x,
+                           geneSymbol=TRUE,
+                           showId=TRUE,
+                           transcriptAnnotation="gene")
+  
+  gm@range$gene<-gtf[which(seqnames(gtf)==x),]$transcript_id
+
+  displayPars(gm) <- list(fill=ifelse(gm@range$gene %in% gm@range$gene[grep("utr",gm@range$gene)], "cadetblue", "cadetblue2"))
+  
+  displayPars(gm)<-list(col="black",
+                           cex.group=0.5,
+                           col.line="black",
+                           fontcolor.group="black")
+  
+  for (i in names(coverage_chr)){
+    displayPars(coverage_chr[[i]])<-list(col.histogram="black",
+                                        fill.histogram=TRUE)
+  }
+  
+  plotTracks(c(coverage_chr,gm),
+            type="histogram",
+            from=start(gm@range)[1]-100,
+            end=gm@end,
+            cex.axis = 0.5,
+            cex.title=0.5,
+            background.title="cadetblue2",
+            col.axis="black",
+            col.title="black",
+            col.border.title="black",
+            showSampleNames = TRUE,
+            lwd.title=0.5)
+  
+  # making plots for tso and wta combined
+  
+  tso<- grep("tso",names(coverage))
+  wta<- grep("wta",names(coverage))
+
+  for (i in tso){
+    displayPars(coverage_chr[[i]])<-list(col.histogram="lightblue",
+                                           fill.histogram="lightblue",
+                                           alpha.title = 1, 
+                                           alpha = 0.8)
+  
+    coverage_chr[[i]]@name<-gsub("_tso","",coverage_chr[[i]]@name)
+  }
+  
+  for (i in wta){
+    displayPars(coverage_chr[[i]])<-list(col.histogram="pink",
+                                           fill.histogram="pink",
+                                           alpha.title = 1, 
+                                           alpha = 0.8)
+  
+    coverage_chr[[i]]@name<-gsub("_wta","",coverage_chr[[i]]@name)
+  }
+  
+  modality<-c("unmod","rockroi")
+  
+  ranges<-c()
+  for (i in modality){
+    ranges[paste0("ylims_",i,"_",x)]<-max(range(c(values(coverage_chr[[paste0(i,"_wta")]]), 
+                                                                 values(coverage_chr[[paste0(i,"_tso")]]))))
+  }
+  
+  overlays<-list()
+  for (i in modality){
+    overlays[[paste0(i,"_",x)]]<-OverlayTrack(trackList=list(coverage_chr[[paste0(i,"_wta")]],coverage_chr[[paste0(i,"_tso")]]))
+  }
+  
+  plotTracks(c(overlays,
+             gm),
+           type="histogram",
+           from=start(gm@range)[1]-100,
+           end=gm@end,
+           cex.axis = 0.5,
+           cex.title=0.5,
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           lwd.title=0.5,
+           ylim=c(0,max(ranges)))
+  
+  bw_coverages[[x]]<-overlays
+  gms[[x]]<-gm
+}
+
+```
+
+### Plot for Pdgfra --> need to subset similar to .bam 
+
+```{r}
+
+# changing gene name for Pdgfra ROIs so that it is the same as Pdgfra
+
+gtf_chr5<-gtf[which(seqnames(gtf)=="chr5"),]
+gtf_chr5$gene_name[grep("roi",gtf_chr5$transcript_id)]<-"Pdgfra"
+
+chr<-c("chr5")
+region_start<-min(start(ranges(gtf[which(gtf$gene_name=="Pdgfra"),])))-10000 # add extra 10000 because otherwise don't see labels in plot
+region_end<-max(end(ranges(gtf[which(gtf$gene_name=="Pdgfra"),])))
+
+# generating a TxDb object from my gtf since have multiple transcripts / exons
+
+gtf_path<-dir(here("01_pdgfra_experiment"), ".*gtf", 
+            recursive = TRUE, full.names = TRUE)
+
+track<-makeTxDbFromGFF(file=gtf_path, format="gtf")
+
+gm_pdgfra <- GeneRegionTrack(track,
+                      name="Pdgfra",
+                      geneSymbol=TRUE,
+                      showId=TRUE,
+                      chromosome=chr,
+                      from=region_start,
+                      to=region_end,
+                      transcriptAnnotation="symbol")
+
+displayPars(gm_pdgfra)<-list(col="black",
+                      cex.group=0.5,
+                      col.line="black",
+                      fontcolor.group="black")
+
+displayPars(gm_pdgfra) <- list(fill=ifelse(gm@range$symbol %in% gm@range$symbol[grep("roi",gm@range$symbol)], "cadetblue2","cadetblue"))
+
+# subsetting .bw coverage track
+
+coverage_chr_pdgfra<-list()
+for (i in 1:length(coverage)){
+    coverage_chr_pdgfra[[names(coverage)[[i]]]]<-DataTrack(coverage[[i]],
+                                chromosome=chr,
+                                from=region_start,
+                                to=region_end,
+                                name=names(coverage)[[i]])
+}
+
+for (i in names(coverage_chr_pdgfra)){
+  displayPars(coverage_chr_pdgfra[[i]])<-list(col.histogram="black",
+                                        fill.histogram=TRUE)
+}
+
+plotTracks(c(coverage_chr_pdgfra[["unmod_wta"]],
+             coverage_chr_pdgfra[["unmod_tso"]],
+             coverage_chr_pdgfra[["rockroi_wta"]],
+             coverage_chr_pdgfra[["rockroi_tso"]],
+             gm_pdgfra),
+            from=region_start,
+            type="histogram",
+            to=region_end,
+            cex.axis = 0.5,
+            cex.title=0.5,
+            chromosome = chr,
+            background.title="cadetblue2",
+            col.axis="black",
+            col.title="black",
+            col.border.title="black",
+            showSampleNames = TRUE,
+            lwd.title=0.5)
+
+```
+
+### With same scale
+
+```{r}
+
+ranges<-c()
+for (i in modality){
+    ranges[i]<-max(range(c(values(subset(coverage_chr_pdgfra[[paste0(i,"_wta")]], from=region_start, to=region_end,chromosome=chr)),
+                                     values(subset(coverage_chr_pdgfra[[paste0(i,"_tso")]], from=region_start, to=region_end,chromosome=chr)))))
+}
+
+plotTracks(c(coverage_chr_pdgfra[["unmod_wta"]],
+             coverage_chr_pdgfra[["unmod_tso"]],
+             coverage_chr_pdgfra[["rockroi_wta"]],
+             coverage_chr_pdgfra[["rockroi_tso"]],
+             gm_pdgfra),
+            from=region_start,
+            type="histogram",
+            to=region_end,
+            cex.axis = 0.5,
+            cex.title=0.5,
+            chromosome = chr,
+            background.title="cadetblue2",
+            col.axis="black",
+            col.title="black",
+            col.border.title="black",
+            showSampleNames = TRUE,
+            lwd.title=0.5,
+            ylim=c(0,max(ranges))) # seen from plot above that the max is 4000
+
+```
+
+### TSO vs WTA for pdgfra
+
+```{r}
+
+tso<- grep("tso",names(coverage_chr_pdgfra))
+wta<- grep("wta",names(coverage_chr_pdgfra))
+
+for (i in tso){
+    displayPars(coverage_chr_pdgfra[[i]])<-list(col.histogram="lightblue",
+                                           fill.histogram="lightblue",
+                                           alpha.title = 1, 
+                                           alpha = 0.8)
+  
+    coverage_chr_pdgfra[[i]]@name<-gsub("_tso","",coverage_chr_pdgfra[[i]]@name)
+}
+
+for (i in wta){
+    displayPars(coverage_chr_pdgfra[[i]])<-list(col.histogram="pink",
+                                           fill.histogram="pink",
+                                           alpha.title = 1, 
+                                           alpha = 0.8)
+  
+    coverage_chr_pdgfra[[i]]@name<-gsub("_wta","",coverage_chr_pdgfra[[i]]@name)
+}
+
+overlays_pdgfra<-list()
+for (i in modality){
+    overlays_pdgfra[[i]]<-OverlayTrack(trackList=list(coverage_chr_pdgfra[[paste0(i,"_wta")]],coverage_chr_pdgfra[[paste0(i,"_tso")]]))
+}
+
+plotTracks(c(overlays_pdgfra,gm_pdgfra),
+           type="histogram",
+           chromosome=chr,
+           from=region_start,
+           to=region_end,
+           cex.axis = 0.5,
+           cex.title=0.5,
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           lwd.title=0.5,
+           ylim=c(0,max(ranges)))
+
+```
+
+### Import .bam files --> need them for the aligment track for Pdgfra
+
+```{r}
+
+bam<-dir(here("01_pdgfra_experiment"), "*.bam", 
+            recursive = TRUE, full.names = TRUE)
+
+names(bam) <- gsub(".bam", "", basename(bam))
+names(bam) <- gsub("sub_", "",names(bam))
+names(bam) <- gsub("_multimodal", "",names(bam))
+names(bam) <- gsub("_unimodal", "",names(bam))
+names(bam) <- gsub("_pdgfra", "",names(bam))
+
+datadir <- dirname(bam)[1] # folder where the .bam files are 
+
+for (i in 1:length(bam)){
+  indexBam(bam[[i]])
+}
+
+```
+
+### .bam file for egfp
+
+```{r}
+
+bam_coverages<-list()
+bam_coverages_overlayed<-list()
+chr<-c("egfp")
+
+for (x in chr){
+  
+  coverage_chr<-list()
+  
+  z<- GRanges(x, IRanges(start(gms[[1]]@range)[1]-100,max(end(gms[[1]]@range))))
+  param <- ScanBamParam(which=z)
+  
+  gals <- lapply(bam, function(x) {
+    readGAlignments(x, use.names = TRUE, param=param)
+    })
+  
+  covs<-lapply(gals,coverage)
+  covs<-lapply(covs,function(x) as(x,"GRanges"))
+  
+  for (i in 1:length(covs)){
+  covs[[i]]<-DataTrack(covs[[i]],
+                            chromosome=x,
+                            name=names(covs)[[i]])
+  }
+  
+  for (i in names(covs)){
+    displayPars(covs[[i]])<-list(col.histogram="black",
+                                 fill.histogram=TRUE)
+  }
+  
+  tso<- grep("tso",names(covs))
+  wta<- grep("wta",names(covs))
+  
+  for (i in tso){
+    covs[[i]]@name<-gsub("tso_","",covs[[i]]@name)
+  }
+    for (i in wta){
+    covs[[i]]@name<-gsub("wta_","",covs[[i]]@name)
+  }
+
+  overlays_bam<-list()
+
+    for (i in modality){
+    overlays_bam[[paste0(i,"_",x)]]<-OverlayTrack(trackList=list(covs[[paste0("wta_",i)]],covs[[paste0("tso_",i)]]))
+  }
+  
+  plotTracks(c(overlays_bam,
+             gms[[x]]),
+           type="histogram",
+           from=start(gms[[x]]@range)[1]-400,
+           end=gms[[x]]@end,
+           cex.axis = 0.5,
+           cex.title=0.5,
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           lwd.title=0.5)
+  
+    bam_coverages[[x]]<-covs
+    bam_coverages_overlayed[[x]]<-overlays_bam
+}
+
+```
+
+### Putting the plots together for egfp
+
+```{r}
+
+for (x in chr){
+  
+  ranges_bam<-c()
+  modality<-c("unmod","rockroi")
+  
+  for (i in modality){
+    ranges_bam[paste0("ylims_",i,"_",x)]<-max(range(c(values(bam_coverages[[x]][[paste0("wta_",i)]]), 
+                                                                 values(bam_coverages[[x]][[paste0("tso_",i)]]))))
+  }
+  
+      plotTracks(c(bam_coverages_overlayed[[x]][[paste0("unmod_",x)]],
+             bw_coverages[[x]][[paste0("unmod_",x)]],
+             bam_coverages_overlayed[[x]][[paste0("rockroi_",x)]],
+             bw_coverages[[x]][[paste0("rockroi_",x)]],
+             gms[[x]]),
+           type="histogram",
+           from=start(gms[[x]]@range)[1]-100,
+           end=gms[[x]]@end,
+           cex.axis =0.5,
+           cex.title=0.5,
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           lwd.title=0.5,
+           ylim=c(0,max(ranges_bam)))
+}
+
+```
+
+### Same for Pdgfra --> .bam file 
+
+```{r}
+  
+chr<-c("chr5")
+region_start<-min(start(ranges(gtf[which(gtf$gene_name=="Pdgfra"),])))-10000 # add extra 10000 because otherwise don't see labels in plot
+region_end<-max(end(ranges(gtf[which(gtf$gene_name=="Pdgfra"),])))
+
+z<- GRanges(chr, IRanges(region_start,region_end))
+param <- ScanBamParam(which=z)
+  
+gals <- lapply(bam, function(x) {
+  readGAlignments(x, use.names = TRUE, param=param)
+})
+  
+covs<-lapply(gals,coverage)
+covs<-lapply(covs,function(x) as(x,"GRanges"))
+  
+covs_pdgfra<-list()
+for (i in 1:length(covs)){
+  covs_pdgfra[[names(covs)[[i]]]]<-DataTrack(covs[[i]],
+                     chromosome="chr5",
+                     from=region_start,
+                     to=region_end,
+                     name=names(covs)[[i]])
+}
+ 
+for (i in names(covs_pdgfra)){
+  displayPars(covs_pdgfra[[i]])<-list(col.histogram="black",
+                               fill.histogram=TRUE)
+}
+  
+tso<- grep("tso",names(covs_pdgfra))
+wta<- grep("wta",names(covs_pdgfra))
+  
+for (i in tso){
+    covs_pdgfra[[i]]@name<-gsub("tso_","",covs_pdgfra[[i]]@name)
+}
+
+for (i in wta){
+    covs_pdgfra[[i]]@name<-gsub("wta_","",covs_pdgfra[[i]]@name)
+}
+
+ displayPars(gm) <- list(fill=ifelse(gm@range$gene %in% gm@range$gene[grep("utr",gm@range$gene)], "cadetblue", "cadetblue2"))
+
+overlays_bam_pdgfra<-list()
+
+modality<-c("unmod","rockroi")
+
+for (i in modality){
+    overlays_bam_pdgfra[[i]]<-OverlayTrack(trackList=list(covs_pdgfra[[paste0("wta_",i)]],covs_pdgfra[[paste0("tso_",i)]]))
+}
+
+plotTracks(c(overlays_bam_pdgfra,gm_pdgfra),
+           type="histogram",
+           from=region_start,
+           to=region_end,
+           cex.axis = 0.5,
+           cex.title=0.5,
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           lwd.title=0.5)
+
+```
+
+### Putting it all together for Pdgfra
+
+```{r}
+
+ranges_bam<-c()
+modality<-c("unmod","rockroi")
+  
+for (i in modality){
+  ranges_bam[paste0("ylims_",i,"_",x)]<-max(range(c(values(covs_pdgfra[[paste0("wta_",i)]]), 
+                                                            values(covs_pdgfra[[paste0("tso_",i)]]))))
+}
+  
+plotTracks(c(overlays_bam_pdgfra[["unmod"]],
+             overlays_pdgfra[["unmod"]],
+             overlays_bam_pdgfra[["rockroi"]],
+             overlays_pdgfra[["rockroi"]],
+             gm_pdgfra),
+           type="histogram",
+           from=region_start,
+           to=region_end,
+           chromosome=chr,
+           cex.axis =0.5,
+           cex.title=0.5,
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           lwd.title=0.5,
+           ylim=c(0,max(ranges_bam)))
+
+```
+
+
+### Adding aligment track to pdgfra experiment
+
+```{r}
+
+align_pdgfra<-list()
+
+for (i in 1:length(bam)){
+  align_pdgfra[[names(bam)[[i]]]]<-AlignmentsTrack(range=bam[[i]],
+                                                   chromosome=chr,
+                                                   from=region_start,
+                                                   to=region_end,
+                                                   name=names(bam)[[i]])
+}
+
+
+tso<- grep("tso",names(align_pdgfra))
+wta<- grep("wta",names(align_pdgfra))
+  
+for (i in tso){
+    align_pdgfra[[i]]@name<-gsub("tso_","",align_pdgfra[[i]]@name)
+}
+
+for (i in wta){
+    align_pdgfra[[i]]@name<-gsub("wta_","",align_pdgfra[[i]]@name)
+}
+
+tso<- grep("tso",names(align_pdgfra))
+wta<- grep("wta",names(align_pdgfra))
+  
+for (i in tso){
+    displayPars(align_pdgfra[[i]]) <- list(col.sashimi="lightblue")
+}
+
+for (i in wta){
+    displayPars(align_pdgfra[[i]]) <- list(col.sashimi="pink")
+}
+
+overlays_alignment_pdgfra<-list()
+
+modality<-c("unmod","rockroi")
+
+for (i in modality){
+    overlays_alignment_pdgfra[[i]]<-OverlayTrack(trackList=list(align_pdgfra[[paste0("wta_",i)]],align_pdgfra[[paste0("tso_",i)]]))
+}
+
+gtf_pdgfra<-gtf_chr5[which(gtf_chr5$gene_name=="Pdgfra"),]
+gtf_pdgfra_exons<-gtf_pdgfra[which(gtf_pdgfra$type=="exon"),]
+
+starts<-c()
+ends<-c()
+
+for (i in 1:length(ranges(gtf_pdgfra_exons))){
+  starts<-c(starts,start(ranges(gtf_pdgfra_exons)[i]))
+  ends<-c(ends,end(ranges(gtf_pdgfra_exons)[i]))
+}
+
+for (i in 1:length(overlays_bam_pdgfra)){
+  plotTracks(c(overlays_bam_pdgfra[[i]],overlays_alignment_pdgfra[[i]],gm_pdgfra),
+           chromosome = chr,
+           from=region_start,
+           to=region_end,
+           cex.axis = 0.5,
+           cex.title=0.5,
+           type=c("histogram","pileup","sashimi"),
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           lwd.title=0.5,
+           col.coverage="black",
+           col.reads="black",
+           sashimiHeight=20, # height of sashimi plot in pixels
+           minSashimiHeight=0, # set to 0 otherwise sashimi too big 
+           sashimiScore=20, # minimum number of reads supporting junction
+           reverseStacking = FALSE) 
+}
+
+```
+
+### Zoom into regions of interest --> all roi regions for unmod and rockroi and inspect 
+
+```{r}
+
+gtf_chr5_roi<-gtf_chr5[grep("roi",gtf_chr5$transcript_id),]
+rois<-unique(gtf_chr5_roi$transcript_id)
+
+for (i in rois){
+  gtf_roi<-gtf_chr5_roi[grep(i,gtf_chr5_roi$transcript_id),]
+  for (x in c("wta","tso")){
+    roi_region_start<-min(start(ranges(gtf_roi)))-200
+    roi_region_end<-max(end(ranges(gtf_roi)))+50
+    plotTracks(c(overlays_bam_pdgfra[["unmod"]],
+               align_pdgfra[[paste0(x,"_unmod")]],
+               overlays_bam_pdgfra[["rockroi"]],
+               align_pdgfra[[paste0(x,"_rockroi")]],
+               gm_pdgfra),
+           chromosome = chr,
+           main=paste0(i,"_",x),
+           from=roi_region_start,
+           to=roi_region_end,
+           cex.axis = 0.5,
+           cex.title=0.5,
+           type=c("histogram","pileup","sashimi"),
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           sashimiNumbers=TRUE, # adds numbers of reads to exon junctions 
+           lwd.title=0.5,
+           cex.title=0.5,
+           col.coverage="black",
+           col.reads="black",
+           sashimiHeight=50, # height of sashimi plot in pixels
+           minSashimiHeight=0, # set to 0 otherwise sashimi too big 
+           sashimiScore=20, # minimum number of reads supporting junction
+           reverseStacking = TRUE) # puts the most common reads in the track
+  }
+}
+
+```
+
+### Since not all of the reads shown in the pileup plot are the ones spannig the exon junction, remove the pileup plot and just show the sashimi plot
+
+```{r}
+
+for (i in rois){
+  gtf_roi<-gtf_chr5_roi[grep(i,gtf_chr5_roi$transcript_id),]
+  for (x in c("wta","tso")){
+    roi_region_start<-min(start(ranges(gtf_roi)))-200
+    roi_region_end<-max(end(ranges(gtf_roi)))+50
+    plotTracks(c(overlays_bam_pdgfra[["unmod"]],
+               align_pdgfra[[paste0(x,"_unmod")]],
+               overlays_bam_pdgfra[["rockroi"]],
+               align_pdgfra[[paste0(x,"_rockroi")]],
+               gm_pdgfra),
+           chromosome = chr,
+           main=paste0(i,"_",x),
+           from=roi_region_start,
+           to=roi_region_end,
+           cex.axis = 0.5,
+           cex.title=0.5,
+           type=c("histogram","sashimi"),
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           sashimiNumbers=TRUE, # adds numbers of reads to exon junctions 
+           lwd.title=0.5,
+           cex.title=0.5,
+           col.coverage="black",
+           col.reads="black",
+           sashimiHeight=50, # height of sashimi plot in pixels
+           minSashimiHeight=0, # set to 0 otherwise sashimi too big 
+           sashimiScore=20, # minimum number of reads supporting junction
+           reverseStacking = TRUE) # puts the most common reads in the track
+  }
+}
+
+```
+
+### Putting the plots together for rockroi and unmod and just using the overlays
+
+```{r}
+
+for (i in rois){
+  gtf_roi<-gtf_chr5_roi[grep(i,gtf_chr5_roi$transcript_id),]
+  
+  roi_region_start<-min(start(ranges(gtf_roi)))-200
+  roi_region_end<-max(end(ranges(gtf_roi)))+50
+  
+  plotTracks(c(overlays_bam_pdgfra[["unmod"]],
+               overlays_alignment_pdgfra[["unmod"]],
+               overlays_bam_pdgfra[["rockroi"]],
+               overlays_alignment_pdgfra[["rockroi"]],
+               gm_pdgfra),
+           chromosome = chr,
+           from=roi_region_start,
+           to=roi_region_end,
+           cex.axis = 0.5,
+           cex.title=0.5,
+           type=c("histogram","sashimi"),
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           sashimiNumbers=TRUE, # adds numbers of reads to exon junctions 
+           lwd.title=0.5,
+           sashimiHeight=40, # height of sashimi plot in pixels
+           minSashimiHeight=0, # set to 0 otherwise sashimi too big 
+           sashimiScore=20, # minimum number of reads supporting junction
+           reverseStacking = TRUE) # puts the most common reads in the track
+}
+
+```
+
+
+### Plot with the two regions where have the ROI primers --> just using the overlays
+
+```{r}
+
+rois_region_1<-c("roi_4|roi_5|roi_6") # syntax for grepping multiple elements 
+rois_region_2<-c("roi_13|roi_14|roi_15|roi_16")
+
+# region 1 
+
+gtf_roi_region_1<-gtf_chr5_roi[grep(rois_region_1,gtf_chr5_roi$transcript_id),]
+roi_region_1_start<-min(start(ranges(gtf_roi_region_1)))-200
+roi_region_1_end<-max(end(ranges(gtf_roi_region_1)))+100
+  
+plotTracks(c(overlays_bam_pdgfra[["unmod"]],
+             overlays_alignment_pdgfra[["unmod"]],
+             overlays_bam_pdgfra[["rockroi"]],
+             overlays_alignment_pdgfra[["rockroi"]],
+             gm_pdgfra),
+           chromosome = chr,
+           from=roi_region_1_start,
+           to=roi_region_1_end,
+           cex.axis = 0.5,
+           cex.title=0.5,
+           type=c("histogram","sashimi"),
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           sashimiNumbers=TRUE, # adds numbers of reads to exon junctions 
+           lwd.title=0.5,
+           sashimiHeight=40, # height of sashimi plot in pixels
+           minSashimiHeight=0, # set to 0 otherwise sashimi too big 
+           sashimiScore=20, # minimum number of reads supporting junction
+           reverseStacking = TRUE) # puts the most common reads in the track
+
+# region 2
+
+gtf_roi_region_2<-gtf_chr5_roi[grep(rois_region_2,gtf_chr5_roi$transcript_id),]
+roi_region_2_start<-min(start(ranges(gtf_roi_region_2)))-200
+roi_region_2_end<-max(end(ranges(gtf_roi_region_2)))+25
+  
+plotTracks(c(overlays_bam_pdgfra[["unmod"]], 
+             overlays_alignment_pdgfra[["unmod"]],
+             overlays_bam_pdgfra[["rockroi"]],
+             overlays_alignment_pdgfra[["rockroi"]],
+             gm_pdgfra),
+           chromosome = chr,
+           from=roi_region_2_start,
+           to=roi_region_2_end,
+           cex.axis = 0.5,
+           cex.title=0.5,
+           type=c("histogram","sashimi"),
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           sashimiNumbers=TRUE, # adds numbers of reads to exon junctions 
+           lwd.title=0.5,
+           sashimiHeight=30, # height of sashimi plot in pixels
+           minSashimiHeight=0, # set to 0 otherwise sashimi too big 
+           sashimiScore=20, # minimum number of reads supporting junction
+           reverseStacking = TRUE) # puts the most common reads in the track
+
+```
+
+
+### Print sessionInfo()
+
+```{r}
+
+sessionInfo()
+
+```

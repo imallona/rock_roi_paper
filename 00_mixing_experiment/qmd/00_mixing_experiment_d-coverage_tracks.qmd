@@ -1,0 +1,438 @@
+---
+title: "00_mixing_experiment_d-coverage_tracks.qmd"
+author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+
+### TO DO 
+
+```{r}
+
+# Change objects to subset with two peaks 
+
+```
+
+### Setting up knitr 
+
+```{r}
+
+library(knitr)
+
+knitr::opts_chunk$set(fig.width = 14,
+               fig.height = 8,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache.lazy = FALSE,
+               cache=TRUE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+### Load packages, load data 
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(GenomicRanges)
+library(GenomicAlignments)
+library(rtracklayer)
+library(Gviz)
+library(plyranges)
+library(seqinr)
+library(Rsamtools)
+library(googlesheets4)
+library(tools)
+library(here)
+
+```
+
+### Reading .bw files
+
+```{r}
+
+getwd()
+
+bw<-dir(here("00_mixing_experiment"), "coverage.*bw", 
+            recursive = TRUE, full.names = TRUE)
+
+names(bw) <- gsub("_coverage.bw", "", basename(bw))
+names(bw) <- gsub("mixing_", "",names(bw))
+
+datadir <- dirname(bw)[1] # folder where the .bw files are 
+
+```
+
+### Importing .gtf file 
+
+```{r}
+
+options(ucscChromosomeNames=FALSE)
+
+gtf<-dir(here("00_mixing_experiment"), ".*gtf", 
+            recursive = TRUE, full.names = TRUE)
+
+combined_gtf<-import(gtf)
+
+```
+
+### Importing excel sheet
+
+```{r}
+
+# read annotation info from GS
+anno_url <- "https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=978414281"
+anno_df <- read_sheet(anno_url, "transcript-regions-mark") %>%
+  filter(Experiment=="Mixing")
+regs <- split(anno_df$Name_in_gtf_file, anno_df$region_name)
+
+```
+
+### Plots for all .bw files for egfp and tdtomato
+
+```{r}
+
+# need to change the names in regs because the .gtf chr is called tdtomato and not tdtom
+
+names(regs)<-c("egfp_cds","egfp_roi","egfp_tx","tdtomato_cds","tdtomato_roi1","tdtomato_roi2","tdtomato_tx")
+
+chr<-c("egfp","tdtomato")
+
+coverage<- lapply(bw, function(x) {
+    import.bw(x, as="GRanges")
+  })
+
+bw_coverages<-list()
+gms<-list()
+
+for (x in chr){
+  coverage_chr<-list()
+  for (i in 1:length(coverage)){
+    coverage_chr[[names(coverage)[[i]]]]<-DataTrack(coverage[[i]],
+                                chromosome=x,
+                                name=names(coverage)[[i]])
+  }
+
+  gm <- GeneRegionTrack(combined_gtf[which(seqnames(combined_gtf)==x),],
+                           chromosome=x,
+                           name=x,
+                           geneSymbol=TRUE,
+                           showId=TRUE,
+                           transcriptAnnotation="gene")
+  
+  gm@range$gene<-combined_gtf[which(seqnames(combined_gtf)==x),]$gene_id
+  wanted_regions<-regs[[paste0(x,"_tx")]]
+  gm@range<-gm@range[which(gm@range$gene %in% wanted_regions)]
+
+  displayPars(gm) <- list(fill=ifelse(gm@range$gene %in% gm@range$gene[grep("utr",gm@range$gene)], "cadetblue", "cadetblue2"))
+  
+  displayPars(gm)<-list(col="black",
+                           cex.group=0.5,
+                           col.line="black",
+                           fontcolor.group="black")
+  
+  for (i in names(coverage_chr)){
+    displayPars(coverage_chr[[i]])<-list(col.histogram="black",
+                                        fill.histogram=TRUE)
+  }
+  
+  plotTracks(c(coverage_chr,gm),
+            type="histogram",
+            from=start(gm@range)[1]-500,
+            to=gm@end,
+            cex.axis = 0.5,
+            cex.title=0.5,
+            background.title="cadetblue2",
+            col.axis="black",
+            col.title="black",
+            col.border.title="black",
+            showSampleNames = TRUE,
+            lwd.title=0.5)
+  
+  # making plots for tso and wta combined
+  
+  tso<- grep("tso",names(coverage))
+  wta<- grep("wta",names(coverage))
+  
+  for (i in tso){
+    displayPars(coverage_chr[[i]])<-list(col.histogram="lightblue",
+                                           fill.histogram="lightblue",
+                                           alpha.title = 1, 
+                                           alpha = 0.8)
+  
+    coverage_chr[[i]]@name<-gsub("_tso","",coverage_chr[[i]]@name)
+  }
+  
+  for (i in wta){
+    displayPars(coverage_chr[[i]])<-list(col.histogram="pink",
+                                           fill.histogram="pink",
+                                           alpha.title = 1, 
+                                           alpha = 0.8)
+  
+    coverage_chr[[i]]@name<-gsub("_wta","",coverage_chr[[i]]@name)
+  }
+  
+  modality<-c("unmod","unmod_roi","rock","rockroi")
+  
+  ranges<-c()
+  for (i in modality){
+    ranges[paste0("ylims_",i,"_",x)]<-max(range(c(values(coverage_chr[[paste0(i,"_wta")]]), 
+                                                                 values(coverage_chr[[paste0(i,"_tso")]]))))
+  }
+  
+  overlays<-list()
+  for (i in modality){
+    overlays[[paste0(i,"_",x)]]<-OverlayTrack(trackList=list(coverage_chr[[paste0(i,"_wta")]],coverage_chr[[paste0(i,"_tso")]]))
+  }
+  
+  plotTracks(c(overlays,
+             gm),
+           type="histogram",
+           from=start(gm@range)[1]-500,
+           to=gm@end,
+           cex.axis = 0.5,
+           cex.title=0.5,
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           lwd.title=0.5,
+           ylim=c(0,max(ranges)))
+  
+  bw_coverages[[x]]<-overlays
+  gms[[x]]<-gm
+}
+
+```
+
+### Reading .bam files
+
+```{r}
+
+getwd()
+
+bam<-dir(here("00_mixing_experiment"), "*.bam", 
+            recursive = TRUE, full.names = TRUE)
+
+names(bam) <- gsub(".bam", "", basename(bam))
+names(bam) <- gsub("sub_", "",names(bam))
+
+datadir <- dirname(bam)[1] # folder where the .bam files are 
+
+for (i in 1:length(bam)){
+  indexBam(bam[[i]])
+}
+
+```
+
+### Plots for all .bam files for egfp and tdtomato
+
+```{r}
+
+bam_coverages<-list()
+bam_coverages_overlayed<-list()
+
+chr<-c("egfp","tdtomato")
+
+modality<-c("unmod","unmod_roi","rock","rockroi")
+
+for (x in chr){
+  coverage_chr<-list()
+  
+  z<- GRanges(x, IRanges(start(gm@range)[1]-500,max(end(gm@range))))
+  param <- ScanBamParam(which=z)
+  
+  gals <- lapply(bam, function(x) {
+    readGAlignments(x, use.names = TRUE, param=param)
+    })
+  
+  covs<-lapply(gals,coverage)
+  covs<-lapply(covs,function(x) as(x,"GRanges"))
+  
+  for (i in 1:length(covs)){
+  covs[[i]]<-DataTrack(covs[[i]],
+                            chromosome=x,
+                            name=names(covs)[[i]])
+  }
+  
+  for (i in names(covs)){
+    displayPars(covs[[i]])<-list(col.histogram="black",
+                                 fill.histogram=TRUE)
+  }
+  
+  tso<- grep("tso",names(covs))
+  wta<- grep("wta",names(covs))
+  
+  for (i in tso){
+    covs[[i]]@name<-gsub("_tso","",covs[[i]]@name)
+  }
+  
+  for (i in wta){
+    covs[[i]]@name<-gsub("_wta","",covs[[i]]@name)
+  }
+
+  overlays_bam<-list()
+
+  for (i in modality){
+    overlays_bam[[paste0(i,"_",x)]]<-OverlayTrack(trackList=list(covs[[paste0("wta_",i)]],covs[[paste0("tso_",i)]]))
+  }
+
+  plotTracks(c(overlays_bam,
+             gms[[x]]),
+           type="histogram",
+           from=start(gms[[x]]@range)[1]-400,
+           to=gms[[x]]@end,
+           cex.axis = 0.5,
+           cex.title=0.5,
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           lwd.title=0.5)
+  
+    bam_coverages[[x]]<-covs
+    bam_coverages_overlayed[[x]]<-overlays_bam
+}
+
+```
+
+### Putting the plots together 
+
+```{r}
+
+for (x in chr){
+  
+  ranges_bam<-c()
+  modality<-c("unmod","unmod_roi","rock","rockroi")
+
+  for (i in modality){
+    ranges_bam[paste0("ylims_",i,"_",x)]<-max(range(c(values(bam_coverages[[x]][[paste0("wta_",i)]]), 
+                                                                 values(bam_coverages[[x]][[paste0("tso_",i)]]))))
+  }
+  
+      plotTracks(c(bam_coverages_overlayed[[x]][[paste0("unmod_",x)]],
+             bw_coverages[[x]][[paste0("unmod_",x)]],
+             bam_coverages_overlayed[[x]][[paste0("unmod_roi_",x)]],
+             bw_coverages[[x]][[paste0("unmod_roi_",x)]],
+             bam_coverages_overlayed[[x]][[paste0("rock_",x)]],
+             bw_coverages[[x]][[paste0("rock_",x)]],
+             bam_coverages_overlayed[[x]][[paste0("rockroi_",x)]],
+             bw_coverages[[x]][[paste0("rockroi_",x)]],
+             gms[[x]]),
+           type="histogram",
+           from=start(gms[[x]]@range)[1]-400,
+           to=gms[[x]]@end,
+           cex.axis =0.5,
+           cex.title=0.5,
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           lwd.title=0.5,
+           ylim=c(0,max(ranges_bam)))
+}
+
+```
+
+### Zooming into polyA tail of transcript since cannot add an extra y axis on the right side, that way can see the wta for all the tracks
+
+```{r}
+
+for (x in chr){
+  
+  region_start<-gms[[x]]@end-400
+  region_end<-gms[[x]]@end
+  tail <- GRanges(x,IRanges(region_start,region_end))
+  tail_param <- ScanBamParam(which=tail)
+
+  tail_gals <- lapply(bam, function(x) {
+    readGAlignments(x, use.names = TRUE, param=tail_param)
+  })
+  
+  tail_covs<-lapply(tail_gals,coverage)
+  tail_covs<-lapply(tail_covs,function(x) as(x,"GRanges"))
+  
+  for (i in 1:length(tail_covs)){
+    tail_covs[[i]]<-DataTrack(tail_covs[[i]],
+                                chromosome=x,
+                                name=names(tail_covs)[[i]])
+  }
+  
+  for (i in names(tail_covs)){
+    displayPars(tail_covs[[i]])<-list(col.histogram="black",
+                                      fill.histogram=TRUE)
+  }
+
+  tso<- grep("tso",names(tail_covs))
+  wta<- grep("wta",names(tail_covs))
+  
+  for (i in tso){
+    tail_covs[[i]]@name<-gsub("_tso","",tail_covs[[i]]@name)
+  }
+  
+  for (i in wta){
+    tail_covs[[i]]@name<-gsub("_wta","",tail_covs[[i]]@name)
+  }
+  
+  modality<-c("unmod","unmod_roi","rock","rockroi")
+
+  tail_overlays_bam<-list()
+  for (i in modality){
+    tail_overlays_bam[[paste0(i,"_",x)]]<-OverlayTrack(trackList=list(tail_covs[[paste0("wta_",i)]],tail_covs[[paste0("tso_",i)]]))
+  }
+
+  ranges<-c()
+  for (i in modality){
+    ranges[paste0("ylims_",i,"_",x)]<-max(range(c(values(tail_covs[[paste0("wta_",i)]]), 
+                                                                 values(tail_covs[[paste0("tso_",i)]]))))
+  }
+  plotTracks(c(tail_overlays_bam[[paste0("unmod_",x)]],
+               bw_coverages[[x]][[paste0("unmod_",x)]],
+               tail_overlays_bam[[paste0("unmod_roi_",x)]],
+               bw_coverages[[x]][[paste0("unmod_roi_",x)]],
+               tail_overlays_bam[[paste0("rock_",x)]],
+               bw_coverages[[x]][[paste0("rock_",x)]],
+               tail_overlays_bam[[paste0("rockroi_",x)]],
+               bw_coverages[[x]][[paste0("rockroi_",x)]],
+               gms[[x]]),
+           type="histogram",
+           from=gms[[x]]@end-400,
+           to=gms[[x]]@end,
+           cex.axis =0.5,
+           cex.title=0.5,
+           background.title="cadetblue2",
+           col.axis="black",
+           col.title="black",
+           col.border.title="black",
+           showSampleNames = TRUE,
+           lwd.title=0.5,
+           ylim=c(0,max(ranges)))
+}
+
+
+```
+
+### Print sessionInfo()
+
+```{r}
+
+sessionInfo()
+
+```
+
+
+
+
+
+
+
