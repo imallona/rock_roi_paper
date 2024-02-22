@@ -112,27 +112,27 @@ coverage<- lapply(bw, function(x) {
 ```{r}
 
 bed_mouse <- as.data.frame(read.table(file.path(datadir,"mouse_mt.bed"),header = FALSE, sep="\t",stringsAsFactors=FALSE, quote=""))
-bed_mouse_5 <- as.data.frame(read.table(file.path(datadir,"mouse_mt_5.bed"),header = FALSE, sep="\t",stringsAsFactors=FALSE, quote=""))
-bed_mouse_4 <- as.data.frame(read.table(file.path(datadir,"mouse_mt_4.bed"),header = FALSE, sep="\t",stringsAsFactors=FALSE, quote=""))
+#bed_mouse_5 <- as.data.frame(read.table(file.path(datadir,"mouse_mt_5.bed"),header = FALSE, sep="\t",stringsAsFactors=FALSE, quote=""))
+#bed_mouse_4 <- as.data.frame(read.table(file.path(datadir,"mouse_mt_4.bed"),header = FALSE, sep="\t",stringsAsFactors=FALSE, quote=""))
 
 colnames(bed_mouse)<-c("chrom","chromStart","chromEnd","strand")
-colnames(bed_mouse_5)<-c("chrom","chromStart","chromEnd","strand")
-colnames(bed_mouse_4)<-c("chrom","chromStart","chromEnd","strand")
+#colnames(bed_mouse_5)<-c("chrom","chromStart","chromEnd","strand")
+#colnames(bed_mouse_4)<-c("chrom","chromStart","chromEnd","strand")
 bed_mouse<-makeGRangesFromDataFrame(bed_mouse)
-bed_mouse_5<-makeGRangesFromDataFrame(bed_mouse_5)
-bed_mouse_4<-makeGRangesFromDataFrame(bed_mouse_4)
+#bed_mouse_5<-makeGRangesFromDataFrame(bed_mouse_5)
+#bed_mouse_4<-makeGRangesFromDataFrame(bed_mouse_4)
 
 bed_human <- as.data.frame(read.table(file.path(datadir,"human_MT.bed"),header = FALSE, sep="\t",stringsAsFactors=FALSE, quote=""))
-bed_human_5 <- as.data.frame(read.table(file.path(datadir,"human_MT_5.bed"),header = FALSE, sep="\t",stringsAsFactors=FALSE, quote=""))
-bed_human_4 <- as.data.frame(read.table(file.path(datadir,"human_MT_4.bed"),header = FALSE, sep="\t",stringsAsFactors=FALSE, quote=""))
+#bed_human_5 <- as.data.frame(read.table(file.path(datadir,"human_MT_5.bed"),header = FALSE, sep="\t",stringsAsFactors=FALSE, quote=""))
+#bed_human_4 <- as.data.frame(read.table(file.path(datadir,"human_MT_4.bed"),header = FALSE, sep="\t",stringsAsFactors=FALSE, quote=""))
 
 colnames(bed_human)<-c("chrom","chromStart","chromEnd","strand")
-colnames(bed_human_5)<-c("chrom","chromStart","chromEnd","strand")
-colnames(bed_human_4)<-c("chrom","chromStart","chromEnd","strand")
+#colnames(bed_human_5)<-c("chrom","chromStart","chromEnd","strand")
+#colnames(bed_human_4)<-c("chrom","chromStart","chromEnd","strand")
 
 bed_human<-makeGRangesFromDataFrame(bed_human)
-bed_human_5<-makeGRangesFromDataFrame(bed_human_5)
-bed_human_4<-makeGRangesFromDataFrame(bed_human_4)
+#bed_human_5<-makeGRangesFromDataFrame(bed_human_5)
+#bed_human_4<-makeGRangesFromDataFrame(bed_human_4)
 
 ```
 
@@ -162,12 +162,12 @@ for (x in genes_of_interest){
   region_end<-max(end(ranges(sub_gtf)))+100
   
   dtrack <- AnnotationTrack(range=bed_mouse,name="tso_6")
-  dtrack_4 <- AnnotationTrack(range=bed_mouse_4,name="tso_4")
-  dtrack_5 <- AnnotationTrack(range=bed_mouse_5,name="tso_5")
+  #dtrack_4 <- AnnotationTrack(range=bed_mouse_4,name="tso_4")
+  #dtrack_5 <- AnnotationTrack(range=bed_mouse_5,name="tso_5")
   
   displayPars(dtrack)<-list(shape="box")
-  displayPars(dtrack_4)<-list(shape="box")
-  displayPars(dtrack_5)<-list(shape="box")
+  #displayPars(dtrack_4)<-list(shape="box")
+  #displayPars(dtrack_5)<-list(shape="box")
 
   gm <- GeneRegionTrack(track,
                            chromosome=chr,
@@ -233,8 +233,8 @@ for (x in genes_of_interest){
 
   plotTracks(c(overlays_bw_gene,
                dtrack,
-               dtrack_5,
-               dtrack_4,
+               #dtrack_5,
+               #dtrack_4,
                gm),
           type="histogram",
           from=region_start,
@@ -271,12 +271,12 @@ for (x in genes_of_interest){
   region_end<-max(end(ranges(sub_gtf)))+100
   
   dtrack <- AnnotationTrack(range=bed_human,name="tso_6")
-  dtrack_4 <- AnnotationTrack(range=bed_human_4,name="tso_4")
-  dtrack_5 <- AnnotationTrack(range=bed_human_5,name="tso_5")
+  #dtrack_4 <- AnnotationTrack(range=bed_human_4,name="tso_4")
+  #dtrack_5 <- AnnotationTrack(range=bed_human_5,name="tso_5")
   
   displayPars(dtrack)<-list(shape="box")
-  displayPars(dtrack_4)<-list(shape="box")
-  displayPars(dtrack_5)<-list(shape="box")
+  #displayPars(dtrack_4)<-list(shape="box")
+  #displayPars(dtrack_5)<-list(shape="box")
 
   gm <- GeneRegionTrack(track,
                            chromosome=chr,
@@ -342,8 +342,8 @@ for (x in genes_of_interest){
 
   plotTracks(c(overlays_bw_gene,
                dtrack,
-               dtrack_5,
-               dtrack_4,
+               #dtrack_5,
+               #dtrack_4,
                gm),
           type="histogram",
           from=region_start,
