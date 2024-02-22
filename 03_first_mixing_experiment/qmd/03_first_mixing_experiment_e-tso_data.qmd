@@ -306,11 +306,13 @@ for (i in seqnames(Mmusculus)[1:22]){
 
 set<-DNAStringSet(set)[c(22)] # for just mt 
 
-mouse_plus<-runFimo(set,tso_motif,skip_matched_sequence=TRUE,thresh=0.005) # need to change thresh otherwise doesn't show any results
+mouse_plus<-runFimo(set,tso_motif,skip_matched_sequence=FALSE,thresh=0.005) # need to change thresh otherwise doesn't show any results
 
 mouse_plus_5<-runFimo(set,tso_motif_5,skip_matched_sequence=FALSE,thresh=0.0005) # need to change thresh otherwise doesn't show any results
 
 mouse_plus_4<-runFimo(set,tso_motif_4,skip_matched_sequence=FALSE,thresh=0.0005) # need to change thresh otherwise doesn't show any results
+
+mouse_plus<-mouse_plus[grep("CATA",mouse_plus$matched_sequence),]
 
 ```
 
@@ -327,9 +329,13 @@ set<-DNAStringSet(set)[c(25)] # for just mt
 
 human_plus<-runFimo(set,tso_motif,skip_matched_sequence=FALSE,thresh=0.005)
 
-human_plus_5<-runFimo(set,tso_motif_5,skip_matched_sequence=FALSE,thresh=0.0005) # need to change thresh otherwise doesn't show any results
+human_plus_5<-runFimo(set,tso_motif_5,skip_matched_sequence=TRUE,thresh=0.0005) # need to change thresh otherwise doesn't show any results
 
-human_plus_4<-runFimo(set,tso_motif_4,skip_matched_sequence=FALSE,thresh=0.0005) # need to change thresh otherwise doesn't show any results
+human_plus_4<-runFimo(set,tso_motif_4,skip_matched_sequence=TRUE,thresh=0.0005) # need to change thresh otherwise doesn't show any results
+
+# only want the ones that have the first CATA in them (at least 4)
+
+human_plus<-human_plus[grep("CATA",human_plus$matched_sequence),]
 
 ```
 
