@@ -272,7 +272,29 @@ for (i in 1:4){
     rock_roi_theme()+
     theme(axis.title.x=element_text(colour=myscale[[gsub("mixing_","",colnames(mouse_logcpm))[i]]]))+
     theme(axis.title.y=element_text(colour=myscale[[gsub("mixing_","",colnames(mouse_logcpm))[k]]]))+
-    geom_text(x=5, y=13, label=format(round(pearson_corr[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]],3)),size=3)
+    geom_text(x=5, y=13, label=format(round(pearson_corr[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]],3)),size=3)+
+    theme(axis.title=element_text(size=7,face="bold"))
+    print(p)
+  }
+}
+
+for (i in 1:4){
+  for (k in 1:4){
+    p<-ggplot(l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]],aes(x=l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]][,i],
+                                                                                                    y=l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]][,k],
+                                                                                                    label=l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]]$label))+
+    geom_point(alpha=0.2,size=0.5)+
+    xlab("pseudobulk expression (logcpm) unmod")+
+    ylab("pseudobulk expression (logcpm) unmod_n1")+
+    theme_bw()+
+    ggtitle("Mouse")+
+    xlab(colnames(l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]])[i])+
+    ylab(colnames(l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]])[k])+
+    rock_roi_theme()+
+    theme(axis.title.x=element_text(colour=myscale[[gsub("mixing_","",colnames(mouse_logcpm))[i]]]))+
+    theme(axis.title.y=element_text(colour=myscale[[gsub("mixing_","",colnames(mouse_logcpm))[k]]]))+
+    geom_text(x=5, y=13, label=format(round(pearson_corr[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]],3)),size=3)+
+    theme(axis.title=element_text(size=7,face="bold"))
     print(p)
   }
 }
@@ -417,7 +439,30 @@ for (i in 1:4){
     rock_roi_theme()+
     theme(axis.title.x=element_text(colour=myscale[[gsub("mixing_","",colnames(human_logcpm))[i]]]))+
     theme(axis.title.y=element_text(colour=myscale[[gsub("mixing_","",colnames(human_logcpm))[k]]]))+
-    geom_text(x=5, y=13, label=format(round(pearson_corr[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]],3)),size=3)
+    geom_text(x=5, y=13, label=format(round(pearson_corr[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]],3)),size=3)+
+    theme(axis.title=element_text(size=7,face="bold"))
+    print(p)
+  }
+}
+
+
+for (i in 1:4){
+  for (k in 1:4){
+    p<-ggplot(l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]],aes(x=l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]][,i],
+                                                                                                    y=l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]][,k],
+                                                                                                    label=l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]]$label))+
+    geom_point(alpha=0.2,size=0.5)+
+    xlab("pseudobulk expression (logcpm) unmod")+
+    ylab("pseudobulk expression (logcpm) unmod_n1")+
+    theme_bw()+
+    ggtitle("Human")+
+    xlab(colnames(l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]])[i])+
+    ylab(colnames(l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]])[k])+
+    rock_roi_theme()+
+    theme(axis.title.x=element_text(colour=myscale[[gsub("mixing_","",colnames(human_logcpm))[i]]]))+
+    theme(axis.title.y=element_text(colour=myscale[[gsub("mixing_","",colnames(human_logcpm))[k]]]))+
+    geom_text(x=5, y=13, label=format(round(pearson_corr[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]],3)),size=3)+
+    theme(axis.title=element_text(size=7,face="bold"))
     print(p)
   }
 }
