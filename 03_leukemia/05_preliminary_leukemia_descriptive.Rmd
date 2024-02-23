@@ -431,6 +431,24 @@ tryCatch({
 
 ```
 
+
+
+# Detectability (TSO ontarget) per sampletag {.tabset .tabset-pills}
+
+```{r, fig.width = 4, fig.height = 4, results = 'asis'}
+
+for (item in captures){
+tryCatch({
+    
+    cat('## ', item, ' \n\n')
+    print(VlnPlot(object = so,  features = item, group.by = 'sampletag')+
+          theme(legend.position="right", aspect.ratio = 1))
+    cat('\n\n')
+    }, error = function(x) print(x))
+}
+
+```
+
 # TSO (on- and offtarget, unique) {.tabset .tabset-pills}
 
 ## Per cell and per feature QC {.tabset .tabset-pills}
@@ -441,6 +459,7 @@ tryCatch({
 ## most of the columns are WTA-based QC anyway
 colnames(colData(sce)) <- paste0('wta_', colnames(colData(sce)))
 colData(sce)$experiment <- colData(sce)$wta_experiment
+colData(sce)$sampletag <- colData(sce)$sampletag
 
 sce <- addPerCellQC(sce,
                     assay.type = 'tso_off_and_ontarget_unique',
@@ -567,7 +586,6 @@ for (id in unique(colData(sce)$experiment)) {
 } 
 ```
 
-
 ## Quick clustering (TSO on- and offtarget unique) {.tabset .tabset-pills}
 
 ```{r}
@@ -632,9 +650,6 @@ for (res in resolutions) {
 ```{r, fig.width = 7, fig.height = 4, results='asis'}
 
 ## print(colnames(so@meta.data))
-
-layers <- c("experiment",
-            grep('snn_res', colnames(so@meta.data), value = TRUE))
 
 for (item in layers){
 
@@ -720,6 +735,8 @@ tryCatch({
 
 
 # TSO ontarget
+
+
 
 ## Raw counts {.tabset .tabset-pills}
 
