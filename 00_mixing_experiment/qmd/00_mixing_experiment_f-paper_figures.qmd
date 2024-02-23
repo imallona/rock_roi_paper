@@ -448,6 +448,7 @@ df <- data.frame(tso_total = tso_qc$total,
                  tso_capture_sum = tso_qc$subsets_capture_sum,
                  tso_mito_percent = tso_qc$subsets_mouse_mito_percent+
                    tso_qc$subsets_human_mito_percent,
+                 tso_detected = tso_qc$detected,
                  wta_total = sce_nd$total,
                  wta_capture_sum = sce_nd$subsets_capture_sum,
                  wta_mito_percent = sce_nd$subsets_mouse_mito_percent+
@@ -508,6 +509,43 @@ ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")
 ```
 
 
+
+### Same for mito
+
+```{r}
+
+ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=tso_mito_percent,fill=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")))) +
+  geom_violin(show.legend = FALSE)+  
+  theme_bw()+
+  xlab("")+
+  ylab("% mitochondrial transcripts")+ 
+  scale_y_log10()+
+  geom_jitter(shape=16, position=position_jitter(0.2),alpha=0.5,size=0.2,show.legend = FALSE)+
+  rock_roi_theme()+
+  labs(colour="species")+
+  scale_fill_manual(labels=c("unmod","unmod_roi","rock","rockroi"),
+                     values=c(myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rockroi"]]))
+
+```
+
+### Same for genes
+
+```{r}
+
+ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=tso_detected,fill=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")))) +
+  geom_violin(show.legend = FALSE)+  
+  theme_bw()+
+  xlab("")+
+  ylab("total TSO genes")+ 
+  scale_y_log10()+
+  geom_jitter(shape=16, position=position_jitter(0.2),alpha=0.5,size=0.2,show.legend = FALSE)+
+  rock_roi_theme()+
+  labs(colour="species")+
+  scale_fill_manual(labels=c("unmod","unmod_roi","rock","rockroi"),
+                     values=c(myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rockroi"]]))
+
+```
+
 ### False positive vs true positive
 
 ```{r,fig.height=3,fig.width=6}
@@ -525,7 +563,7 @@ dfm <- melt(df, id.vars = c("human","mouse","sample"))
 
 human_targets <- grep("tdtomato", names(sorted), value = TRUE)
 
-p <- ggplot(dfm %>% filter(variable %in% c("roi_1_tdtomato", "roi_2_tdtomato","rock_tdtomato")),
+p <- ggplot(dfm %>% dplyr::filter(variable %in% c("roi_1_tdtomato", "roi_2_tdtomato","rock_tdtomato")),
                       aes(m = value, d = human, colour=sample, group=sample)) + 
   geom_roc(size = 0.3, alpha = .8,
            position = position_dodge2(width=.001),

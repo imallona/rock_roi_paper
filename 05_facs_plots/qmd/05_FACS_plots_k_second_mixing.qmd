@@ -1,0 +1,270 @@
+---
+title: "05_FACS_plots_k_second_mixing"
+author: "Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+
+### Load packages
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(flowCore)
+library(khroma)
+library(here)
+library(flowViz)
+library(ggcyto)
+library(ggplot2)
+library(ggridges)
+library(ggh4x)
+library(reshape2)
+library(here)
+
+```
+
+
+
+### Setting up knitr 
+
+```{r}
+
+knitr::opts_chunk$set(fig.width = 2.7,
+               fig.height = 2.7,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache=TRUE,
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+### Themes
+
+```{r}
+
+rock_roi_theme<-function(){
+  theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        aspect.ratio=1,
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+}
+
+facs_rock_roi_theme_multiple_panels<-function(){
+    theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        aspect.ratio=1,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.border = element_rect(colour = "black", fill = NA))
+}
+
+facs_hist_rock_roi_theme<-function(){
+  theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        aspect.ratio=1,
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.border=element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background=element_rect(colour="white", 
+                                               fill="white"))
+}
+
+```
+
+### Importing data
+
+```{r}
+
+rdss <- dir(here("05_facs_plots/data/second_mixing"), "*.fcs", 
+            recursive = TRUE, full.names = TRUE)
+datadir <- dirname(rdss)[1] # folder where the .rds files are 
+
+```
+
+### Reading data
+
+```{r}
+
+titration<-read.flowSet(rdss)
+
+sampleNames(titration) <- gsub("Specimen_001_", "", sampleNames(titration))
+sampleNames(titration) <- gsub(".fcs", "", sampleNames(titration))
+
+# reordering data
+
+titration<-titration[c(7,9,8,2,1,3,5,4,6)]
+
+sampleNames(titration)<-c("pos_dt","pos_TSO","neg","100_1_double","100_1_dt","100_1_TSO","100_2_double","100_2_dt","100_2_TSO")
+pData(titration)$name<-c("pos_dt","pos_TSO","neg","100_1_double","100_1_dt","100_1_TSO","100_2_double","100_2_dt","100_2_TSO")
+
+```
+
+
+### Gate
+
+```{r,fig.width=8,fig.height=5}
+
+sqrcut <- matrix(c(60000,70000,80000,90000,100000,110000,120000,110000,100000,90000,80000,70000,60000,
+                   50000,75000,80000,85000,85000,70000,60000,35000,30000,28000,30000,35000,50000),ncol=2,nrow=13)
+colnames(sqrcut) <- c("FSC-A","SSC-A")
+
+beads <- polygonGate(filterId="beads", gate= sqrcut)
+
+ggcyto(titration, aes(x = FSC.A, y = SSC.A)) + 
+  geom_hex(bins = 100) + 
+  facet_wrap(~factor(name, levels = c("pos_dt","pos_TSO","neg","100_1_double","100_1_dt","100_1_TSO","100_2_double","100_2_dt","100_2_TSO"))) +
+  geom_gate(beads) + 
+  geom_stats(type = c("percent"),size = 2,adjust=c(0.7,1.2)) +
+  theme_bw() +
+  facs_rock_roi_theme_multiple_panels() 
+
+gs <- GatingSet(titration) # create a GatingSet
+gs_pop_add(gs, beads,parent="root")
+recompute(gs)
+
+# check filtering 
+
+filt_titration <- Subset(titration, beads)
+
+ggcyto(filt_titration, aes(x = FSC.A, y = SSC.A)) + 
+  geom_hex(bins = 100) + 
+  facet_wrap(~factor(name, levels = c("pos_dt","pos_TSO","neg","100_1_double","100_1_dt","100_1_TSO","100_2_double","100_2_dt","100_2_TSO"))) +
+  geom_gate(beads) + 
+  theme_bw() +
+  facs_rock_roi_theme_multiple_panels()
+
+```
+
+
+
+### Trasformation data biexponential
+
+```{r,fig.width=3,fig.height=5.4}
+
+ggcyto(filt_titration, aes(x = "APC-A", fill = name,color=name)) + 
+  geom_histogram(alpha = 1,bins=256) + 
+  scale_x_flowjo_biexp() +
+  facet_wrap(~factor(name, levels = c("pos_dt","pos_TSO","neg","100_1_double","100_1_dt","100_1_TSO","100_2_double","100_2_dt","100_2_TSO")),ncol=1,switch = "y")+
+  theme_bw() +
+  facs_hist_rock_roi_theme()+
+  theme(strip.placement = "outside")+
+  theme(legend.position = "none")+
+  theme(strip.text = element_text(size=5,face="bold"))+
+  force_panelsizes(rows = unit(0.25, "in"),
+                   cols = unit(2.5, "in"))+
+  theme(panel.spacing = unit(0.1, "lines"))+
+  theme(strip.text.y = element_blank())+
+  theme(axis.line = element_line())+
+  scale_fill_manual(values=c(pos_dt="#882155",
+                             pos_TSO="#CC6677",
+                             neg="#C0C0C0",
+                             "100_gfp"="#12783D",
+                             "100_1_dt"="#AA4599",
+                             "100_1_TSO"="#C87CB4",
+                             "100_1_double"="darkorange",
+                             "100_2_dt"="#AA4599",
+                             "100_2_TSO"="#C87CB4",
+                             "100_2_double"="darkorange"))+
+    scale_color_manual(values=c(pos_dt="#882155",
+                             pos_TSO="#CC6677",
+                             neg="#C0C0C0",
+                             "100_gfp"="#12783D",
+                             "100_1_dt"="#AA4599",
+                             "100_1_TSO"="#C87CB4",
+                             "100_1_double"="darkorange",
+                             "100_2_dt"="#AA4599",
+                             "100_2_TSO"="#C87CB4",
+                             "100_2_double"="darkorange"))
+  
+```
+
+
+### Violin plot 
+
+```{r}
+
+list_filt_titration<-list()
+
+for (i in 1:length(filt_titration)){
+  list_filt_titration[[sampleNames(filt_titration)[[i]]]]<-as.data.frame(filt_titration[[i]]@exprs)$"APC-A"
+}
+
+plottable<-melt(list_filt_titration)
+
+ggplot(plottable,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","100_1_double","100_1_dt","100_1_TSO","100_2_double","100_2_dt","100_2_TSO")),y=value))+
+  scale_y_flowjo_biexp()+
+  geom_violin(aes(fill=L1,alpha=1),size=0.1)+
+  stat_summary(fun=mean, 
+               geom="crossbar", 
+               width=0.3)+
+  theme_bw()+
+  xlab("sample")+
+  ylab("APC-A Atto647N")+
+  rock_roi_theme()+
+  theme(legend.position = "none")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+
+  scale_fill_manual(values=c(pos_dt="#882155",
+                             pos_TSO="#CC6677",
+                             neg="#C0C0C0",
+                             "100_gfp"="#12783D",
+                             "100_1_dt"="#AA4599",
+                             "100_1_TSO"="#C87CB4",
+                             "100_1_double"="darkorange",
+                             "100_2_dt"="#AA4599",
+                             "100_2_TSO"="#C87CB4",
+                             "100_2_double"="darkorange"))+
+    scale_color_manual(values=c(pos_dt="#882155",
+                             pos_TSO="#CC6677",
+                             neg="#C0C0C0",
+                             "100_gfp"="#12783D",
+                             "100_1_dt"="#AA4599",
+                             "100_1_TSO"="#C87CB4",
+                             "100_1_double"="darkorange",
+                             "100_2_dt"="#AA4599",
+                             "100_2_TSO"="#C87CB4",
+                             "100_2_double"="darkorange"))
+
+```
+
+
+### Session info
+
+```{r}
+
+sessionInfo()
+
+```
