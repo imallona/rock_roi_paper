@@ -14,8 +14,8 @@ bedGraphToBigWig: bedGraphToBigWig
 faSize: faSize
 
 ## run limits
-nthreads: 10
-per_task_max_nthreads: 5
+nthreads: 30
+per_task_max_nthreads: 30
 max_mem_mb: 350000 ## these are megabytes
 
 ## path to whitelists directory

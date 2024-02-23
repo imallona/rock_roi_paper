@@ -17,7 +17,7 @@ faSize: faSize
 nthreads: 20
 per_task_max_nthreads: 5
 # per_task_max_mem:  103882211200
-max_mem_mb: 350000 ## these are megabytes
+max_mem_mb: 400000 ## these are megabytes
 
 ## path to whitelists directory
 whitelist_path: '/home/imallona/src/rock_roi_method/data/'
