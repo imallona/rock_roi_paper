@@ -122,13 +122,57 @@ names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unk
 
 ```
 
+
+### The format of the rnaqc and bamqc output .txt file is horrible, so transfering data manually (not ideal)
+
+```{r}
+
+qc_stats<-data.frame(matrix(nrow=9,ncol=9))
+rownames(qc_stats)<-c("n_mapped_reads",
+                      "n_alignments",
+                      "n_aligned_genes",
+                      "% exonic",
+                      "% intronic",
+                      "% intergenic",
+                      "mapping_quality (%)",
+                      "n_mito_human_bases",
+                      "n_mito_mouse_bases")
+
+colnames(qc_stats)<-c("unmod_wta","unmod_roi_wta","unmod_roi_tso","rock_wta","rock_tso","rockroi_wta","rockroi_tso")
+
+qc_stats$unmod_wta<-c(79464700,127015266,45496609,81.86,12.13,6.01,19.76,330626453,175135445)
+qc_stats$unmod_roi_wta<-c(61028403,97460697,34441519,80.12,13.96,5.91,19.28,285568718,101339931)
+qc_stats$unmod_roi_tso<-c(30623595,41289259,19546682,84.79,12.47,2.74,19.96,493260518,227603853)
+qc_stats$rock_wta<-c(64502908,104950805,36268922,81.54,12.04,6.42,19.68,234123637,127966736)
+qc_stats$rock_tso<-c(44610313,63685100,29127875,85.24,12.69,2.07,19.18,299489080,133170831)
+qc_stats$rockroi_wta<-c(59838042,95051279,34533361,81.87,13.05,5.08,20.25,264061292,100791208)
+qc_stats$rockroi_tso<-c(38727236,54463523,25294377,84.78,13.29,1.93,19.43,318747278,99451799)
+
+qc_stats$name<-rownames(qc_stats)
+
+plottable<-melt(qc_stats,id="name")
+
+# for (i in unique(plottable$name)){
+#   p<-ggplot(plottable[plottable$name==i,],aes(x=variable,y=value,fill=variable))+
+#   geom_bar(stat = "identity")+
+#   ggtitle(i)+
+#   theme_bw()+
+#   rock_roi_theme()+
+#   theme(legend.position = "none")+
+#   scale_fill_manual(labels=c("unmod_wta","unmod_tso","unmod_roi_wta","unmod_roi_tso","rock_wta","rock_tso","rockroi_wta","rockroi_tso"),
+#                      values=alpha(c(myscale[["unmod"]],myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rock"]],myscale[["rockroi"]],myscale[["rockroi"]]),c(1,0.5,1,0.5,1,0.5,1,0.5)))
+#   print(p)
+# }
+
+```
+
 ### Loading data
 
 ```{r}
 
 getwd() # after opening the .Rproj file, getwd() should be "/Users/gimoro/figure_making_paper/rock_roi_paper"
 
-rdss <- dir(here("03_first_mixing_experiment/data/starsolo_stats"), "*.txt", 
+rdss <- dir(here("00_mixing_experiment/data/starsolo_stats"), "*.txt", 
             recursive = TRUE, full.names = TRUE)
 
 datadir <- dirname(rdss)[1] # folder where the .rds files are 
@@ -281,13 +325,12 @@ for (i in unique(plottable$name)){
   theme_bw()+
   rock_roi_theme()+
   theme(legend.position = "none")+
-  scale_fill_manual(labels=c("unmod_wta","unmod_roi_wta","unmod_roi_tso","rock_wta","rock_tso","rockroi_wta","rockroi_tso"),
-                    values=alpha(c(myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rock"]],myscale[["rockroi"]],myscale[["rockroi"]]),c(1,1,0.5,1,0.5,1,0.5)))
+ scale_fill_manual(labels=c("unmod_wta","unmod_roi_wta","unmod_roi_tso","rock_wta","rock_tso","rockroi_wta","rockroi_tso"),
+                     values=alpha(c(myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rock"]],myscale[["rockroi"]],myscale[["rockroi"]]),c(1,1,0.5,1,0.5,1,0.5)))
 
-  
   print(p)
 }
-
+    
 ```
 
 ### Session info
