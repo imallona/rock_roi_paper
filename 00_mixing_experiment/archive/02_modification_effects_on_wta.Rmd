@@ -1,0 +1,2025 @@
+---
+title: "Wide WTA/TSO distributions plotting"
+author: "Izaskun Mallona"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: kable
+    theme: lumen
+params:
+  seed: 665
+---
+
+# Aim
+
+```
+lorem ipsum
+```
+
+To be run in R 4.3.1 with BioC 3.17
+
+
+```{r}
+.libPaths('/home/imallona/soft/R/R-4.3.1/lib/R/library')
+```
+
+
+```{r}
+suppressPackageStartupMessages({
+    library(Seurat)
+    library(dplyr)
+    library(patchwork)
+    library(ggplot2)
+    library(scDblFinder)
+    library(Matrix)
+    library(knitr)
+    library(ggExtra)
+    library(grid)
+    library(viridis)
+    library(SingleCellExperiment)
+    library(scuttle)
+    library(scater)
+    library(ggrepel)    
+    library(ComplexHeatmap)
+    library(colorRamp2)
+    library(edgeR)
+
+})
+```
+
+
+```{r}
+ID <- '02_modification_effects_on_wta'
+
+DOWNSAMPLE <- FALSE
+
+## setwd(WD)
+
+NTHREADS <- 10
+```
+
+
+```{r}
+opts_chunk$set(fig.width = 5,
+               fig.height = 5,
+               cache = TRUE,
+               include = TRUE,
+               dev = "png",
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+```
+
+
+```{r}
+dp <- '/home/imallona/ebrunner_spectral/mixing/multimodal/'
+sces <- lapply(list.files(dp,
+                          ".*sce.rds", recursive = TRUE),
+               function(x) readRDS(file.path(dp, x)))
+
+## combine sces
+## sce <-  Reduce(cbind, sces)
+for (i in 1:length(sces)) {
+    colnames(sces[[i]]) <- paste0(dirname(list.files(dp,
+                                                     ".*sce.rds", recursive = TRUE)),
+                                          '_',
+                                          colnames(sces[[i]]))
+    colData(sces[[i]])$experiment <- mainExpName(sces[[i]])
+    colnames(rowData(sces[[i]])) <- c("name", "type", "value")
+    rownames(sces[[i]]) <- paste0(rowData(sces[[i]])$name, "__", rownames(sces[[i]]))
+}
+
+d <-  Reduce(cbind, sces)
+rm(sces)
+
+```
+
+```{r}
+
+
+rowData(d)$species <- ifelse(
+              grepl('ENS', rownames(d)),
+              yes = ifelse(grepl('ENSMUSG', rownames(d)),
+                           yes = 'mouse', no = 'human'),
+              no = 'alien')
+
+colData(d)$sum_human <- colSums(assay(d, 'wta')[rowData(d)$species == 'human',])
+colData(d)$sum_alien <- colSums(assay(d, 'wta')[rowData(d)$species == 'alien',])
+colData(d)$sum_mouse <- colSums(assay(d, 'wta')[rowData(d)$species == 'mouse',])
+colData(d)$mouseness <- colData(d)$sum_mouse / (colData(d)$sum_mouse + colData(d)$sum_human)
+## plot(colData(d)$sum_mouse,colData(d)$sum_human)
+
+colData(d)$species <- ifelse(colData(d)$sum_mouse > colData(d)$sum_human, yes = 'mouse', no = 'human')
+
+table(colData(d)$experiment, colData(d)$species)
+```
+
+```{r}
+## legacy
+colData(d)$treatment <- colData(d)$experiment
+```
+
+```{r, fig.width = 7, fig.height = 7}
+fd <- as.data.frame(colData(d)[,c('mouseness', 'experiment')])
+ggplot(fd, aes(x=mouseness, color=experiment)) +
+    geom_histogram(fill="white", alpha=0.5, position="identity") +
+    facet_grid(~experiment) +
+    xlab('sum mouse reads / sum total reads') +
+    ylab('# cells')
+
+```
+
+
+
+# Split in mouse and human, separately
+
+Add a 'count' assay summarizing the 'wta' assay
+
+```{r}
+
+counts(d) <- assay(d, "wta")
+```
+
+```{r}
+
+newd <- list()
+(newd$mouse <- d[rowData(d)$species == 'mouse', colData(d)$species == 'mouse'])
+(newd$human <- d[rowData(d)$species == 'human', colData(d)$species == 'human'])
+
+
+d <- newd
+rm(newd)
+gc()
+```
+
+
+
+```{r}
+
+for (wta in names(d)){
+    d[[wta]] <- addPerCellQC(d[[wta]],
+                             assay.type = 'wta',
+                             subsets = list(mito = grep('^mt-', rownames(rowData(d[[wta]])),
+                                                        value = TRUE, ignore.case = TRUE),
+                                            alien = grep('ENSG|ENSMUSG', rownames(rowData(d[[wta]])),
+                                                         invert = TRUE)))
+
+    d[[wta]]$compound_id <- paste(d[[wta]]$species,
+                                  d[[wta]]$treatment,
+                                  d[[wta]]$mod, sep = '_')
+}
+```
+
+
+
+
+# Mouse (all fastq processing flavours)
+
+## Per cell and per feature QC, mouse {.tabset .tabset-fade .tabset-pills}
+
+```{r, cache = FALSE}
+
+libsize.drop <- isOutlier(d$mouse$total, nmads = 2, type = "both", log = TRUE,
+                          batch = d$mouse$experiment)
+feature.drop <- isOutlier(d$mouse$detected, nmads = 2, type = "both", log = TRUE,
+                          batch = d$mouse$experiment)
+mito.drop <- isOutlier(d$mouse$subsets_mito_percent, nmads = 2, type = "higher",
+                       batch = d$mouse$experiment, log = FALSE)
+
+
+```
+
+```{r, fig.width = 5, fig.height = 4, results = 'asis'}
+
+## cat('### ', 'Sum vs detected (by name)', ' \n\n')
+## plotColData(d$mouse, x = "sum", y="detected", colour_by = c("mod"))
+## cat('\n\n')
+
+cat('### ', 'Sum vs detected (by species)', ' \n\n')
+plotColData(d$mouse, x = "sum", y="detected", colour_by = c("species"))
+cat('\n\n')
+
+cat('### ', 'Sum vs detected (by modality)', ' \n\n')
+plotColData(d$mouse, x = "sum", y="detected", colour_by = c("treatment"))
+cat('\n\n')
+
+cat('### ', 'Highest expressed', ' \n\n')
+plotHighestExprs(d$mouse, exprs_values = "wta")
+cat('\n\n')
+```
+
+
+
+```{r varpart2, fig.width = 4, fig.height = 4, results = 'asis'}
+d$mouse <- logNormCounts(d$mouse) 
+## colData(d$mouse)$name <- colData(d$mouse)$orig.ident
+vars <- getVarianceExplained(d$mouse, variables = c("treatment"))
+
+cat('### ', 'Variance partitioning', ' \n\n')
+plotExplanatoryVariables(vars)
+cat('\n\n')
+```
+
+## Overall quality metrics before QC (hist) {.tabset .tabset-fade .tabset-pills}
+
+
+```{r scater_plots_before, results = 'asis'}
+
+
+for (id in unique(colData(d$mouse)$experiment)) {
+    par(mfrow=c(2,2), mar=c(5.1, 4.1, 0.1, 0.1))
+
+    curr <- subset(d$mouse, , experiment == id)
+    
+    cat('### ', id, ' \n\n') 
+    hist(curr$total/1e3, xlab="Library sizes (thousands)", main="", 
+         breaks=20, col="grey80", ylab="Number of cells")
+    abline(v = attr(libsize.drop, 'thresholds')['lower', id]/1e3, col = 'blue')
+    abline(v = attr(libsize.drop, 'thresholds')['higher', id]/1e3, col = 'blue')
+
+    hist(curr$detected, xlab="Number of expressed genes", main="", 
+         breaks=20, col="grey80", ylab="Number of cells")
+    abline(v = attr(feature.drop, 'thresholds')['lower', id], col = 'blue')
+    abline(v = attr(feature.drop, 'thresholds')['higher', id], col = 'blue')
+
+    ## hist(curr$altexps_spikes_percent, xlab="ERCC proportion (%)",
+    ##      ylab="Number of cells", breaks=20, main="", col="grey80")
+    ## abline(v = attr(spike.drop, 'thresholds')['higher', id], col = 'blue')
+
+    hist(curr$subsets_mito_percent, xlab="Mitochondrial proportion (%)", 
+         ylab="Number of cells", breaks=20, main="", col="grey80")
+    abline(v = attr(mito.drop, 'thresholds')['higher', id], col = 'blue')
+    cat('\n\n')
+}
+
+```
+
+## Overall quality metrics before QC (scatter) {.tabset .tabset-fade .tabset-pills}
+
+```{r}
+ac <- function(col, alpha=1){
+  apply(sapply(col, col2rgb)/255, 2, 
+                     function(x) 
+                         rgb(x[1], x[2], x[3], alpha=alpha))
+}
+```
+
+```{r library_sizes_before, , results = 'asis'}
+for (id in unique(colData(d$mouse)$experiment)) {
+    par(mfrow=c(2,2), mar=c(5.1, 4.1, 0.1, 0.1))
+
+    curr <- subset(d$mouse, , experiment == id)
+    cat('### ', id, ' \n\n') 
+    
+    plot(density(curr$total/1e3),
+         xlab = "library sizes (thousands)",
+         main = '')
+
+    rug(curr$total/1e3)
+
+    plot(y = curr$total/1e3,
+         x = curr$subsets_mito_percent,
+         pch = 20,
+         ylab = 'library size (thousands)',
+         xlab = 'mitochondrial proportion (%)',
+         ## col = ac('black', 0.5)
+         )
+
+    plot(y = curr$total/1e3,
+         x = curr$detected,
+         ## col = ac(curr$color, 0.5),
+         pch = 20,
+         ylab = 'library size (thousands)',
+         xlab = 'number of genes')
+    ## col = ac('black', 0.5)
+    ## )
+
+    ## plot(y = curr$total/1e3,
+    ##      x = curr$altexps_spikes_percent,
+    ##      col = ac(curr$color), 0.5),
+    ##      pch = 20,
+    ##      ylab = 'library size (thousands)',
+    ##      xlab = "ERCC proportion (%)",
+    ##      ## col = ac('black', 0.5)
+    ##      )
+
+    plot(y = curr$subsets_mito_percent,
+         x = curr$detected,
+         pch = 20,
+         xlab = 'number of genes',
+         ylab = 'mitochondrial proportion (%)',
+         col = ac('black', 0.5))
+
+    cat('\n\n')
+} 
+```
+
+## Detected outliers
+
+```{r}
+
+d$mouse <- d$mouse[,!(libsize.drop | feature.drop | mito.drop )]
+data.frame(ByLibSize = sum(libsize.drop),
+           ByFeature = sum(feature.drop), 
+           ByMito= sum(mito.drop),
+           Remaining = ncol(d$mouse))
+```
+
+
+```{r removal_of_unknowns, cache = FALSE}
+d$mouse <- subset(d$mouse, , species %in% c('mouse', 'human'))
+```
+
+
+
+## QC after filtering {.tabset .tabset-fade .tabset-pills}
+
+### Per cell and per feature QC {.tabset .tabset-fade .tabset-pills}
+
+```{r qualmetricsafter, fig.width = 5, fig.height = 4, results = 'asis'}
+
+## cat('#### ', 'Sum vs detected (by name)', ' \n\n')
+## plotColData(d$mouse, x = "sum", y="detected", colour_by = c("mod"))
+## cat('\n\n')
+
+
+cat('#### ', 'Sum vs detected (by name)', ' \n\n')
+plotColData(d$mouse, x = "sum", y="detected", colour_by = c("experiment"))
+cat('\n\n')
+
+cat('#### ', 'Sum vs detected (by species)', ' \n\n')
+plotColData(d$mouse, x = "sum", y="detected", colour_by = c("species"))
+cat('\n\n')
+
+cat('#### ', 'Sum vs detected (by modality)', ' \n\n')
+
+plotColData(d$mouse, x = "sum", y="detected", colour_by = c("treatment"))
+cat('\n\n')
+
+## cat('### ', 'Sum vs detected (by batch)', ' \n\n')
+## plotColData(d$mouse, x = "sum", y="detected", colour_by = c("batch"))
+## cat('\n\n')
+
+## cat('### ', 'Sum vs detected (by color)', ' \n\n')
+## plotColData(d$mouse, x = "sum", y="detected", colour_by = c("color"))
+## cat('\n\n')
+
+
+cat('### ', 'Highest expressed', ' \n\n')
+plotHighestExprs(d$mouse, exprs_values = "wta")
+cat('\n\n')
+```
+
+
+```{r varpartafter, fig.width = 4, fig.height = 4, results = 'asis'}
+vars <- getVarianceExplained(d$mouse, variables = c("species", "experiment"))
+
+cat('### ', 'Variance partitioning', ' \n\n')
+plotExplanatoryVariables(vars)
+cat('\n\n')
+```
+
+
+### Overall quality metrics after QC (hists) {.tabset .tabset-fade .tabset-pills}
+
+```{r hists_plots_after, results = 'asis'}
+
+for (id in unique(colData(d$mouse)$experiment)) {
+    par(mfrow=c(2,2), mar=c(5.1, 4.1, 0.1, 0.1))
+
+    curr <- subset(d$mouse, , experiment == id)
+    
+    cat('#### ', id, ' \n\n') 
+    hist(curr$total/1e3, xlab="Library sizes (thousands)", main="", 
+         breaks=20, col="grey80", ylab="Number of cells")
+    abline(v = attr(libsize.drop, 'thresholds')['lower', id]/1e3, col = 'blue')
+    abline(v = attr(libsize.drop, 'thresholds')['higher', id]/1e3, col = 'blue')
+
+    hist(curr$detected, xlab="Number of expressed genes", main="", 
+         breaks=20, col="grey80", ylab="Number of cells")
+    abline(v = attr(feature.drop, 'thresholds')['lower', id], col = 'blue')
+    abline(v = attr(feature.drop, 'thresholds')['higher', id], col = 'blue')
+
+    ## hist(curr$altexps_spikes_percent, xlab="ERCC proportion (%)",
+    ##      ylab="Number of cells", breaks=20, main="", col="grey80")
+    ## abline(v = attr(spike.drop, 'thresholds')['higher', id], col = 'blue')
+
+    hist(curr$subsets_mito_percent, xlab="Mitochondrial proportion (%)", 
+         ylab="Number of cells", breaks=20, main="", col="grey80")
+    abline(v = attr(mito.drop, 'thresholds')['higher', id], col = 'blue')
+    cat('\n\n')
+}
+
+```
+
+### Overall quality metrics after QC (scatter) {.tabset .tabset-fade .tabset-pills}
+
+```{r library_sizes_after, , results = 'asis'}
+for (id in unique(colData(d$mouse)$experiment)) {
+    cat('#### ', id, ' \n\n') 
+    par(mfrow=c(2,2), mar=c(5.1, 4.1, 0.1, 0.1))
+
+    curr <- subset(d$mouse, , experiment == id)
+    
+    plot(density(curr$total/1e3),
+         xlab = "library sizes (thousands)",
+         main = '')
+
+    rug(curr$total/1e3)
+
+    plot(y = curr$total/1e3,
+         x = curr$subsets_mito_percent,
+         ## col = ac(curr$color, 0.5),
+         pch = 20,
+         ylab = 'library size (thousands)',
+         xlab = 'mitochondrial proportion (%)',
+         ## col = ac('black', 0.5)
+         )
+
+    plot(y = curr$total/1e3,
+         x = curr$detected,
+         ## col = ac(curr$color, 0.5),
+         pch = 20,
+         ylab = 'library size (thousands)',
+         xlab = 'number of genes')
+    ## col = ac('black', 0.5)
+    ## )
+
+    ## plot(y = curr$total/1e3,
+    ##      x = curr$altexps_spikes_percent,
+    ##      col = ac(as.numeric(as.factor(curr$name)), 0.5),
+    ##      pch = 20,
+    ##      ylab = 'library size (thousands)',
+    ##      xlab = "ERCC proportion (%)",
+    ##      ## col = ac('black', 0.5)
+    ##      )
+
+    plot(y = curr$subsets_mito_percent,
+         x = curr$detected,
+         pch = 20,
+         xlab = 'number of genes',
+         ylab = 'mitochondrial proportion (%)',
+         col = ac('black', 0.5))
+
+    cat('\n\n')
+} 
+```
+
+
+## Dimred, unsupervised clustering (all flavours)  {.tabset .tabset-fade .tabset-pills}
+
+
+<!-- ### Not integrated  {.tabset .tabset-fade .tabset-pills} -->
+
+
+
+```{r}
+plan("multicore", workers = NTHREADS) ## each task executes in its own forked child process, linux only
+options(future.globals.maxSize= 12.0e9)
+
+```
+
+```{r, warning = FALSE, message =  FALSE}
+## dim(d$mouse)
+## dim(colData(d$mouse))
+stopifnot(all(colnames(d$mouse) %in% rownames(colData(d$mouse))))
+
+so <- CreateSeuratObject(counts = counts(d$mouse),
+                         project = "brunner",
+                         meta.data = as.data.frame(colData(d$mouse)),
+                         min.cells = 0, min.features = 0,
+                         assay = 'RNA')
+
+so <- NormalizeData(object = so, normalization.method = 'LogNormalize', scale.factor = 10000)
+so <- FindVariableFeatures(so, selection.method = "vst", nfeatures = 2000)
+
+so <-  ScaleData(so, features = rownames(so))
+
+## so <- SCTransform(so,  verbose = FALSE, assay = 'RNA')
+
+```
+
+```{r}
+
+so@meta.data$roi_status <- ifelse(grepl('roi', so@meta.data$experiment), yes = 'roi', no = 'not_roi')
+
+
+so@meta.data$fastq_processing <- NA
+
+for (i in 1:length(so@meta.data$fastq_processing)) {
+    if (grepl('clip_5', so@meta.data$experiment[i]))
+        so@meta.data$fastq_processing[i] <- 'clip_5_bases'
+    else if (grepl('cut_roi', so@meta.data$experiment[i]))
+        so@meta.data$fastq_processing[i] <- 'cut_roi'
+    else if (grepl('remove_roi_containing_fastqs', so@meta.data$experiment[i]))
+        so@meta.data$fastq_processing[i] <- 'remove_roi_fastqs'
+    else if (grepl('normal', so@meta.data$experiment[i]))
+        so@meta.data$fastq_processing[i] <- 'normal'
+}
+
+table(so@meta.data$fastq_processing)
+so@meta.data$roi_status[so@meta.data$fastq_processing != 'normal'] <- 'debugging'
+
+table(so@meta.data$fastq_processing, so@meta.data$roi_status)
+
+```
+
+```{r, message = FALSE, warning = FALSE}
+
+so <- RunPCA(object = so,
+             features = VariableFeatures(so),
+             verbose = FALSE,
+             npcs = 40)
+
+```
+
+### Loadings
+
+```{r, fig.width = 12, fig.height = 8}
+VizDimLoadings(object = so, dims = 1:4)
+```
+
+### Elbow
+
+```{r, fig.width =4, fig.height = 4}
+print(ElbowPlot(object = so, ndims = 50))
+
+```
+
+```{r}
+merged_dims <- 1:30
+```
+
+```{r, message = FALSE}
+
+so <- FindNeighbors(object = so, dims = merged_dims)
+
+## (resolutions <- seq(0.2, 1.4, by = 0.6))
+resolutions <- 0.1
+
+for (res in resolutions) {
+    so <- FindClusters(object = so, resolution = res)
+}
+
+```
+
+### PCA {.tabset .tabset-fade .tabset-pills}
+
+```{r, fig.width = 7, fig.height = 4, results='asis'}
+
+## layers <- c("experiment", "species", 'roi_status', 'fastq_processing',
+##             grep('snn_res', colnames(so@meta.data), value = TRUE))
+
+layers <- c("experiment", "species",
+            grep('snn_res', colnames(so@meta.data), value = TRUE))
+
+for (item in layers){
+
+    cat('#### ', item, ' \n\n')
+    print(DimPlot(object = so, reduction = "pca", group.by = item, shuffle = TRUE) +
+          ggtitle(item) +
+          theme(legend.position="right", aspect.ratio = 1))
+
+    cat('\n\n')
+}
+
+cat('#### RNA counts \n\n')
+FeaturePlot(object = so, reduction = "pca", features = 'nCount_SCT') +
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+cat('#### Number of features \n\n')
+FeaturePlot(object = so, reduction = "pca", features = 'nFeature_SCT')+
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+cat('#### Percent mitochondrial reads \n\n')
+FeaturePlot(object = so, reduction = "pca", features = 'subsets_mito_percent')+
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+## <!-- cat('##### egfp \n\n') -->
+## <!-- FeaturePlot(object = so, reduction = "pca", features = 'sum_gfp')+ -->
+## <!--     theme(legend.position="right", aspect.ratio = 1) -->
+## <!-- cat('\n\n') -->
+
+## <!-- cat('##### tdtomato \n\n') -->
+## <!-- FeaturePlot(object = so, reduction = "pca", features = 'sum_tdtom')+ -->
+## <!--     theme(legend.position="right", aspect.ratio = 1) -->
+## <!-- cat('\n\n') -->
+```
+
+### tSNEs {.tabset .tabset-fade .tabset-pills}
+
+```{r, fig.width = 8, fig.height = 4}
+
+so <- RunTSNE(object = so, dims.use = merged_dims,
+              check_duplicates = FALSE,
+              do.fast = TRUE, seed.use = 111)
+```
+
+```{r, fig.width = 7, fig.height = 4, results='asis'}
+
+for (item in layers){               
+
+    cat('#### ', item, ' \n\n')
+    print(DimPlot(object = so, reduction = "tsne", group.by = item, shuffle = TRUE) +
+          ggtitle(item) +
+          theme(legend.position="right", aspect.ratio = 1))
+    cat('\n\n')
+}
+    
+cat('#### RNA counts \n\n')
+FeaturePlot(object = so, reduction = "tsne", features = 'nCount_SCT') +
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+cat('#### Number of features \n\n')
+FeaturePlot(object = so, reduction = "tsne", features = 'nFeature_SCT') +
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+cat('#### Percent mitochondrial reads \n\n')
+FeaturePlot(object = so, reduction = "tsne", features = 'subsets_mito_percent') +
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+## cat('##### egfp \n\n')
+## FeaturePlot(object = so, reduction = "tsne", features = 'sum_gfp')+
+##     theme(legend.position="right", aspect.ratio = 1)
+## cat('\n\n')
+
+## cat('#### tdtomato \n\n')
+## FeaturePlot(object = so, reduction = "tsne", features = 'sum_tdtom')+
+##     theme(legend.position="right", aspect.ratio = 1)
+## cat('\n\n')
+```
+
+### UMAP {.tabset .tabset-fade .tabset-pills}
+
+```{r, fig.width = 8, fig.height = 4, message = FALSE}
+so <- RunUMAP(object = so, reduction = "pca", 
+              dims = merged_dims)
+```
+
+
+```{r, fig.width = 7, fig.height = 4, results='asis'}
+
+for (item in layers){
+    cat('#### ', item, ' \n\n')
+    print(DimPlot(object = so, reduction = "umap", group.by = item, shuffle = TRUE) +
+          ggtitle(item) +
+          theme(legend.position="right", aspect.ratio = 1))
+    cat('\n\n')
+}
+
+cat('#### RNA counts \n\n')
+FeaturePlot(object = so, reduction = "umap", features = 'nCount_SCT') +
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+cat('#### Number of features \n\n')
+FeaturePlot(object = so, reduction = "umap", features = 'nFeature_SCT') +
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+cat('#### Percent mitochondrial reads \n\n')
+FeaturePlot(object = so, reduction = "umap", features = 'subsets_mito_percent') +
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+## cat('##### egfp \n\n')
+## FeaturePlot(object = so, reduction = "umap", features = 'sum_gfp')+
+##     theme(legend.position="right", aspect.ratio = 1)
+## cat('\n\n')
+
+## cat('##### tdtomato \n\n')
+## FeaturePlot(object = so, reduction = "umap", features = 'sum_tdtom')+
+##     theme(legend.position="right", aspect.ratio = 1)
+## cat('\n\n')
+```
+
+## Diff expression (by modification) {.tabset .tabset-fade .tabset-pills}
+
+
+Complex heatmap
+
+```{r}
+
+## set.seed(123)
+## mat = matrix(rnorm(100), 10)
+## rownames(mat) = paste0("R", 1:10)
+## colnames(mat) = paste0("C", 1:10)
+## column_ha = HeatmapAnnotation(foo1 = cbind(runif(10), runif(10)),
+##                                            bar1 = anno_barplot(runif(10)))
+## row_ha = rowAnnotation(foo2 = runif(10), bar2 = anno_barplot(runif(10)))
+## Heatmap(mat, name = "mat", top_annotation = column_ha, right_annotation = row_ha)
+
+
+```
+
+```{r}
+
+
+
+markers <- FindAllMarkers(object = so, max.cells.per.ident = 2000, only.pos = TRUE,
+                          logfc.threshold = 0.25,
+                          test.use = 'wilcox',
+                          slot = 'data',
+                          min.pct = 0,
+                          min.diff.pct = 0.1,
+                          random.seed = 98797)
+
+table(markers$p_val_adj < 0.05)
+```
+
+### pvalues hist (adjusted)
+
+```{r}
+hist(markers$p_val_adj)
+```
+
+### toptable
+
+```{r}
+(top <- as.data.frame(markers %>% group_by(cluster) %>%
+                        top_n(n = 5, wt = avg_log2FC)))
+
+write.csv(x = markers, file = sprintf('mouse_batch_so_roi_markers_%s.csv', ID))
+
+```
+
+### correlation heatmaps (downsampled cells), HVGs correlation
+
+```{r, fig.width = 10, fig.height = 6}
+
+
+Idents(so) <- 'experiment'
+set.seed(654)
+mini <- subset(so,
+              downsample = 10)
+
+
+cors <- cor(as.matrix(GetAssayData(mini, 'RNA')[VariableFeatures(so),]), method = 'spearman')
+## cors <- cor(as.matrix(GetAssayData(mini, 'data')), method = 'spearman')
+
+rownames(cors) <- NULL
+colnames(cors) <- NULL
+
+## levels(mini@meta.data$experiment) <- unique(as.character(mini@meta.data$experiment))
+column_ha = HeatmapAnnotation(roi_markers = t(as.matrix(GetAssayData(mini, 'RNA'))[top$gene,]),
+                              roi_status = mini@meta.data$roi_status,
+                              mod = mini@meta.data$experiment,
+                              ## annotation_height = unit(c(2,2,2,2,2,2), "mm"),
+                              simple_anno_size = unit(1, "mm"))
+
+## ?ComplexHeatmap::Heatmap
+set.seed(364)
+Heatmap(cors,
+        cluster_rows = FALSE,
+        cluster_columns = FALSE,
+        name = "Cell correlation\n(log norm counts HVGs, Spearman)",
+        col = colorRamp2(c(-1, 0, 1), c("blue", "white", "red")),
+        top_annotation = column_ha)
+
+```
+
+### correlation heatmaps (downsampled cells) PCs
+
+```{r, fig.width = 10, fig.height = 6}
+
+
+Idents(so) <- 'experiment'
+set.seed(654)
+mini <- subset(so,
+              downsample = 10)
+
+
+## cors <- cor(as.matrix(GetAssayData(mini, 'data')[VariableFeatures(so),]), method = 'spearman')
+## cors <- cor(as.matrix(GetAssayData(mini, 'data')), method = 'spearman')
+cors <- cor(as.matrix(t(mini@reductions$pca@cell.embeddings)), method = 'spearman')
+
+rownames(cors) <- NULL
+colnames(cors) <- NULL
+
+## levels(mini@meta.data$experiment) <- unique(as.character(mini@meta.data$experiment))
+column_ha = HeatmapAnnotation(roi_markers = t(as.matrix(GetAssayData(mini, 'RNA'))[top$gene,]),
+                              roi_status = mini@meta.data$roi_status,
+                              mod = mini@meta.data$experiment,
+                              ## annotation_height = unit(c(2,2,2,2,2,2), "mm"),
+                              simple_anno_size = unit(1, "mm"))
+
+## ?ComplexHeatmap::Heatmap
+set.seed(364)
+Heatmap(cors,
+        cluster_rows = FALSE,
+        cluster_columns = FALSE,
+        name = "Cell correlation\n(top 40 PCs, Spearman)",
+        col = colorRamp2(c(-1, 0, 1), c("blue", "white", "red")),
+        top_annotation = column_ha)
+
+```
+
+### pseudobulks DEG and plotting, per modification
+
+Mind this is mouse only, no DGE expected across cells.
+
+```{r}
+table(so@meta.data$species)
+```
+
+```{r}
+pb <- AggregateExpression(
+  so,
+  assays = 'RNA',
+  features = NULL,
+  return.seurat = TRUE,
+  slot = "counts",
+  verbose = TRUE,
+  group.by='experiment')
+
+
+pb <- NormalizeData(
+  pb,
+  normalization.method = "LogNormalize",
+  scale.factor = 10000,
+  margin = 1,
+  verbose = FALSE)
+
+colnames(pb)
+```
+
+### Highlight DEGs - pseudobulks correlation {.tabset .tabset-pills}
+
+
+```{r}
+xlim <- c(0, ceiling(max(GetAssayData(pb, 'RNA'))))
+
+```
+
+```{r, eval = FALSE}
+
+
+for (item in c('rock_wta', 'rockroi_wta', 'roi_wta')) {
+    plot(as.matrix(GetAssayData(pb, 'RNA'))[,item],
+         as.matrix(GetAssayData(pb, 'RNA'))[,'unmod_wta'],
+         pch = 19,
+         cex = 0.5,
+         col = ac('black', 0.1),
+         xlim = xlim,
+         ylim = xlim,
+         xlab = 'unmod wta lognorm counts',
+         ylab = sprintf('%s lognorm counts', item))
+}
+```
+
+DEG analysis: rock vs unmod, rockroi vs unmod. But I don't have replicates... let's get foldchanges pairwise and get the top 20 or so.
+
+
+
+
+```{r}
+
+y <- DGEList(GetAssayData(pb, slot = 'counts'), samples = pb@meta.data)
+
+y$samples$mod <- rownames(y$samples)
+y$samples$roi_status <- ifelse(grepl('roi', y$samples$mod), yes = 'roi', no = 'else')
+
+## design <- model.matrix(~factor(roi_status), y$samples)
+design <- model.matrix(~factor(mod), y$samples)
+
+keep <- filterByExpr(y, design)
+
+y <- y[keep,]
+y <- calcNormFactors(y)
+y$samples
+```
+
+```{r}
+
+par(mfrow=c(2,2))
+for (i in seq_len(ncol(y))) {
+    plotMD(y, column=i)
+}
+
+plotMDS(cpm(y, log=TRUE))
+```
+
+No replicates, so let's compare them pairwise (?) with a hardcoded bcv of 0.4 (!).
+
+```{r, results = 'asis', fig.height = 5, fig.width = 5}
+
+caution_noreps <- list()
+
+## from edgeR's manual:
+## Simply pick a reasonable dispersion value, based on your experience with similar data,
+## and use that for exactTest or glmFit. Typical values for the common BCV (square-root-
+## dispersion) for datasets arising from well-controlled experiments are 0.4 for human data,
+## 0.1 for data on genetically identical model organisms or 0.01 for technical replicates.
+## Here is a toy example with simulated data:
+
+bcv <- 0.4
+
+for (item in c('mixing_rock', 'mixing_rockroi', 'mixing_roi')) {
+
+    y <- DGEList(GetAssayData(pb, slot = 'counts')[,c(item, 'mixing_unmod')], group=1:2)
+    keep <- filterByExpr(y, design)
+
+    y <- y[keep,]
+    y <- calcNormFactors(y)
+    caution_noreps[[item]] <- exactTest(y, dispersion=bcv^2)
+
+    deg <- topTags(caution_noreps[[item]], n = 1e6, p.value = 0.05)
+
+    cat('#### ', item, '\n\n')
+    
+    hist(caution_noreps[[item]]$table$PValue, breaks = 100, main = sprintf('unadj pval %s vs unmod_wta', item))
+    
+    cat('\n\n')
+    
+    idx <- ifelse(rownames(pb) %in% rownames(deg),
+                  yes = 'red',
+                  no = ac('black', 0.1))
+
+    tmp <- as.data.frame(as.matrix(GetAssayData(pb, 'RNA'))[,c(item, 'mixing_unmod')])
+    tmp$gene <- sapply(strsplit(rownames(tmp), split = '-E'), function(x) return(x[[1]]))
+    
+    print(ggplot(tmp, aes(y = get(item), x = unmod_wta, label = gene)) +
+        geom_point(color = idx, size = 0.5) +
+        geom_text_repel(data = tmp[rownames(pb) %in% rownames(deg),], 
+                        aes(y = get(item), x = unmod_wta, label = gene)) +
+        xlab('unmod wta lognorm counts') +
+        ylab(sprintf('%s lognorm counts', item)) +
+        theme_bw() +
+        ggtitle(sprintf('%s vs unmod_wta, mouse', item)))
+    cat('\n\n')
+}
+
+
+
+```
+
+
+```{r, eval = TRUE}
+
+tmp <- data.frame(foo = as.matrix(GetAssayData(pb, 'RNA'))[,item],
+                  bar = as.matrix(GetAssayData(pb, 'RNA'))[,'mixing_unmod'])
+
+tmp$gene <- rownames(tmp)
+
+ggplot(tmp, aes(foo, bar, label = gene)) +
+    geom_point(color = idx, size = 0.5) +
+    geom_text_repel(data = tmp[rownames(pb) %in% rownames(deg),], 
+                    aes(x = foo, y = bar, label = gene),
+                    max.overlaps = 10) +
+    xlab('unmod wta lognorm counts') +
+    ylab(sprintf('%s lognorm counts', item)) +
+    theme_bw()
+
+
+
+    
+```
+
+<!-- # fastq processing effects / DGE pseudobulk -->
+
+
+<!-- Now, check the fastqs processing -->
+
+<!-- ```{r, fig.width = 14, fig.height = 10, warning = FALSE, message = FALSE} -->
+
+<!-- table(so@meta.data$treatment, so@meta.data$mod) -->
+    
+<!-- Idents(so) <- 'experiment' -->
+<!-- ## table(Idents(so)) -->
+
+
+<!-- pba <- AggregateExpression( -->
+<!--   so, -->
+<!--   assays = 'RNA', -->
+<!--   features = NULL, -->
+<!--   return.seurat = TRUE, -->
+<!--   slot = "counts", -->
+<!--   verbose = TRUE, -->
+<!--   group.by='experiment') -->
+
+
+<!-- pba <- NormalizeData( -->
+<!--   pba, -->
+<!--   normalization.method = "LogNormalize", -->
+<!--   scale.factor = 10000, -->
+<!--   margin = 1, -->
+<!--   verbose = FALSE) -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- pba@meta.data$id <- rownames(pba@meta.data) -->
+<!-- pba@meta.data$treatment <- ifelse(grepl('clip_5_bases', pba@meta.data$id), -->
+<!--                                   yes = 'clip_5_bases', -->
+<!--                                   no = ifelse(grepl('remove_roi_containing_fastqs', pba@meta.data$id), -->
+<!--                                               yes = 'remove_roi_containing_fastqs', -->
+<!--                                               no = ifelse(grepl('cut_roi', pba@meta.data$id), -->
+<!--                                                           yes = 'cut_roi', -->
+<!--                                                           no = 'normal'))) -->
+
+<!-- pba@meta.data$mod <- ifelse(grepl('rock_wta', pba@meta.data$id), -->
+<!--                                   yes = 'rock_wta', -->
+<!--                                   no = ifelse(grepl('rockroi_wta', pba@meta.data$id), -->
+<!--                                               yes = 'rockroi_wta', -->
+<!--                                               no = ifelse(grepl('roi_wta', pba@meta.data$id), -->
+<!--                                                           yes = 'roi_wta', -->
+<!--                                                           no = 'unmod'))) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- y <- DGEList(GetAssayData(pba, slot = 'counts'), samples = pba@meta.data) -->
+
+
+<!-- ## design <- model.matrix(~factor(roi_status), y$samples) -->
+<!-- design <- model.matrix(~factor(mod) + factor(treatment), y$samples) -->
+
+<!-- keep <- filterByExpr(y, design) -->
+
+<!-- y <- y[keep,] -->
+<!-- y <- calcNormFactors(y) -->
+<!-- y$samples -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- par(mfrow=c(2,2)) -->
+<!-- for (i in seq_len(ncol(y))) { -->
+<!--     plotMD(y, column=i) -->
+<!-- } -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- plotMDS(cpm(y, log=TRUE), col = as.numeric(as.factor(pba@meta.data$mod))) -->
+
+<!-- plotMDS(cpm(y, log=TRUE), col = as.numeric(as.factor(pba@meta.data$treatment))) -->
+<!-- ``` -->
+
+
+<!-- double check the MDS -->
+
+<!-- ```{r} -->
+
+
+<!-- cormat <- cor(cpm(y, log=TRUE)) -->
+<!-- ## https://arxiv.org/abs/1208.3145 -->
+<!-- dists <- sqrt(0.5 * (1 - cormat)) -->
+
+<!-- ## just a MDS again, two components -->
+<!-- coords <- cmdscale(dists, k=2) -->
+
+
+<!-- stopifnot(all(rownames(coords) == rownames(pba@meta.data$mod))) -->
+<!-- plot(coords[,1], coords[,2], col = as.numeric(as.factor(pba@meta.data$mod)) -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- mouse <- so -->
+
+<!-- rm (so, so) -->
+<!-- gc() -->
+
+<!-- ``` -->
+
+# Human
+
+```{r}
+
+opts_chunk$set(cache=FALSE)
+```
+
+# Human (all fastq processing flavours)
+
+## Per cell and per feature QC, human {.tabset .tabset-fade .tabset-pills}
+
+```{r, cache = FALSE}
+
+libsize.drop <- isOutlier(d$human$total, nmads = 2, type = "both", log = TRUE,
+                          batch = d$human$experiment)
+feature.drop <- isOutlier(d$human$detected, nmads = 2, type = "both", log = TRUE,
+                          batch = d$human$experiment)
+mito.drop <- isOutlier(d$human$subsets_mito_percent, nmads = 2, type = "higher",
+                       batch = d$human$experiment, log = FALSE)
+
+
+```
+
+```{r, fig.width = 5, fig.height = 4, results = 'asis'}
+
+cat('### ', 'Sum vs detected (by name)', ' \n\n')
+plotColData(d$human, x = "sum", y="detected", colour_by = c("mod"))
+cat('\n\n')
+
+cat('### ', 'Sum vs detected (by species)', ' \n\n')
+plotColData(d$human, x = "sum", y="detected", colour_by = c("species"))
+cat('\n\n')
+
+cat('### ', 'Sum vs detected (by modality)', ' \n\n')
+plotColData(d$human, x = "sum", y="detected", colour_by = c("treatment"))
+cat('\n\n')
+
+cat('### ', 'Highest expressed', ' \n\n')
+plotHighestExprs(d$human, exprs_values = "counts")
+cat('\n\n')
+```
+
+
+
+```{r varpart22, fig.width = 4, fig.height = 4, results = 'asis'}
+d$human <- logNormCounts(d$human) 
+## colData(d$human)$name <- colData(d$human)$orig.ident
+vars <- getVarianceExplained(d$human, variables = c("treatment", "mod"))
+
+cat('### ', 'Variance partitioning', ' \n\n')
+plotExplanatoryVariables(vars)
+cat('\n\n')
+```
+
+## Overall quality metrics before QC (hist) {.tabset .tabset-fade .tabset-pills}
+
+
+```{r cater_plots_before, results = 'asis'}
+
+
+for (id in unique(colData(d$human)$experiment)) {
+    par(mfrow=c(2,2), mar=c(5.1, 4.1, 0.1, 0.1))
+
+    curr <- subset(d$human, , experiment == id)
+    
+    cat('### ', id, ' \n\n') 
+    hist(curr$total/1e3, xlab="Library sizes (thousands)", main="", 
+         breaks=20, col="grey80", ylab="Number of cells")
+    abline(v = attr(libsize.drop, 'thresholds')['lower', id]/1e3, col = 'blue')
+    abline(v = attr(libsize.drop, 'thresholds')['higher', id]/1e3, col = 'blue')
+
+    hist(curr$detected, xlab="Number of expressed genes", main="", 
+         breaks=20, col="grey80", ylab="Number of cells")
+    abline(v = attr(feature.drop, 'thresholds')['lower', id], col = 'blue')
+    abline(v = attr(feature.drop, 'thresholds')['higher', id], col = 'blue')
+
+    ## hist(curr$altexps_spikes_percent, xlab="ERCC proportion (%)",
+    ##      ylab="Number of cells", breaks=20, main="", col="grey80")
+    ## abline(v = attr(spike.drop, 'thresholds')['higher', id], col = 'blue')
+
+    hist(curr$subsets_mito_percent, xlab="Mitochondrial proportion (%)", 
+         ylab="Number of cells", breaks=20, main="", col="grey80")
+    abline(v = attr(mito.drop, 'thresholds')['higher', id], col = 'blue')
+    cat('\n\n')
+}
+
+```
+
+## Overall quality metrics before QC (scatter) {.tabset .tabset-fade .tabset-pills}
+
+```{r}
+ac <- function(col, alpha=1){
+  apply(sapply(col, col2rgb)/255, 2, 
+                     function(x) 
+                         rgb(x[1], x[2], x[3], alpha=alpha))
+}
+```
+
+```{r ibrary_sizes_before, , results = 'asis'}
+for (id in unique(colData(d$human)$experiment)) {
+    par(mfrow=c(2,2), mar=c(5.1, 4.1, 0.1, 0.1))
+
+    curr <- subset(d$human, , experiment == id)
+    cat('### ', id, ' \n\n') 
+    
+    plot(density(curr$total/1e3),
+         xlab = "library sizes (thousands)",
+         main = '')
+
+    rug(curr$total/1e3)
+
+    plot(y = curr$total/1e3,
+         x = curr$subsets_mito_percent,
+         pch = 20,
+         ylab = 'library size (thousands)',
+         xlab = 'mitochondrial proportion (%)',
+         ## col = ac('black', 0.5)
+         )
+
+    plot(y = curr$total/1e3,
+         x = curr$detected,
+         ## col = ac(curr$color, 0.5),
+         pch = 20,
+         ylab = 'library size (thousands)',
+         xlab = 'number of genes')
+    ## col = ac('black', 0.5)
+    ## )
+
+    ## plot(y = curr$total/1e3,
+    ##      x = curr$altexps_spikes_percent,
+    ##      col = ac(curr$color), 0.5),
+    ##      pch = 20,
+    ##      ylab = 'library size (thousands)',
+    ##      xlab = "ERCC proportion (%)",
+    ##      ## col = ac('black', 0.5)
+    ##      )
+
+    plot(y = curr$subsets_mito_percent,
+         x = curr$detected,
+         pch = 20,
+         xlab = 'number of genes',
+         ylab = 'mitochondrial proportion (%)',
+         col = ac('black', 0.5))
+
+    cat('\n\n')
+} 
+```
+
+## Detected outliers
+
+```{r}
+
+d$human <- d$human[,!(libsize.drop | feature.drop | mito.drop )]
+data.frame(ByLibSize = sum(libsize.drop),
+           ByFeature = sum(feature.drop), 
+           ByMito= sum(mito.drop),
+           Remaining = ncol(d$human))
+```
+
+
+```{r removal_of_unknowns2, cache = FALSE}
+d$human <- subset(d$human, , species %in% c('human', 'human'))
+```
+
+
+
+## QC after filtering {.tabset .tabset-fade .tabset-pills}
+
+### Per cell and per feature QC {.tabset .tabset-fade .tabset-pills}
+
+```{r, fig.width = 5, fig.height = 4, results = 'asis'}
+
+cat('#### ', 'Sum vs detected (by name)', ' \n\n')
+plotColData(d$human, x = "sum", y="detected", colour_by = c("mod"))
+cat('\n\n')
+
+
+cat('#### ', 'Sum vs detected (by name)', ' \n\n')
+plotColData(d$human, x = "sum", y="detected", colour_by = c("experiment"))
+cat('\n\n')
+
+cat('#### ', 'Sum vs detected (by species)', ' \n\n')
+plotColData(d$human, x = "sum", y="detected", colour_by = c("species"))
+cat('\n\n')
+
+cat('#### ', 'Sum vs detected (by modality)', ' \n\n')
+
+plotColData(d$human, x = "sum", y="detected", colour_by = c("treatment"))
+cat('\n\n')
+
+## cat('### ', 'Sum vs detected (by batch)', ' \n\n')
+## plotColData(d$human, x = "sum", y="detected", colour_by = c("batch"))
+## cat('\n\n')
+
+## cat('### ', 'Sum vs detected (by color)', ' \n\n')
+## plotColData(d$human, x = "sum", y="detected", colour_by = c("color"))
+## cat('\n\n')
+
+
+cat('### ', 'Highest expressed', ' \n\n')
+plotHighestExprs(d$human, exprs_values = "counts")
+cat('\n\n')
+```
+
+
+```{r, fig.width = 4, fig.height = 4, results = 'asis'}
+vars <- getVarianceExplained(d$human, variables = c("species", "experiment"))
+
+cat('### ', 'Variance partitioning', ' \n\n')
+plotExplanatoryVariables(vars)
+cat('\n\n')
+```
+
+
+### Overall quality metrics after QC (hists) {.tabset .tabset-fade .tabset-pills}
+
+```{r, results = 'asis'}
+
+for (id in unique(colData(d$human)$experiment)) {
+    par(mfrow=c(2,2), mar=c(5.1, 4.1, 0.1, 0.1))
+
+    curr <- subset(d$human, , experiment == id)
+    
+    cat('#### ', id, ' \n\n') 
+    hist(curr$total/1e3, xlab="Library sizes (thousands)", main="", 
+         breaks=20, col="grey80", ylab="Number of cells")
+    abline(v = attr(libsize.drop, 'thresholds')['lower', id]/1e3, col = 'blue')
+    abline(v = attr(libsize.drop, 'thresholds')['higher', id]/1e3, col = 'blue')
+
+    hist(curr$detected, xlab="Number of expressed genes", main="", 
+         breaks=20, col="grey80", ylab="Number of cells")
+    abline(v = attr(feature.drop, 'thresholds')['lower', id], col = 'blue')
+    abline(v = attr(feature.drop, 'thresholds')['higher', id], col = 'blue')
+
+    ## hist(curr$altexps_spikes_percent, xlab="ERCC proportion (%)",
+    ##      ylab="Number of cells", breaks=20, main="", col="grey80")
+    ## abline(v = attr(spike.drop, 'thresholds')['higher', id], col = 'blue')
+
+    hist(curr$subsets_mito_percent, xlab="Mitochondrial proportion (%)", 
+         ylab="Number of cells", breaks=20, main="", col="grey80")
+    abline(v = attr(mito.drop, 'thresholds')['higher', id], col = 'blue')
+    cat('\n\n')
+}
+
+```
+
+### Overall quality metrics after QC (scatter) {.tabset .tabset-fade .tabset-pills}
+
+```{r results = 'asis'}
+for (id in unique(colData(d$human)$experiment)) {
+    cat('#### ', id, ' \n\n') 
+    par(mfrow=c(2,2), mar=c(5.1, 4.1, 0.1, 0.1))
+
+    curr <- subset(d$human, , experiment == id)
+    
+    plot(density(curr$total/1e3),
+         xlab = "library sizes (thousands)",
+         main = '')
+
+    rug(curr$total/1e3)
+
+    plot(y = curr$total/1e3,
+         x = curr$subsets_mito_percent,
+         ## col = ac(curr$color, 0.5),
+         pch = 20,
+         ylab = 'library size (thousands)',
+         xlab = 'mitochondrial proportion (%)',
+         ## col = ac('black', 0.5)
+         )
+
+    plot(y = curr$total/1e3,
+         x = curr$detected,
+         ## col = ac(curr$color, 0.5),
+         pch = 20,
+         ylab = 'library size (thousands)',
+         xlab = 'number of genes')
+    ## col = ac('black', 0.5)
+    ## )
+
+    ## plot(y = curr$total/1e3,
+    ##      x = curr$altexps_spikes_percent,
+    ##      col = ac(as.numeric(as.factor(curr$name)), 0.5),
+    ##      pch = 20,
+    ##      ylab = 'library size (thousands)',
+    ##      xlab = "ERCC proportion (%)",
+    ##      ## col = ac('black', 0.5)
+    ##      )
+
+    plot(y = curr$subsets_mito_percent,
+         x = curr$detected,
+         pch = 20,
+         xlab = 'number of genes',
+         ylab = 'mitochondrial proportion (%)',
+         col = ac('black', 0.5))
+
+    cat('\n\n')
+} 
+```
+
+
+## Dimred, unsupervised clustering (all flavours)  {.tabset .tabset-fade .tabset-pills}
+
+
+<!-- ### Not integrated  {.tabset .tabset-fade .tabset-pills} -->
+
+
+
+```{r}
+plan("multicore", workers = NTHREADS) ## each task executes in its own forked child process, linux only
+options(future.globals.maxSize= 12.0e9)
+
+```
+
+```{r, warning = FALSE, message =  FALSE}
+## dim(d$human)
+## dim(colData(d$human))
+stopifnot(all(colnames(d$human) %in% rownames(colData(d$human))))
+
+so <- CreateSeuratObject(counts = counts(d$human),
+                         project = "brunner",
+                         meta.data = as.data.frame(colData(d$human)),
+                         min.cells = 0, min.features = 0,
+                         assay = 'RNA')
+
+so <- SCTransform(so,  verbose = FALSE, assay = 'RNA')
+
+```
+
+```{r}
+
+so@meta.data$roi_status <- ifelse(grepl('roi', so@meta.data$experiment), yes = 'roi', no = 'not_roi')
+
+
+so@meta.data$fastq_processing <- NA
+
+for (i in 1:length(so@meta.data$fastq_processing)) {
+    if (grepl('clip_5', so@meta.data$experiment[i]))
+        so@meta.data$fastq_processing[i] <- 'clip_5_bases'
+    else if (grepl('cut_roi', so@meta.data$experiment[i]))
+        so@meta.data$fastq_processing[i] <- 'cut_roi'
+    else if (grepl('remove_roi_containing_fastqs', so@meta.data$experiment[i]))
+        so@meta.data$fastq_processing[i] <- 'remove_roi_fastqs'
+    else if (grepl('normal', so@meta.data$experiment[i]))
+        so@meta.data$fastq_processing[i] <- 'normal'
+}
+
+table(so@meta.data$fastq_processing)
+so@meta.data$roi_status[so@meta.data$fastq_processing != 'normal'] <- 'debugging'
+
+table(so@meta.data$fastq_processing, so@meta.data$roi_status)
+
+```
+
+```{r, message = FALSE, warning = FALSE}
+
+so <- RunPCA(object = so,
+             features = VariableFeatures(so),
+             verbose = FALSE,
+             npcs = 40)
+
+```
+
+### Loadings
+
+```{r, fig.width = 12, fig.height = 8}
+VizDimLoadings(object = so, dims = 1:4)
+```
+
+### Elbow
+
+```{r, fig.width =4, fig.height = 4}
+print(ElbowPlot(object = so, ndims = 50))
+
+```
+
+```{r}
+merged_dims <- 1:30
+```
+
+```{r, message = FALSE}
+
+so <- FindNeighbors(object = so, dims = merged_dims)
+
+## (resolutions <- seq(0.2, 1.4, by = 0.6))
+resolutions <- 0.1
+
+for (res in resolutions) {
+    so <- FindClusters(object = so, resolution = res)
+}
+
+```
+
+### PCA {.tabset .tabset-fade .tabset-pills}
+
+```{r, fig.width = 7, fig.height = 4, results='asis'}
+
+layers <- c("experiment", "species", 'roi_status', 'fastq_processing',
+            grep('snn_res', colnames(so@meta.data), value = TRUE))
+
+for (item in layers){
+
+    cat('#### ', item, ' \n\n')
+    print(DimPlot(object = so, reduction = "pca", group.by = item, shuffle = TRUE) +
+          ggtitle(item) +
+          theme(legend.position="right", aspect.ratio = 1))
+
+    cat('\n\n')
+}
+
+cat('#### RNA counts \n\n')
+FeaturePlot(object = so, reduction = "pca", features = 'nCount_SCT') +
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+cat('#### Number of features \n\n')
+FeaturePlot(object = so, reduction = "pca", features = 'nFeature_SCT')+
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+cat('#### Percent mitochondrial reads \n\n')
+FeaturePlot(object = so, reduction = "pca", features = 'subsets_mito_percent')+
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+## <!-- cat('##### egfp \n\n') -->
+## <!-- FeaturePlot(object = so, reduction = "pca", features = 'sum_gfp')+ -->
+## <!--     theme(legend.position="right", aspect.ratio = 1) -->
+## <!-- cat('\n\n') -->
+
+## <!-- cat('##### tdtomato \n\n') -->
+## <!-- FeaturePlot(object = so, reduction = "pca", features = 'sum_tdtom')+ -->
+## <!--     theme(legend.position="right", aspect.ratio = 1) -->
+## <!-- cat('\n\n') -->
+```
+
+### tSNEs {.tabset .tabset-fade .tabset-pills}
+
+```{r, fig.width = 8, fig.height = 4}
+
+so <- RunTSNE(object = so, dims.use = merged_dims,
+              check_duplicates = FALSE,
+              do.fast = TRUE, seed.use = 111)
+```
+
+```{r, fig.width = 7, fig.height = 4, results='asis'}
+
+for (item in layers){               
+
+    cat('#### ', item, ' \n\n')
+    print(DimPlot(object = so, reduction = "tsne", group.by = item, shuffle = TRUE) +
+          ggtitle(item) +
+          theme(legend.position="right", aspect.ratio = 1))
+    cat('\n\n')
+}
+    
+cat('#### RNA counts \n\n')
+FeaturePlot(object = so, reduction = "tsne", features = 'nCount_SCT') +
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+cat('#### Number of features \n\n')
+FeaturePlot(object = so, reduction = "tsne", features = 'nFeature_SCT') +
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+cat('#### Percent mitochondrial reads \n\n')
+FeaturePlot(object = so, reduction = "tsne", features = 'subsets_mito_percent') +
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+## cat('##### egfp \n\n')
+## FeaturePlot(object = so, reduction = "tsne", features = 'sum_gfp')+
+##     theme(legend.position="right", aspect.ratio = 1)
+## cat('\n\n')
+
+## cat('#### tdtomato \n\n')
+## FeaturePlot(object = so, reduction = "tsne", features = 'sum_tdtom')+
+##     theme(legend.position="right", aspect.ratio = 1)
+## cat('\n\n')
+```
+
+### UMAP {.tabset .tabset-fade .tabset-pills}
+
+```{r, fig.width = 8, fig.height = 4, message = FALSE}
+so <- RunUMAP(object = so, reduction = "pca", 
+              dims = merged_dims)
+```
+
+
+```{r, fig.width = 7, fig.height = 4, results='asis'}
+
+for (item in layers){
+    cat('#### ', item, ' \n\n')
+    print(DimPlot(object = so, reduction = "umap", group.by = item, shuffle = TRUE) +
+          ggtitle(item) +
+          theme(legend.position="right", aspect.ratio = 1))
+    cat('\n\n')
+}
+
+cat('#### RNA counts \n\n')
+FeaturePlot(object = so, reduction = "umap", features = 'nCount_SCT') +
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+cat('#### Number of features \n\n')
+FeaturePlot(object = so, reduction = "umap", features = 'nFeature_SCT') +
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+cat('#### Percent mitochondrial reads \n\n')
+FeaturePlot(object = so, reduction = "umap", features = 'subsets_mito_percent') +
+    theme(legend.position="right", aspect.ratio = 1)
+cat('\n\n')
+
+## cat('##### egfp \n\n')
+## FeaturePlot(object = so, reduction = "umap", features = 'sum_gfp')+
+##     theme(legend.position="right", aspect.ratio = 1)
+## cat('\n\n')
+
+## cat('##### tdtomato \n\n')
+## FeaturePlot(object = so, reduction = "umap", features = 'sum_tdtom')+
+##     theme(legend.position="right", aspect.ratio = 1)
+## cat('\n\n')
+```
+
+
+
+## Diff expression (by modification) {.tabset .tabset-fade .tabset-pills}
+
+
+Complex heatmap
+
+```{r}
+
+## set.seed(123)
+## mat = matrix(rnorm(100), 10)
+## rownames(mat) = paste0("R", 1:10)
+## colnames(mat) = paste0("C", 1:10)
+## column_ha = HeatmapAnnotation(foo1 = cbind(runif(10), runif(10)),
+##                                            bar1 = anno_barplot(runif(10)))
+## row_ha = rowAnnotation(foo2 = runif(10), bar2 = anno_barplot(runif(10)))
+## Heatmap(mat, name = "mat", top_annotation = column_ha, right_annotation = row_ha)
+
+
+```
+
+```{r, cache = FALSE}
+
+
+
+markers <- FindAllMarkers(object = so, max.cells.per.ident = 2000, only.pos = TRUE,
+                          logfc.threshold = 0.25,
+                          test.use = 'wilcox',
+                          slot = 'data',
+                          min.pct = 0,
+                          min.diff.pct = 0.1,
+                          random.seed = 98797)
+
+table(markers$p_val_adj < 0.05)
+```
+
+### pvalues hist (adjusted)
+
+```{r, cache = FALSE}
+hist(markers$p_val_adj)
+```
+
+### toptable
+
+```{r, cache = FALSE}
+(top <- as.data.frame(markers %>% group_by(cluster) %>%
+                        top_n(n = 5, wt = avg_log2FC)))
+
+write.csv(x = markers, file = sprintf('human_batch_so_roi_markers_%s.csv', ID))
+
+```
+
+### correlation heatmaps (downsampled cells), HVGs correlation
+
+```{r, fig.width = 10, fig.height = 6, cache = FALSE}
+
+
+Idents(so) <- 'experiment'
+set.seed(654)
+mini <- subset(so,
+              downsample = 10)
+
+
+cors <- cor(as.matrix(GetAssayData(mini, 'RNA')[VariableFeatures(so),]), method = 'spearman')
+## cors <- cor(as.matrix(GetAssayData(mini, 'RNA')), method = 'spearman')
+
+rownames(cors) <- NULL
+colnames(cors) <- NULL
+
+## levels(mini@meta.data$experiment) <- unique(as.character(mini@meta.data$experiment))
+column_ha = HeatmapAnnotation(roi_markers = t(as.matrix(GetAssayData(mini, 'RNA'))[top$gene,]),
+                              roi_status = mini@meta.data$roi_status,
+                              mod = mini@meta.data$experiment,
+                              ## annotation_height = unit(c(2,2,2,2,2,2), "mm"),
+                              simple_anno_size = unit(1, "mm"))
+
+## ?ComplexHeatmap::Heatmap
+set.seed(364)
+Heatmap(cors,
+        cluster_rows = FALSE,
+        cluster_columns = FALSE,
+        name = "Cell correlation\n(log norm counts HVGs, Spearman)",
+        col = colorRamp2(c(-1, 0, 1), c("blue", "white", "red")),
+        top_annotation = column_ha)
+
+```
+
+### correlation heatmaps (downsampled cells) PCs
+
+```{r, fig.width = 10, fig.height = 6, cache = FALSE}
+
+
+Idents(so) <- 'experiment'
+set.seed(654)
+mini <- subset(so,
+              downsample = 10)
+
+
+## cors <- cor(as.matrix(GetAssayData(mini, 'RNA')[VariableFeatures(so),]), method = 'spearman')
+## cors <- cor(as.matrix(GetAssayData(mini, 'RNA')), method = 'spearman')
+cors <- cor(as.matrix(t(mini@reductions$pca@cell.embeddings)), method = 'spearman')
+
+rownames(cors) <- NULL
+colnames(cors) <- NULL
+
+## levels(mini@meta.data$experiment) <- unique(as.character(mini@meta.data$experiment))
+column_ha = HeatmapAnnotation(roi_markers = t(as.matrix(GetAssayData(mini, 'RNA'))[top$gene,]),
+                              roi_status = mini@meta.data$roi_status,
+                              mod = mini@meta.data$experiment,
+                              ## annotation_height = unit(c(2,2,2,2,2,2), "mm"),
+                              simple_anno_size = unit(1, "mm"))
+
+## ?ComplexHeatmap::Heatmap
+set.seed(364)
+Heatmap(cors,
+        cluster_rows = FALSE,
+        cluster_columns = FALSE,
+        name = "Cell correlation\n(top 40 PCs, Spearman)",
+        col = colorRamp2(c(-1, 0, 1), c("blue", "white", "red")),
+        top_annotation = column_ha)
+
+```
+
+### pseudobulks DEG and plotting, per modification
+
+Mind this is human only, no DGE expected across cells.
+
+```{r}
+table(so@meta.data$species)
+```
+
+```{r}
+pb <- AggregateExpression(
+  so,
+  assays = 'RNA',
+  features = NULL,
+  return.seurat = TRUE,
+  slot = "counts",
+  verbose = TRUE,
+  group.by='experiment')
+
+
+pb <- NormalizeData(
+  pb,
+  normalization.method = "LogNormalize",
+  scale.factor = 10000,
+  margin = 1,
+  verbose = FALSE)
+
+colnames(pb)
+```
+
+### Highlight DEGs - pseudobulks correlation {.tabset .tabset-pills}
+
+
+```{r}
+xlim <- c(0, ceiling(max(GetAssayData(pb, 'RNA'))))
+
+```
+
+```{r, eval = FALSE}
+
+
+for (item in c('rock_wta', 'rockroi_wta', 'roi_wta')) {
+    plot(as.matrix(GetAssayData(pb, 'RNA'))[,item],
+         as.matrix(GetAssayData(pb, 'RNA'))[,'mixing_unmod'],
+         pch = 19,
+         cex = 0.5,
+         col = ac('black', 0.1),
+         xlim = xlim,
+         ylim = xlim,
+         xlab = 'unmod wta lognorm counts',
+         ylab = sprintf('%s lognorm counts', item))
+}
+```
+
+DEG analysis: rock vs unmod, rockroi vs unmod. But I don't have replicates... let's get foldchanges pairwise and get the top 20 or so.
+
+
+
+
+```{r}
+
+y <- DGEList(GetAssayData(pb, slot = 'counts'), samples = pb@meta.data)
+
+y$samples$mod <- rownames(y$samples)
+y$samples$roi_status <- ifelse(grepl('roi', y$samples$mod), yes = 'roi', no = 'else')
+
+## design <- model.matrix(~factor(roi_status), y$samples)
+design <- model.matrix(~factor(mod), y$samples)
+
+keep <- filterByExpr(y, design)
+
+y <- y[keep,]
+y <- calcNormFactors(y)
+y$samples
+```
+
+```{r}
+
+par(mfrow=c(2,2))
+for (i in seq_len(ncol(y))) {
+    plotMD(y, column=i)
+}
+
+plotMDS(cpm(y, log=TRUE))
+```
+
+No replicates, so let's compare them pairwise (?) with a hardcoded bcv of 0.4 (!).
+
+```{r, results = 'asis', fig.height = 5, fig.width = 5}
+
+caution_noreps <- list()
+
+## from edgeR's manual:
+## Simply pick a reasonable dispersion value, based on your experience with similar data,
+## and use that for exactTest or glmFit. Typical values for the common BCV (square-root-
+## dispersion) for datasets arising from well-controlled experiments are 0.4 for human data,
+## 0.1 for data on genetically identical model organisms or 0.01 for technical replicates.
+## Here is a toy example with simulated data:
+
+bcv <- 0.4
+
+for (item in c('rock_wta', 'rockroi_wta', 'roi_wta')) {
+
+    y <- DGEList(GetAssayData(pb, slot = 'counts')[,c(item, 'mixing_unmod')], group=1:2)
+    keep <- filterByExpr(y, design)
+
+    y <- y[keep,]
+    y <- calcNormFactors(y)
+    caution_noreps[[item]] <- exactTest(y, dispersion=bcv^2)
+
+    deg <- topTags(caution_noreps[[item]], n = 1e6, p.value = 0.05)
+
+    cat('#### ', item, '\n\n')
+    
+    hist(caution_noreps[[item]]$table$PValue, breaks = 100, main = sprintf('unadj pval %s vs mixing_unmod', item))
+    
+    cat('\n\n')
+    
+    idx <- ifelse(rownames(pb) %in% rownames(deg),
+                  yes = 'red',
+                  no = ac('black', 0.1))
+
+    tmp <- as.data.frame(as.matrix(GetAssayData(pb, 'RNA'))[,c(item, 'mixing_unmod')])
+    tmp$gene <- sapply(strsplit(rownames(tmp), split = '-E'), function(x) return(x[[1]]))
+    
+    print(ggplot(tmp, aes(y = get(item), x = mixing_unmod, label = gene)) +
+        geom_point(color = idx, size = 0.5) +
+        geom_text_repel(data = tmp[rownames(pb) %in% rownames(deg),], 
+                        aes(y = get(item), x = mixing_unmod, label = gene)) +
+        xlab('unmod wta lognorm counts') +
+        ylab(sprintf('%s lognorm counts', item)) +
+        theme_bw() +
+        ggtitle(sprintf('%s vs mixing_unmod, human', item)))
+    cat('\n\n')
+}
+
+
+
+```
+
+
+```{r ggrepel_test, eval = TRUE}
+
+tmp <- data.frame(foo = as.matrix(GetAssayData(pb, 'RNA'))[,item],
+                  bar = as.matrix(GetAssayData(pb, 'RNA'))[,'mixing_unmod'])
+
+tmp$gene <- rownames(tmp)
+
+ggplot(tmp, aes(foo, bar, label = gene)) +
+    geom_point(color = idx, size = 0.5) +
+    geom_text_repel(data = tmp[rownames(pb) %in% rownames(deg),], 
+                    aes(x = foo, y = bar, label = gene),
+                    max.overlaps = 10) +
+    xlab('unmod wta lognorm counts') +
+    ylab(sprintf('%s lognorm counts', item)) +
+    theme_bw()
+
+
+
+    
+```
+
+<!-- # fastq processing effects / DGE pseudobulk -->
+
+
+<!-- Now, check the fastqs processing -->
+
+<!-- ```{r, fig.width = 14, fig.height = 10, warning = FALSE, message = FALSE} -->
+
+<!-- table(so@meta.data$treatment, so@meta.data$mod) -->
+    
+<!-- Idents(so) <- 'experiment' -->
+<!-- ## table(Idents(so)) -->
+
+
+<!-- pba <- AggregateExpression( -->
+<!--   so, -->
+<!--   assays = 'RNA', -->
+<!--   features = NULL, -->
+<!--   return.seurat = TRUE, -->
+<!--   slot = "counts", -->
+<!--   verbose = TRUE, -->
+<!--   group.by='experiment') -->
+
+
+<!-- pba <- NormalizeData( -->
+<!--   pba, -->
+<!--   normalization.method = "LogNormalize", -->
+<!--   scale.factor = 10000, -->
+<!--   margin = 1, -->
+<!--   verbose = FALSE) -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- pba@meta.data$id <- rownames(pba@meta.data) -->
+<!-- pba@meta.data$treatment <- ifelse(grepl('clip_5_bases', pba@meta.data$id), -->
+<!--                                   yes = 'clip_5_bases', -->
+<!--                                   no = ifelse(grepl('remove_roi_containing_fastqs', pba@meta.data$id), -->
+<!--                                               yes = 'remove_roi_containing_fastqs', -->
+<!--                                               no = ifelse(grepl('cut_roi', pba@meta.data$id), -->
+<!--                                                           yes = 'cut_roi', -->
+<!--                                                           no = 'normal'))) -->
+
+<!-- pba@meta.data$mod <- ifelse(grepl('rock_wta', pba@meta.data$id), -->
+<!--                                   yes = 'rock_wta', -->
+<!--                                   no = ifelse(grepl('rockroi_wta', pba@meta.data$id), -->
+<!--                                               yes = 'rockroi_wta', -->
+<!--                                               no = ifelse(grepl('roi_wta', pba@meta.data$id), -->
+<!--                                                           yes = 'roi_wta', -->
+<!--                                                           no = 'unmod'))) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- y <- DGEList(GetAssayData(pba, slot = 'counts'), samples = pba@meta.data) -->
+
+
+<!-- ## design <- model.matrix(~factor(roi_status), y$samples) -->
+<!-- design <- model.matrix(~factor(mod) + factor(treatment), y$samples) -->
+
+<!-- keep <- filterByExpr(y, design) -->
+
+<!-- y <- y[keep,] -->
+<!-- y <- calcNormFactors(y) -->
+<!-- y$samples -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- par(mfrow=c(2,2)) -->
+<!-- for (i in seq_len(ncol(y))) { -->
+<!--     plotMD(y, column=i) -->
+<!-- } -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- plotMDS(cpm(y, log=TRUE), col = as.numeric(as.factor(pba@meta.data$mod))) -->
+
+<!-- plotMDS(cpm(y, log=TRUE), col = as.numeric(as.factor(pba@meta.data$treatment))) -->
+<!-- ``` -->
+
+
+<!-- <\!-- double check the MDS -\-> -->
+
+<!-- <\!-- ```{r} -\-> -->
+
+
+<!-- <\!-- cormat <- cor(cpm(y, log=TRUE)) -\-> -->
+<!-- <\!-- ## https://arxiv.org/abs/1208.3145 -\-> -->
+<!-- <\!-- dists <- sqrt(0.5 * (1 - cormat)) -\-> -->
+
+<!-- <\!-- ## just a MDS again, two components -\-> -->
+<!-- <\!-- coords <- cmdscale(dists, k=2) -\-> -->
+
+
+<!-- <\!-- stopifnot(all(rownames(coords) == rownames(pba@meta.data$mod))) -\-> -->
+<!-- <\!-- plot(coords[,1], coords[,2], col = as.numeric(as.factor(pba@meta.data$mod)) -\-> -->
+
+<!-- <\!-- ``` -\-> -->
+
+<!-- ```{r} -->
+<!-- human <- so -->
+
+<!-- rm (so, so) -->
+<!-- gc() -->
+
+<!-- ``` -->
+
+
+
+
+# Timestamp
+
+```{r sessionInfo2, cache = FALSE}
+date()
+sessionInfo()
+
+
+```
+

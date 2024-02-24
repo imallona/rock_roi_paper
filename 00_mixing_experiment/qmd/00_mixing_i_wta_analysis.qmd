@@ -256,27 +256,27 @@ for (i in 1:4){
 
 # ggplot
 
-for (i in 1:4){
-  for (k in 1:4){
-    p<-ggplot(l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]],aes(x=l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]][,i],
-                                                                                                    y=l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]][,k],
-                                                                                                    label=l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]]$label))+
-    geom_text_repel(size=2,max.overlaps = 10000,colour="red")+
-    geom_point(alpha=0.2,size=0.5,color=ifelse(l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]]$label == "", "black", "red"))+
-    xlab("pseudobulk expression (logcpm) unmod")+
-    ylab("pseudobulk expression (logcpm) unmod_n1")+
-    theme_bw()+
-    ggtitle("Mouse")+
-    xlab(colnames(l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]])[i])+
-    ylab(colnames(l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]])[k])+
-    rock_roi_theme()+
-    theme(axis.title.x=element_text(colour=myscale[[gsub("mixing_","",colnames(mouse_logcpm))[i]]]))+
-    theme(axis.title.y=element_text(colour=myscale[[gsub("mixing_","",colnames(mouse_logcpm))[k]]]))+
-    geom_text(x=5, y=13, label=format(round(pearson_corr[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]],3)),size=3)+
-    theme(axis.title=element_text(size=7,face="bold"))
-    print(p)
-  }
-}
+# for (i in 1:4){
+#   for (k in 1:4){
+#     p<-ggplot(l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]],aes(x=l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]][,i],
+#                                                                                                     y=l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]][,k],
+#                                                                                                     label=l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]]$label))+
+#     geom_text_repel(size=2,max.overlaps = 10000,colour="red")+
+#     geom_point(alpha=0.2,size=0.5,color=ifelse(l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]]$label == "", "black", "red"))+
+#     xlab("pseudobulk expression (logcpm) unmod")+
+#     ylab("pseudobulk expression (logcpm) unmod_n1")+
+#     theme_bw()+
+#     ggtitle("Mouse")+
+#     xlab(colnames(l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]])[i])+
+#     ylab(colnames(l_mouse_logcpm[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]])[k])+
+#     rock_roi_theme()+
+#     theme(axis.title.x=element_text(colour=myscale[[gsub("mixing_","",colnames(mouse_logcpm))[i]]]))+
+#     theme(axis.title.y=element_text(colour=myscale[[gsub("mixing_","",colnames(mouse_logcpm))[k]]]))+
+#     geom_text(x=5, y=13, label=format(round(pearson_corr[[paste0(colnames(mouse_logcpm)[i],"_",colnames(mouse_logcpm[k]))]],3)),size=3)+
+#     theme(axis.title=element_text(size=7,face="bold"))
+#     print(p)
+#   }
+# }
 
 for (i in 1:4){
   for (k in 1:4){
@@ -300,6 +300,12 @@ for (i in 1:4){
 }
 
 # many of the top 10 seem to be in common
+
+```
+
+### Corrplot
+
+```{r}
 
 ```
 
@@ -422,28 +428,28 @@ for (i in 1:4){
 }
 
 # ggplot
-
-for (i in 1:4){
-  for (k in 1:4){
-    p<-ggplot(l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]],aes(x=l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]][,i],
-                                                                                                    y=l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]][,k],
-                                                                                                    label=l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]]$label))+
-    geom_text_repel(size=2,max.overlaps = 10000,colour="red")+
-    geom_point(alpha=0.2,size=0.5,color=ifelse(l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]]$label == "", "black", "red"))+
-    xlab("pseudobulk expression (logcpm) unmod")+
-    ylab("pseudobulk expression (logcpm) unmod_n1")+
-    theme_bw()+
-    ggtitle("Human")+
-    xlab(colnames(l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]])[i])+
-    ylab(colnames(l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]])[k])+
-    rock_roi_theme()+
-    theme(axis.title.x=element_text(colour=myscale[[gsub("mixing_","",colnames(human_logcpm))[i]]]))+
-    theme(axis.title.y=element_text(colour=myscale[[gsub("mixing_","",colnames(human_logcpm))[k]]]))+
-    geom_text(x=5, y=13, label=format(round(pearson_corr[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]],3)),size=3)+
-    theme(axis.title=element_text(size=7,face="bold"))
-    print(p)
-  }
-}
+# 
+# for (i in 1:4){
+#   for (k in 1:4){
+#     p<-ggplot(l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]],aes(x=l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]][,i],
+#                                                                                                     y=l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]][,k],
+#                                                                                                     label=l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]]$label))+
+#     geom_text_repel(size=2,max.overlaps = 10000,colour="red")+
+#     geom_point(alpha=0.2,size=0.5,color=ifelse(l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]]$label == "", "black", "red"))+
+#     xlab("pseudobulk expression (logcpm) unmod")+
+#     ylab("pseudobulk expression (logcpm) unmod_n1")+
+#     theme_bw()+
+#     ggtitle("Human")+
+#     xlab(colnames(l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]])[i])+
+#     ylab(colnames(l_human_logcpm[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]])[k])+
+#     rock_roi_theme()+
+#     theme(axis.title.x=element_text(colour=myscale[[gsub("mixing_","",colnames(human_logcpm))[i]]]))+
+#     theme(axis.title.y=element_text(colour=myscale[[gsub("mixing_","",colnames(human_logcpm))[k]]]))+
+#     geom_text(x=5, y=13, label=format(round(pearson_corr[[paste0(colnames(human_logcpm)[i],"_",colnames(human_logcpm[k]))]],3)),size=3)+
+#     theme(axis.title=element_text(size=7,face="bold"))
+#     print(p)
+#   }
+# }
 
 
 for (i in 1:4){
