@@ -506,13 +506,6 @@ ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")
   scale_fill_manual(labels=c("unmod","unmod_roi","rock","rockroi"),
                      values=c(myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rockroi"]]))
 
-```
-
-
-
-### Same for mito
-
-```{r}
 
 ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=tso_mito_percent,fill=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")))) +
   geom_violin(show.legend = FALSE)+  
@@ -527,6 +520,8 @@ ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")
                      values=c(myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rockroi"]]))
 
 ```
+
+
 
 ### Same for genes
 
@@ -581,7 +576,7 @@ p <- ggplot(dfm %>% dplyr::filter(variable %in% c("roi_1_tdtomato", "roi_2_tdtom
 
 mouse_targets <- grep("egfp", names(sorted), value = TRUE)
 
-q <- ggplot(dfm %>% filter(variable %in% c("rock_egfp","roi_egfp")),
+q <- ggplot(dfm %>% filter(dplyr::variable %in% c("rock_egfp","roi_egfp")),
                       aes(m = value, d = mouse, colour=sample, group=sample)) + 
   geom_roc(size = 0.3, alpha = .8,
            position = position_dodge2(width=.001),
