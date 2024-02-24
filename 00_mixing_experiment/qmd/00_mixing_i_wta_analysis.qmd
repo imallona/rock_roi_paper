@@ -313,7 +313,7 @@ mouse_logcpm<-mouse_logcpm[,1:4]
 colnames(mouse_logcpm)<-gsub("mixing_","",colnames(mouse_logcpm))
 mouse_logcpm<-mouse_logcpm[,c("unmod","unmod_roi","rock","rockroi")]
 
-corrplot.mixed(cor(mouse_logcpm,method="pearson"),number.digits = 4)
+corrplot.mixed(cor(mouse_logcpm,method="pearson"),number.digits = 3)
 
 ```
 
@@ -488,12 +488,12 @@ for (i in 1:4){
 
 ```{r}
 
-human_logcpm<-mouse_logcpm[,1:4]
+human_logcpm<-human_logcpm[,1:4]
 
 colnames(human_logcpm)<-gsub("mixing_","",colnames(human_logcpm))
 humaun_logcpm<-human_logcpm[,c("unmod","unmod_roi","rock","rockroi")]
 
-corrplot.mixed(cor(human_logcpm,method="pearson"),number.digits = 4)
+corrplot.mixed(cor(human_logcpm,method="pearson"),number.digits = 3)
 
 ```
 
