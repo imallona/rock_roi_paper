@@ -111,9 +111,9 @@ coverage<- lapply(bw, function(x) {
 
 ```{r}
 
-bed_6 <- as.data.frame(read.table(file.path(datadir,"match_6.bed"),header = FALSE, sep="\t",stringsAsFactors=FALSE, quote=""))
-bed_5 <- as.data.frame(read.table(file.path(datadir,"match_5.bed"),header = FALSE, sep="\t",stringsAsFactors=FALSE, quote=""))
-bed_4 <- as.data.frame(read.table(file.path(datadir,"match_4.bed"),header = FALSE, sep="\t",stringsAsFactors=FALSE, quote=""))
+bed_6 <- unique(as.data.frame(read.table(file.path(datadir,"match_6.bed"),header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="")))
+bed_5 <- unique(as.data.frame(read.table(file.path(datadir,"match_5.bed"),header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="")))
+bed_4 <- unique(as.data.frame(read.table(file.path(datadir,"match_4.bed"),header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="")))
 
 colnames(bed_6)<-c("chrom","chromStart","chromEnd","strand")
 colnames(bed_5)<-c("chrom","chromStart","chromEnd","strand")
@@ -148,7 +148,7 @@ track<-makeTxDbFromGFF(file=gtf_path, format="gtf")
 ```{r}
 
 genes_of_interest<-unique(combined_gtf$gene_name[grep("^mt-",combined_gtf$gene_name)])
-genes_of_interest<-"mt-Cytb"
+#genes_of_interest<-"mt-Cytb"
 
 bw_coverages<-list()
 gms<-list()

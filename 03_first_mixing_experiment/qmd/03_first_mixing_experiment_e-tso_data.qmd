@@ -247,118 +247,6 @@ seqnames(Mmusculus)<-paste0("mouse_",seqnames(Mmusculus))
 
 ```
 
-### Generating TF motif
-
-```{r}
-# 
-# # run for genes of interest
-# # no rev needed 
-# # removing the last 5 bp of the tso at the 5' end 
-# 
-# tso <-"TATGCGTAGTAGGTATG"
-# revtso <-"CATACCTACTACGCATA"
-# 
-# tso_motif.matrix<-matrix(c(0.7/3,0.7/3,0.3,  0.7/3,0.7/3,0.3,  0,0,0,1,0,0, #A
-#                            0.7/3,0.7/3,0.7/3,0.7/3,0.7/3,0.7/3,0,0,0,0,0,0, #C
-#                            0.3,  0.7/3,0.7/3,0.3,  0.7/3,0.7/3,1,1,0,0,0,1,    #G
-#                            0.7/3,0.3,  0.7/3,0.7/3,0.3,  0.7/3,0,0,1,0,1,0),#T
-#                            nrow=4,byrow=TRUE)
-# 
-# tso_motif.matrix_5<-tso_motif.matrix<-matrix(c(0.7/3,0.7/3,0.3,  0.7/3,0.7/3,0.3,  0.7/3,0,0,1,0,0, #A
-#                            0.7/3,0.7/3,0.7/3,0.7/3,0.7/3,0.7/3,0.7/3,0,0,0,0,0, #C
-#                            0.3,  0.7/3,0.7/3,0.3,  0.7/3,0.7/3,0.3,1,0,0,0,1,    #G
-#                            0.7/3,0.3,  0.7/3,0.7/3,0.3,  0.7/3,0.7/3,0,1,0,1,0),#T
-#                            nrow=4,byrow=TRUE)
-# 
-# tso_motif.matrix_4<-tso_motif.matrix<-matrix(c(0.7/3,0.7/3,0.3,  0.7/3,0.7/3,0.3,  0.7/3,0.7/3,0,1,0,0, #A
-#                            0.7/3,0.7/3,0.7/3,0.7/3,0.7/3,0.7/3,0.7/3,0.7/3,0,0,0,0, #C
-#                            0.3,  0.7/3,0.7/3,0.3,  0.7/3,0.7/3,0.3,0.3,0,0,0,1,    #G
-#                            0.7/3,0.3,  0.7/3,0.7/3,0.3,  0.7/3,0.7/3,0.7/3,1,0,1,0),#T
-#                            nrow=4,byrow=TRUE)
-# 
-# 
-# tso_motif<-create_motif(tso_motif.matrix, alphabet="DNA",name = "TSO",pseudocount=1,nsites=17,type="PPM")
-# tso_motif_5<-create_motif(tso_motif.matrix_5, alphabet="DNA",name = "TSO",pseudocount=1,nsites=17,type="PPM")
-# tso_motif_4<-create_motif(tso_motif.matrix_4, alphabet="DNA",name = "TSO",pseudocount=1,nsites=17,type="PPM")
-# 
-# tso_motif<-motif_rc(tso_motif)
-# tso_motif_5<-motif_rc(tso_motif_5)
-# tso_motif_4<-motif_rc(tso_motif_4)
-# 
-# view_motifs(tso_motif,use.type="PPM")
-# view_motifs(tso_motif_5,use.type="PPM")
-# view_motifs(tso_motif_4,use.type="PPM")
-
-```
-
-### Searching for TSO motif in mouse in mitochondrial genes
-
-```{r}
-
-# set<-list()
-# for (i in seqnames(Mmusculus)[1:22]){
-#   set[[i]]<-getSeq(Mmusculus,i)
-# }
-# 
-# set<-DNAStringSet(set)[c(22)] # for just mt 
-# 
-# mouse_plus<-runFimo(set,tso_motif,skip_matched_sequence=FALSE,thresh=0.005) # need to change thresh otherwise doesn't show any results
-# 
-# mouse_plus_5<-runFimo(set,tso_motif_5,skip_matched_sequence=FALSE,thresh=0.0005) # need to change thresh otherwise doesn't show any results
-# 
-# mouse_plus_4<-runFimo(set,tso_motif_4,skip_matched_sequence=FALSE,thresh=0.0005) # need to change thresh otherwise doesn't show any results
-# 
-# mouse_plus<-mouse_plus[grep("CATA",mouse_plus$matched_sequence),]
-
-```
-
-### Searching for TSO motif in human in mitochondrial genes
-
-```{r}
-# 
-# set<-list()
-# for (i in seqnames(Hsapiens)[1:25]){
-#   set[[i]]<-getSeq(Hsapiens,i)
-# }
-# 
-# set<-DNAStringSet(set)[c(25)] # for just mt 
-# 
-# human_plus<-runFimo(set,tso_motif,skip_matched_sequence=FALSE,thresh=0.005)
-# 
-# human_plus_5<-runFimo(set,tso_motif_5,skip_matched_sequence=TRUE,thresh=0.0005) # need to change thresh otherwise doesn't show any results
-# 
-# human_plus_4<-runFimo(set,tso_motif_4,skip_matched_sequence=TRUE,thresh=0.0005) # need to change thresh otherwise doesn't show any results
-# 
-# # only want the ones that have the first CATA in them (at least 4)
-# 
-# human_plus<-human_plus[grep("CATA",human_plus$matched_sequence),]
-
-```
-
-### Need to get information about the strand in the .gtf but still maintain the match information 
-
-```{r}
-# 
-# human_genes<-find_overlaps_directed(human_plus,gtf)
-# mouse_genes<-find_overlaps_directed(mouse_plus,gtf)
-# 
-# human_genes_5<-find_overlaps_directed(human_plus_5,gtf)
-# mouse_genes_5<-find_overlaps_directed(mouse_plus_5,gtf)
-# 
-# human_genes_4<-find_overlaps_directed(human_plus_4,gtf)
-# mouse_genes_4<-find_overlaps_directed(mouse_plus_4,gtf)
-# 
-# human_genes<-human_genes[human_genes$type=="gene",] # otherwise get multiple lines for each match (exon / transcript / gene)
-# mouse_genes<-mouse_genes[mouse_genes$type=="gene",]
-# 
-# human_genes_5<-human_genes_5[human_genes_5$type=="gene",] # otherwise get multiple lines for each match (exon / transcript / gene)
-# mouse_genes_5<-mouse_genes_5[mouse_genes_5$type=="gene",]
-# 
-# human_genes_4<-human_genes_4[human_genes_4$type=="gene",] # otherwise get multiple lines for each match (exon / transcript / gene)
-# mouse_genes_4<-mouse_genes_4[mouse_genes_4$type=="gene",]
-
-```
-
 ### Matching to mouse genome TSO, - strand is the TSO. Searching for 6 / 5 / 4. Just do mito 
 
 ```{r}
@@ -519,7 +407,7 @@ mouse_plus<-runFimo(set,tso_motif,skip_matched_sequence=TRUE,thresh=0.0005) # ne
 
 ```
 
-### Searhcing for motif in human in mitochondrial genes
+### Searching for motif in human in mitochondrial genes
 
 ```{r}
 
@@ -574,7 +462,7 @@ for (i in seqnames(Mmusculus)[1:22]){
   set[[i]]<-getSeq(Mmusculus,i)
 }
 set<-DNAStringSet(set)
-mouse_plus<-runFimo(set,tso_motif,skip_matched_sequence=TRUE,thresh=0.0005) # need to change thresh otherwise doesn't show any results
+mouse_plus<-runFimo(set,tso_motif,skip_matched_sequence=TRUE,thresh=0.0005) 
 
 set<-list()
 for (i in seqnames(Hsapiens)[1:25]){
@@ -582,7 +470,6 @@ for (i in seqnames(Hsapiens)[1:25]){
 }
 set<-DNAStringSet(set)
 human_plus<-runFimo(set,tso_motif,skip_matched_sequence=TRUE,thresh=0.0005)
-
 
 human_genes<-find_overlaps_directed(gtf,human_plus)
 mouse_genes<-find_overlaps_directed(gtf,mouse_plus)

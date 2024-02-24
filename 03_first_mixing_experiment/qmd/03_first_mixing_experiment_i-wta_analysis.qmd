@@ -250,6 +250,25 @@ ggplot(mouse_logcpm,aes(x=mixing_unmod,y=mixing_unmod_n1,label=label))+
 
   
 ```
+
+### Corrplot for mouse
+
+```{r}
+
+mouse_logcpm<-mouse_logcpm[,1:4]
+
+colnames(mouse_logcpm)<-gsub("mixing_","",colnames(mouse_logcpm))
+mouse_logcpm<-mouse_logcpm[,c("unmod","unmod_n1")]
+
+corrplot.mixed(cor(mouse_logcpm,method="pearson"),
+               number.digits = 3,
+               number.cex = 0.5,
+               tl.cex = 0.5,
+               cex.col = 0.5,
+               cl.cex = 0.5)
+
+```
+
 ### Same for human
 
 ```{r}
@@ -357,6 +376,24 @@ ggplot(human_logcpm,aes(x=mixing_unmod,y=mixing_unmod_n1,label=label))+
   theme(axis.title.y=element_text(colour=myscale[["unmod_n1"]]))+
   geom_text(x=5, y=13, label=format(round(pearson_corr,3)),size=3)
 
+
+```
+
+### Corrplot
+
+```{r}
+
+human_logcpm<-human_logcpm[,1:4]
+
+colnames(human_logcpm)<-gsub("mixing_","",colnames(human_logcpm))
+human_logcpm<-human_logcpm[,c("unmod","unmod_n1")]
+
+corrplot.mixed(cor(human_logcpm,method="pearson"),
+               number.digits = 3,
+               number.cex = 0.5,
+               tl.cex = 0.5,
+               cex.col = 0.5,
+               cl.cex = 0.5)
 
 ```
 
