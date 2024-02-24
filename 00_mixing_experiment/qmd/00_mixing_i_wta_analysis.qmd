@@ -43,6 +43,7 @@ library(Matrix.utils)
 library(edgeR)
 library(DESeq2)
 library(ggrepel)
+library(corrplot)
 
 packageVersion("Matrix")
 
@@ -307,6 +308,13 @@ for (i in 1:4){
 
 ```{r}
 
+mouse_logcpm<-mouse_logcpm[,1:4]
+
+colnames(mouse_logcpm)<-gsub("mixing_","",colnames(mouse_logcpm))
+mouse_logcpm<-mouse_logcpm[,c("unmod","unmod_roi","rock","rockroi")]
+
+corrplot.mixed(cor(mouse_logcpm,method="pearson"),number.digits = 4)
+
 ```
 
 
@@ -472,6 +480,20 @@ for (i in 1:4){
     print(p)
   }
 }
+
+```
+
+
+### Corrplot
+
+```{r}
+
+human_logcpm<-mouse_logcpm[,1:4]
+
+colnames(human_logcpm)<-gsub("mixing_","",colnames(human_logcpm))
+humaun_logcpm<-human_logcpm[,c("unmod","unmod_roi","rock","rockroi")]
+
+corrplot.mixed(cor(human_logcpm,method="pearson"),number.digits = 4)
 
 ```
 
