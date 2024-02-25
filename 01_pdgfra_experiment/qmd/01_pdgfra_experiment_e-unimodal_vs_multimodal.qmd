@@ -8,18 +8,6 @@ format:
     keep_md: true
 ---
 
-### From Izaskun to do: 
-
-```{r}
-
-# subtract and show the three heatmaps (downsampled cells x downsampled HVGs for uni, for multi, and for the delta): logCPMs. 
-
-#And a corr coefficient collapsing the rows/columns and correlating them perhaps
-
-```
-
-
-
 ## Load packages, load data
 
 ```{r, warning=FALSE, message=FALSE}
@@ -80,6 +68,62 @@ sces<-sces[c("pdgfra_rockroi_multimodal","pdgfra_rockroi_unimodal")]
 sce <- Reduce(cbind, sces)
 
 table(sce$sample_id)
+
+```
+
+### Setting up knitr 
+
+```{r}
+
+knitr::opts_chunk$set(fig.width = 2.7,
+               fig.height = 2.7,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache=TRUE,
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+### Themes
+
+```{r}
+
+rock_roi_theme<-function(){
+  theme(axis.text = element_text(size=7), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=7),
+        aspect.ratio=1, 
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+}
+
+rock_roi_theme_multiple_panels<-function(){
+    theme(axis.text = element_text(size=7), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        aspect.ratio=1,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.title=element_text(size=5,face="bold"),
+        legend.text=element_text(size=5),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.border = element_rect(colour = "black", fill = NA))
+}
 
 ```
 
@@ -222,7 +266,9 @@ df_diagonal<-as.data.frame(diagonal)
 
 ggplot(df_diagonal,aes(x=diagonal))+
   geom_density()+
+  rock_roi_theme()+
   theme_bw()+
+  rock_roi_theme()+
   xlab("spearman corr")
 
 ```
@@ -311,4 +357,11 @@ print(p)
 
 ```
 
+### Session info
+
+```{r}
+
+sessionInfo()
+
+```
 
