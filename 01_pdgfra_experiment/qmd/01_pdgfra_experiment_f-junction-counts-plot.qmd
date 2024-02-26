@@ -1,0 +1,255 @@
+---
+title: "Read in junctions objects, make some plots"
+format:
+  html:
+    toc: true
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Load packages, load data
+
+```{r, warning=FALSE, message=FALSE}
+library(SingleCellExperiment)
+library(ggplot2)
+library(dplyr)
+library(pheatmap)
+library(here)
+library(tibble)
+library(khroma)
+library(googlesheets4)
+library(tidyr)
+library(reshape2)
+library(readr)
+library(Matrix)
+library(rtracklayer)
+library(Gviz)
+library(cowplot)
+
+datadir <- file.path(here("01_pdgfra_experiment"), 
+                     "data")
+
+# read in SummarizedExperiment with the junction counts
+se <- readRDS(file = file.path(datadir,
+                               "junctions", "se-annotated-junctions.rds"))
+b <- readRDS(file = file.path(datadir,
+                              "junctions", "df-annotated-junctions.rds"))
+
+myscale <- c(color("muted")(9), gray="lightgray", 
+             black = "black", darkorange = "darkorange",
+             yellowgreen = "yellowgreen")
+names(myscale) <- as.character(1:13)
+
+plot(1:13, col=myscale, pch=19, cex=4)
+
+inds <- split(seq_len(ncol(se)), se$annotation)
+names(myscale) <- levels(factor(se$annotation))
+ann_colors = list(annotation = myscale[seq_len(length(inds))])
+
+
+```
+
+
+<!-- ## Read in  -->
+
+<!-- ```{r} -->
+
+<!-- cnts_sparse <- assay(se, 1) -->
+
+<!-- table(se$celltype, se$sample_id) -->
+
+<!-- b <- apply(cnts_sparse, 1, function(u) { -->
+<!--   table(u>0, se$celltype, se$sample_id) %>%  -->
+<!--     as.data.frame %>% -->
+<!--     setNames(c("expressed","celltype","sample","freq")) %>% -->
+<!--     group_by(celltype, sample) %>% -->
+<!--     summarise(perc_expressed = 100*weighted.mean(expressed==TRUE, freq)) %>% -->
+<!--     ungroup -->
+<!--   }, simplify = FALSE) %>% -->
+<!--   setNames(with(feat_tab, paste0(Geneid,"__",Chr,":",Start,"-",End)))  -->
+
+<!-- for(i in 1:length(b)) b[[i]]$region <- names(b)[i] -->
+
+<!-- b <- b %>% bind_rows -->
+
+<!-- ss <- strsplit(b$region, "__") -->
+<!-- b$location <- sapply(ss, .subset, 2) -->
+<!-- b$roi <- sapply(ss, .subset, 1) -->
+
+<!-- head(b) -->
+<!-- ``` -->
+
+# Plots of junction reads
+
+```{r}
+
+(aa <- ggplot(b %>% filter(grepl("egfp", region)),
+                    aes(x = celltype, y = perc_expressed, fill = sample,
+                        colour = sample, group = sample,
+                        label = perc_expressed)) +
+  geom_bar(position = position_dodge2(), stat = "identity") +
+  geom_text(aes(label = round(perc_expressed, 1), 
+                y = perc_expressed+1.5), colour = "black",
+            position = position_dodge2(width = 1)) +
+  facet_wrap(~region, nrow = 1) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+  ylab("Percent cells expressed"))
+
+
+(bb <- ggplot(b %>% filter(grepl("roi_[456]", region)),
+                    aes(x = celltype, y = perc_expressed, fill = sample,
+                        colour = sample, group = sample,
+                        label = perc_expressed)) +
+  geom_bar(position = position_dodge2(), stat = "identity") +
+  geom_text(aes(label = round(perc_expressed, 1), 
+                y = perc_expressed+1.5), colour = "black",
+            position = position_dodge2(width = 1)) +
+  facet_wrap(~region, nrow = 1) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+  ylab("Percent cells expressed"))
+
+b %>% filter(grepl("roi_[456]", region), 
+             celltype=="Epithelial", sample=="rockroi")
+
+(cc <- ggplot(b %>% filter(grepl("roi_1[3456]", region)),
+                    aes(x = celltype, y = perc_expressed, fill = sample,
+                        colour = sample, group = sample,
+                        label = perc_expressed)) +
+  geom_bar(position = position_dodge2(), stat = "identity") +
+  geom_text(aes(label = round(perc_expressed, 1), 
+                y = perc_expressed+1.5), colour = "black",
+            position = position_dodge2(width = 1)) +
+  facet_wrap(~region, nrow = 1) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+  ylab("Percent cells expressed"))
+
+
+plot_grid(aa,bb,cc, ncol = 1)
+
+
+# a <- apply(cnts_sparse, 1, function(u)
+#   table(u>0, se$celltype, se$sample_id) %>%
+#     as.data.frame %>%
+#     setNames(c("expressed","celltype","sample","freq")) %>%
+#     melt,
+#   simplify = FALSE) %>%
+#   setNames(with(feat_tab, paste0(Geneid,"__",Chr,":",Start,"-",End)))
+# for(i in 1:length(a)) a[[i]]$region <- names(a)[i]
+# 
+# a <- a %>% bind_rows
+# 
+# ss <- strsplit(a$region, "__")
+# a$location <- sapply(ss, .subset, 2)
+# a$roi <- sapply(ss, .subset, 1)
+# 
+# # # make a simplified celltype
+# # uct <- as.character(unique(a$celltype))
+# # names(uct) <- uct
+# # uct[grepl("Crypt_bottom", uct)] <- "Crypt_bottom"
+# # uct[!grepl("Crypt", uct)] <- "Epithelial"
+# # 
+# # a <- a %>% mutate(newcelltype = uct[celltype])
+# 
+# ggplot(a %>% filter(grepl("roi_[456]", region)),
+#        aes(x = celltype,fill = expressed,
+#            by = celltype, weight=value)) +
+#   geom_bar(position ="stack") +
+#   facet_grid(sample~location, ) +
+#   scale_y_sqrt() +
+#   theme(axis.text.x = element_text(angle = 30, size = 8,
+#                                    vjust = 1, hjust=1))
+
+```
+
+
+
+# Plots of sashimis by cell type
+
+```{r}
+
+
+options(ucscChromosomeNames=FALSE)
+
+anno <- import(file.path(datadir, "subset.gtf")) %>% 
+  as.data.frame %>% filter(type=="exon")
+colnames(anno)[1] <- "chromosome"
+
+axisTrack <- GenomeAxisTrack()
+
+grt <- GeneRegionTrack(anno, genome = "hg19",
+                       chromosome = "chr5",
+                       name = "Pdgfra", size = 2)
+
+# > list.files("01_pdgfra_experiment/data", ".bam$")
+# [1] "rockroi__Crypt_bottom.bam" "rockroi__Crypt_top.bam"   
+# [3] "rockroi__Epithelial.bam"   "unmod__Crypt_bottom.bam"  
+# [5] "unmod__Crypt_top.bam"      "unmod__Epithelial.bam" 
+
+inds <- split(seq_len(ncol(se)), se$annotation)
+names(myscale) <- levels(factor(se$annotation))
+ann_colors = list(annotation = myscale[seq_len(length(inds))])
+
+
+# didn't see a more elegant way
+rr_cryptb <- AlignmentsTrack(file.path(datadir, "rockroi__Crypt_bottom.bam"),
+                             ylim = c(0,2000), name = "ROCKROI Crypt_bottom",
+                             isPaired = FALSE)
+displayPars(rr_cryptb) <- list("col"=ann_colors$annotation[["Crypt_bottom_2"]])
+
+rr_cryptt <- AlignmentsTrack(file.path(datadir, "rockroi__Crypt_top.bam"),
+                             ylim = c(0,400), name = "ROCKROI Crypt_top",
+                             isPaired = FALSE)
+displayPars(rr_cryptt) <- list("col"=ann_colors$annotation[["Crypt_top"]])
+
+rr_epi <- AlignmentsTrack(file.path(datadir, "rockroi__Epithelial.bam"),
+                             ylim = c(0,100), name = "ROCKROI Epithelial",
+                             isPaired = FALSE)
+displayPars(rr_epi) <- list("col"=ann_colors$annotation[["Stem/TA"]])
+
+um_cryptb <- AlignmentsTrack(file.path(datadir, "unmod__Crypt_bottom.bam"),
+                             ylim = c(0,20), name = "ROCKROI Crypt_bottom",
+                             isPaired = FALSE)
+displayPars(um_cryptb) <- list("col"=ann_colors$annotation[["Crypt_bottom_2"]])
+
+um_cryptt <- AlignmentsTrack(file.path(datadir, "unmod__Crypt_top.bam"),
+                             ylim = c(0,20), name = "ROCKROI Crypt_top",
+                             isPaired = FALSE)
+displayPars(um_cryptt) <- list("col"=ann_colors$annotation[["Crypt_top"]])
+
+um_epi <- AlignmentsTrack(file.path(datadir, "unmod__Epithelial.bam"),
+                             ylim = c(0,20), name = "ROCKROI Epithelial",
+                             isPaired = FALSE)
+displayPars(um_epi) <- list("col"=ann_colors$annotation[["Stem/TA"]])
+
+
+b %>% filter(grepl("roi_[3456]", region_name)) -> regs
+rng <- as.integer(c(min(regs$start), max(regs$end)))
+
+
+pdf("plot.pdf", height=6, width=12)
+plotTracks(c(axisTrack, grt,
+             rr_cryptb, um_cryptb,
+             rr_cryptt, um_cryptt,
+             rr_epi, um_epi
+             ),
+           from = rng[1], to = rng[2],
+           chromosome = "chr5",
+           main = "Pdgfra",
+           type = c("coverage", "sashimi"), sashimiNumbers=TRUE, 
+           col.axis="black",
+           fontcolor.title="black")
+dev.off()
+
+
+```
+
+## `sessionInfo()`
+
+```{r}
+sessionInfo()
+```
+
