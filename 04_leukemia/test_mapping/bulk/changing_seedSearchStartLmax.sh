@@ -27,8 +27,9 @@ do
      	--sjdbGTFfile $GENOME/bcr_abl_downsampled.gtf \
      	--outFilterMismatchNmax $value \
      	--seedSearchStartLmax 50
+
+	samtools view $EXPERIMENT"Aligned.sortedByCoord.out.bam" | cut -f 1,3,6 > $EXPERIMENT"_CIGAR.txt"
+
 done
 
-# to get the information on the CIGAR
 
-samtools view $EXPERIMENT"Aligned.sortedByCoord.out.bam" | cut -f 1,3,6 > $EXPERIMENT"_CIGAR.txt"
