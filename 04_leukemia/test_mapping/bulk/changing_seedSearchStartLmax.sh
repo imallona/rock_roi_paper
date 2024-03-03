@@ -25,8 +25,8 @@ do
      	--sjdbOverhang 61 \
      	--outSAMtype BAM SortedByCoordinate \
      	--sjdbGTFfile $GENOME/bcr_abl_downsampled.gtf \
-     	--outFilterMismatchNmax $value \
-     	--seedSearchStartLmax 50
+     	--outFilterMismatchNmax 999 \
+     	--seedSearchStartLmax $value
 
 	samtools view $EXPERIMENT"Aligned.sortedByCoord.out.bam" | cut -f 1,3,6 > $EXPERIMENT"_CIGAR.txt"
 
