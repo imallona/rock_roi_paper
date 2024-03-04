@@ -17,7 +17,7 @@ nice -n 19 STAR --runThreadN $NTHREADS \
      --outSAMattributes All \
      --sjdbOverhang 61 \
      --outSAMtype BAM SortedByCoordinate \
-     --sjdbGTFfile $GENOME/bcr_abl_downsampled.gtf \
+     --sjdbGTFfile ~/kiel_leukemia_data/mapping_patient_data/captured_bcr_abl.gtf \
      --outFilterMismatchNmax 10 \
      --seedSearchStartLmax 50 \
      --outFilterMatchNmin 0
