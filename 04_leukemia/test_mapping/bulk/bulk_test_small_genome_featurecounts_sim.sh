@@ -28,7 +28,7 @@ samtools view $EXPERIMENT"Aligned.sortedByCoord.out.bam" | cut -f 1,3,6 > $EXPER
 
 # counting with custom gtf
 
-$FEATURECOUNTS -a ~/kiel_leukemia_data/captured_bcr_abl.gtf \
+$FEATURECOUNTS -a ~/kiel_leukemia_data/mapping_patient_data/captured_bcr_abl.gtf \
                 -o "$item" \
                 $EXPERIMENT"Aligned.sortedByCoord.out.bam" \
                 -F GTF \
