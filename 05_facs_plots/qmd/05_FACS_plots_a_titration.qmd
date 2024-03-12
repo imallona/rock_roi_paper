@@ -23,6 +23,8 @@ library(ggplot2)
 library(ggridges)
 library(ggh4x)
 library(reshape2)
+library(ggrastr)
+library(svglite)
 
 ```
 
@@ -101,7 +103,6 @@ facs_hist_rock_roi_theme<-function(){
 
 ```
 
-
 ### Importing data
 
 ```{r}
@@ -156,17 +157,26 @@ names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unk
 
 sqrcut <- matrix(c(50000,60000,70000,80000,90000,100000,110000,100000,90000,80000,70000,60000,50000,
                    50000,75000,80000,85000,85000,70000,60000,35000,30000,28000,30000,35000,50000),ncol=2,nrow=13)
+
 colnames(sqrcut) <- c("FSC-A","SSC-A")
 
 beads <- polygonGate(filterId="beads", gate= sqrcut)
 
-ggcyto(titration, aes(x = FSC.A, y = SSC.A)) + 
+plot<-ggcyto(titration, aes(x = FSC.A, y = SSC.A)) + 
   geom_hex(bins = 100) + 
-  facet_wrap(~factor(name, levels = c("pos_dt","pos_TSO","neg","unmod","100_gfp","50_gfp","50_dt","25_gfp","25_dt","10_gfp","10_dt"))) +
+  facet_wrap(~factor(name,levels = c("pos_dt","pos_TSO","neg","unmod","100_gfp","50_gfp","50_dt","25_gfp","25_dt","10_gfp","10_dt")),ncol = 3) +
   geom_gate(beads) + 
-  geom_stats(type = c("percent"),size = 2,adjust=c(0.7,1.2)) +
+  geom_stats(type = c("percent"),size = 2,adjust=c(0.7,2)) +
   theme_bw() +
-  facs_rock_roi_theme_multiple_panels() 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+
+  facs_rock_roi_theme_multiple_panels()
+  
+plot<-rasterize(plot, layers='Point', dpi=300)
+
+plot
+
+ggsave(file="test.svg", plot=plot, width=10, height=5)
+  
 
 gs <- GatingSet(titration) # create a GatingSet
 gs_pop_add(gs, beads,parent="root")
@@ -278,12 +288,15 @@ for (i in 1:length(filt_titration)){
 plottable<-melt(list_filt_titration)
 
 ggplot(plottable,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","unmod","100_gfp","50_gfp","50_dt","25_gfp","25_dt","10_gfp","10_dt")),y=value))+
-  geom_boxplot(aes(fill=L1),width=0.8,outlier.size = 0.5)+
+  geom_violin(aes(fill=L1,alpha=0.5),width=0.8,size = 0.1)+
   theme_bw()+
   xlab("sample")+
+  ylab("FSC-A")+
   rock_roi_theme()+
   theme(legend.position = "none")+
-  ylab("FSC-A")+
+  stat_summary(fun=mean, 
+               geom="crossbar", 
+               width=0.3)+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+
   scale_fill_manual(values=c(pos_dt="#882155",
                              pos_TSO="#CC6677",
@@ -307,12 +320,15 @@ for (i in 1:length(filt_titration)){
 plottable<-melt(list_filt_titration)
 
 ggplot(plottable,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","unmod","100_gfp","50_gfp","50_dt","25_gfp","25_dt","10_gfp","10_dt")),y=value))+
-  geom_boxplot(aes(fill=L1),width=0.8,outlier.size = 0.5)+
+  geom_violin(aes(fill=L1,alpha=0.5),width=0.8,size = 0.1)+
   theme_bw()+
   xlab("sample")+
   ylab("SSC-A")+
   rock_roi_theme()+
   theme(legend.position = "none")+
+  stat_summary(fun=mean, 
+               geom="crossbar", 
+               width=0.3)+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+
   scale_fill_manual(values=c(pos_dt="#882155",
                              pos_TSO="#CC6677",
@@ -325,7 +341,6 @@ ggplot(plottable,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","unmod","100_
                              "25_dt"="#AA4599",
                              "10_gfp"="#99CA3C",
                              "10_dt"="#AA4599"))
-
 
 ```
 
