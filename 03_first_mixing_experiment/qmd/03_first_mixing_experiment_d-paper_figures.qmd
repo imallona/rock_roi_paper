@@ -38,6 +38,8 @@ library(irlba)
 library(viridis)
 library(gridExtra)
 library(quarto)
+library(ggrastr)
+library(svglite)
 
 ```
 
@@ -87,8 +89,8 @@ rock_roi_theme_multiple_panels<-function(){
         panel.grid.minor = element_blank(),
         strip.background = element_blank(),
         legend.key.size = unit(0.5, 'cm'),
-        legend.title=element_text(size=5,face="bold"),
-        legend.text=element_text(size=5),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=7),
         legend.margin=margin(0,0,0,0),
         legend.box.margin=margin(-5,-5,-5,-5),
         legend.title.align=0.5,
@@ -120,11 +122,11 @@ plot(1:13, col=myscale, pch=19, cex=4)
 
 getwd() # after opening the .Rproj file, getwd() should be "/Users/gimoro/figure_making_paper/rock_roi_paper"
 
-rdss <- dir(here("03_first_mixing_experiment"), "^mixing.*rds", 
+rdss <- dir(here("03_first_mixing_experiment"), "*sce.rds", 
             recursive = TRUE, full.names = TRUE)
 
 names(rdss) <- gsub("_sce.rds", "", basename(rdss))
-names(rdss) <- gsub("mixing_", "", names(rdss))
+
 rdss # prints the .rds files in the 00_mixing_experiment folder
 
 datadir <- dirname(rdss)[1] # folder where the .rds files are 
@@ -191,7 +193,7 @@ colData(altExp(sce_filt,"wta_ontarget_multi")) <- cd
 
 ### Violin plots, colored by species
 
-```{r}
+```{r,fig.width=2.7,fig.height=2.7}
 
 rd <- rowData(sce)
 sce <- addPerCellQCMetrics(sce, assay.type = "wta",
@@ -211,11 +213,11 @@ cd <- colData(sce) %>% as.data.frame %>%
 
 table(sce$species) # not removing the unknown species yet
 
-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=detected)) +
+plot1<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=detected)) +
         geom_violin()+  
   theme_bw()+
   xlab("")+
-  ylab("number of genes")+ 
+  ylab("# genes WTA")+ 
   rock_roi_theme()+
   geom_jitter(aes(color=sce$species),shape=16, position=position_jitter(0.2),alpha=0.3,size=0.2)+
   geom_boxplot(aes(fill=species),width=0.3,outlier.size = 0.5)+
@@ -224,11 +226,15 @@ ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=detected)) +
   scale_color_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))+
   scale_fill_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))
 
-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=total)) +
+plot1<-rasterize(plot1, layers='Point', dpi=300)
+
+plot1
+
+plot2<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=total)) +
         geom_violin()+  
   theme_bw()+
   xlab("")+
-  ylab("number of UMIs")+ 
+  ylab("# transcripts WTA")+ 
   geom_jitter(aes(color=sce$species),shape=16, position=position_jitter(0.2),alpha=0.3,size=0.2)+
   geom_boxplot(aes(fill=species),width=0.3,outlier.size = 0.5)+
   rock_roi_theme()+
@@ -237,34 +243,44 @@ ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=total)) +
   guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
   scale_fill_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))
 
-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=subsets_mouse_mito_percent)) +
+plot2<-rasterize(plot2, layers='Point', dpi=300)
+
+plot2
+
+plot3<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")),y=total_mito_percent)) +
         geom_violin()+  
   theme_bw()+
   xlab("")+
-  ylab("% mitochondrial transcripts")+ 
+  ylab("mitochondrial transcripts (%)")+ 
   geom_jitter(aes(color=sce$species),shape=16, position=position_jitter(0.2),alpha=0.3,size=0.2)+
   rock_roi_theme()+
   labs(colour="species")+
   guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
   scale_color_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))
 
+plot3<-rasterize(plot3, layers='Point', dpi=300)
+
+plot3
+
 ```
 
 
 ### Plots with UMI vs mito colored by human and mouse 
 
-```{r}
+```{r,fig.width=5,fig.height=2.7}
 
-ggplot(cd, aes(x = total, y = total_mito_percent)) +
-  geom_point(aes(color=sce$species),size=0.1,alpha=0.5) + 
+# species is alredy random 
+
+plot4<-ggplot(cd, aes(x = total, y = total_mito_percent)) +
+  geom_point(aes(color=sce$species),size=0.1,alpha=0.3) + 
   scale_x_log10() + 
   scale_y_sqrt() +
   facet_wrap(~factor(sample_id,levels=c("unmod","unmod_n1"))) + 
   theme_bw()+
   geom_hline(yintercept=c(3,28), colour="orange") +
   geom_vline(xintercept=c(1400), colour="orange") +
-  xlab("total number of transcripts")+
-  ylab("percent mitochondrial reads")+
+  xlab("# transcripts WTA")+
+  ylab("mitochondrial transcripts WTA (%)")+
   theme(
     axis.text = element_text(size = 15),
     axis.title=element_text(size=20,face="bold"),
@@ -274,6 +290,10 @@ ggplot(cd, aes(x = total, y = total_mito_percent)) +
   scale_color_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))+
   guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
   scale_fill_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))
+
+plot4<-rasterize(plot4, layers='Point', dpi=1000)
+
+ggsave(file=file.path(datadir,"qc.svg"), plot=plot4, width=5, height=2.7)
 
 ```
 
@@ -348,25 +368,31 @@ table(sce_filt$species,
 
 ### Barnyard plot mouse vs human (unknow removed and filtered dataset)
 
-```{r}
+```{r,fig.width=5.4,fig.height=2.7}
 
 sce_filt$sample_id<-gsub("mixing_", "", sce_filt$sample_id)
 
 cd<-colData(sce_filt) %>% as.data.frame
 
-ggplot(cd, aes(x = subsets_mouse_gene_sum,y = subsets_human_gene_sum,color=sce_filt$species))+
+plot5<-ggplot(cd, aes(x = subsets_mouse_gene_sum,y = subsets_human_gene_sum,color=sce_filt$species))+
   geom_point(alpha = 0.2,size=0.5) +
   scale_x_log10() + scale_y_log10() +
   facet_wrap(~factor(sample_id, levels = c("unmod", "unmod_n1"))) +
   theme_bw() +
   xlab("mouse gene sum") +
-  ylab("gene sum")+
+  ylab("human gene sum")+
   ggtitle(" ")+
   rock_roi_theme_multiple_panels()+
   guides(colour = guide_legend(override.aes = list(alpha = 1)))+
   scale_color_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))+
   guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
   labs(colour="species")
+
+plot5<-rasterize(plot5, layers='Point', dpi=1000)
+
+plot5
+
+ggsave(file=file.path(datadir,"barnyard.svg"), plot=plot5, width=5.4, height=2.7)
 
 ```
 
@@ -381,7 +407,7 @@ sce_filt <- sce_filt[, !sce_filt$species== "unknown"]
 
 ### Barnyard plot with CDS detection
 
-```{r}
+```{r,fig.width=5.4,fig.height=2.7}
 
 combined<-colData(sce_filt) %>% as.data.frame
 
@@ -404,11 +430,10 @@ combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_d
 combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_detection_score==3)]<-myscale[["tdtom_cds"]] # rois are part of the cds
 combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_detection_score==4)]<-myscale[["tdtom_cds"]]# rois are part of the cds
 
-ggplot(combined, aes(
+plot6<-ggplot(combined, aes(
   x = subsets_mouse_gene_sum,
   y = subsets_human_gene_sum,
-  color = color 
-)) +
+  color = color)) +
   geom_point(alpha = 0.4,size=0.5) +
   scale_x_log10() + scale_y_log10() +
   facet_wrap(~factor(sample_id, levels = c("unmod", "unmod_n1"))) +
@@ -424,10 +449,14 @@ ggplot(combined, aes(
   scale_color_manual(labels=c("egfp_cds","tdtom_cds","doublets","no_detection"), 
                      values=c("#117733","#AA4499","black","darkgray"))
 
+plot6<-rasterize(plot6, layers='Point', dpi=300)
+
+plot6
+
 ```
 ### TSO vs WTA plot, colored by on target tso_ontarget_multi
 
-```{r,fig.width=5,fig.height=2.7}
+```{r,fig.width=5.4,fig.height=2.7}
 
 sce_nd$sample_id<-gsub("mixing_", "", sce_nd$sample_id)
 
@@ -468,8 +497,8 @@ for (i in  c("unmod", "unmod_n1")){
           scale_x_log10(limit=c(1,30000)) + 
           scale_y_log10(limit=c(2000,40000)) +
           theme_bw() +
-          xlab("total TSO UMIs") +
-          ylab("total WTA UMIs") +
+          xlab("total transcripts TSO") +
+          ylab("total transcripts WTA") +
           labs(title=i)+
           rock_roi_theme_multiple_panels()+
           theme(legend.key.width=unit(0.3,"cm"))+
@@ -479,7 +508,9 @@ for (i in  c("unmod", "unmod_n1")){
                          mid=myscale[["no_detection"]],
                          high=myscale[[i]],
                          midpoint=mean(df$log_1p_tso_ontarget_multi))
+     p[[i]]<-rasterize(p[[i]],layers='Point', dpi=300)
 }
+
 
 grid.arrange(grobs=p,ncol=2)
 
@@ -489,11 +520,11 @@ grid.arrange(grobs=p,ncol=2)
 
 ```{r}
 
-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=tso_total,fill=sample_id)) +
+plot7<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=tso_total,fill=sample_id)) +
   geom_violin()+  
   theme_bw()+
   xlab("")+
-  ylab("total TSO UMI")+ 
+  ylab("total transcripts TSO")+ 
   scale_y_log10()+
   geom_jitter(shape=16, position=position_jitter(0.2),alpha=0.5,size=0.2)+
   rock_roi_theme()+
@@ -502,12 +533,16 @@ ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=tso_total,fil
   scale_fill_manual(labels=c("unmod","unmod_roi","rock","rockroi"),
                      values=c(myscale[["unmod"]],myscale[["unmod_n1"]]))
 
+plot7<-rasterize(plot7, layers='Point', dpi=300)
+
+plot7
+
 ```
 
 
 ### Library size per cell WTA vs TSO (previous plots from Izaskun)
 
-```{r,fig.width=5,fig.height=2.7}
+```{r,fig.width=5.4,fig.height=2.7}
 
 rds <- rowData(sce_nd)
 
@@ -548,8 +583,8 @@ for (i in samples){
       scale_y_continuous(trans='log1p',limits=c(0,max(df$tso_capture_sum))) +
       theme_bw() +
       labs(title=i) +
-      xlab('on-target WTA # UMIs') +
-      ylab('on-target TSO # UMIs')+
+      xlab('# on-target WTA UMIs') +
+      ylab('#on-target TSO UMIs')+
       rock_roi_theme_multiple_panels()+
       theme(legend.position = "left",
             legend.key.width=unit(0.3,"cm"))+
@@ -559,6 +594,8 @@ for (i in samples){
                          high=myscale[[i]],
                          midpoint=max(df$wta_total))
      
+      p[[i]]<-rasterize(p[[i]],layers='Point', dpi=300)
+      
       p[[i]]<-ggExtra::ggMarginal(p[[i]],type = "density")
 }
 
@@ -610,7 +647,7 @@ samples<-c("unmod_CDS","unmod_tx","unmod_n1_CDS","unmod_n1_tx")
 
 plottable$hjs<-rep(c(-0.5,2,-0.5,2),2)
 
-ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=samples)))+
+plot8<-ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=samples)))+
   geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9),alpha=c(rep(c(1,0.5),4)))+
   xlab(" ")+
   ylab("percent positive cells")+
@@ -626,6 +663,10 @@ ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=samples))
   scale_fill_manual(labels=samples, 
                      values=alpha(c(myscale[["unmod"]],myscale[["unmod"]],myscale[["unmod_n1"]],myscale[["unmod_n1"]]),c(rep(c(1,0.5),2))))+
   guides(colour = guide_legend(override.aes = list(size=3)))
+
+plot8<-rasterize(plot8, layers='Point', dpi=300)
+
+plot8
 
 ```
 ### Session info
