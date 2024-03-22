@@ -46,7 +46,7 @@ library(cowplot)
 library(GenomicFeatures)
 library(GenomicRanges)
 library(corrplot)
-
+library(ggrastr)
 
 datadir <- file.path(here("01_pdgfra_experiment"), "data")
 
@@ -80,7 +80,6 @@ sces <- mapply(function(u,v)  {
 sce <- Reduce(cbind, sces)
 
 ```
-
 
 ### Setting up knitr 
 
@@ -169,10 +168,10 @@ sce <- addPerCellQCMetrics(sce, assay.type = "wta",
 
 cd <- colData(sce) %>% as.data.frame
 
-ggplot(cd, aes(x = total,
+plot1<-ggplot(cd, aes(x = total,
                y = detected,
                colour = subsets_mouse_mito_percent)) +
-  geom_point(size=0.1,alpha=0.5) +
+  geom_point(size=0.8,alpha=0.5,stroke=NA) +
   scale_x_log10() + 
   scale_y_log10() +
   facet_wrap(~factor(sample_id,levels=c("unmod","rockroi")))+
@@ -184,8 +183,15 @@ ggplot(cd, aes(x = total,
     rock_roi_theme_multiple_panels()+
   labs(colour="percent mito")
 
-ggplot(cd, aes(x = total, y = subsets_mouse_mito_percent)) +
-  geom_point(size=0.1,alpha=0.5) + 
+plot1<-ggrastr::rasterize(plot1, layers='Point', dpi=1000)
+
+plot1
+
+ggsave(file=file.path(datadir,"qc1.svg"), plot=plot1, width=3.2, height=2.7)
+
+
+plot2<-ggplot(cd, aes(x = total, y = subsets_mouse_mito_percent)) +
+  geom_point(size=0.8,alpha=0.5,stroke=NA) + 
   scale_x_log10() + scale_y_sqrt() +
   facet_wrap(~factor(sample_id,levels=c("unmod","rockroi")))+
   theme_bw()+
@@ -198,9 +204,16 @@ ggplot(cd, aes(x = total, y = subsets_mouse_mito_percent)) +
     strip.text=element_text(size=15,face="bold"))+
     rock_roi_theme_multiple_panels()+
   ylab("percent mito")
+
+plot2<-ggrastr::rasterize(plot2, layers='Point', dpi=1000)
+
+plot2
+
+ggsave(file=file.path(datadir,"qc2.svg"), plot=plot2, width=3.2, height=2.7)
+
   
-ggplot(cd, aes(x = detected, y = subsets_mouse_mito_percent)) +
-  geom_point(size=0.1,alpha=0.5) + 
+plot3<-ggplot(cd, aes(x = detected, y = subsets_mouse_mito_percent)) +
+  geom_point(size=0.8,alpha=0.5,stroke=NA) + 
   scale_x_log10() + scale_y_sqrt() +
   facet_wrap(~factor(sample_id,levels=c("unmod","rockroi")))+
   geom_hline(yintercept=c(1,75), colour="orange") +
@@ -212,6 +225,12 @@ ggplot(cd, aes(x = detected, y = subsets_mouse_mito_percent)) +
     strip.text=element_text(size=15,face="bold"))+
     rock_roi_theme_multiple_panels()+
   ylab("percent mito")
+
+plot3<-ggrastr::rasterize(plot3, layers='Point', dpi=1000)
+
+plot3
+
+ggsave(file=file.path(datadir,"qc3.svg"), plot=plot3, width=3.2, height=2.7)
 
 rm(sce)
 rm(sces)
@@ -241,7 +260,7 @@ df <- data.frame(tso_total = tso_qc$total,
                  wta_mito_percent = sces$subsets_mouse_mito_percent,
                  sample_id = sces$sample_id)
 
-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","rockroi")), y=tso_total,fill=factor(sample_id,levels=c("unmod","rockroi")))) +
+plot4<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","rockroi")), y=tso_total,fill=factor(sample_id,levels=c("unmod","rockroi")))) +
   geom_violin(show.legend = FALSE)+  
   theme_bw()+
   xlab("")+
@@ -253,7 +272,14 @@ ggplot(df, aes(x=factor(sample_id,levels=c("unmod","rockroi")), y=tso_total,fill
   scale_fill_manual(labels=c("unmod","rockroi"),
                      values=c(myscale[["unmod"]],myscale[["rockroi"]]))
 
-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","rockroi")), y=tso_mito_percent,fill=factor(sample_id,levels=c("unmod","rockroi")))) +
+plot4<-ggrastr::rasterize(plot4, layers='Point', dpi=1000)
+
+plot4
+
+ggsave(file=file.path(datadir,"tsoumis.svg"), plot=plot4, width=2.7, height=2.7)
+
+
+plot5<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","rockroi")), y=tso_mito_percent,fill=factor(sample_id,levels=c("unmod","rockroi")))) +
   geom_violin(show.legend = FALSE)+  
   theme_bw()+
   xlab("")+
@@ -265,7 +291,13 @@ ggplot(df, aes(x=factor(sample_id,levels=c("unmod","rockroi")), y=tso_mito_perce
   scale_fill_manual(labels=c("unmod","rockroi"),
                      values=c(myscale[["unmod"]],myscale[["rockroi"]]))
 
-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","rockroi")), y=tso_detected,fill=factor(sample_id,levels=c("unmod","rockroi")))) +
+plot5<-ggrastr::rasterize(plot5, layers='Point', dpi=1000)
+
+plot5
+
+ggsave(file=file.path(datadir,"tsogenes.svg"), plot=plot5, width=2.7, height=2.7)
+
+plot6<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","rockroi")), y=tso_detected,fill=factor(sample_id,levels=c("unmod","rockroi")))) +
   geom_violin(show.legend = FALSE)+  
   theme_bw()+
   xlab("")+
@@ -277,6 +309,11 @@ ggplot(df, aes(x=factor(sample_id,levels=c("unmod","rockroi")), y=tso_detected,f
   scale_fill_manual(labels=c("unmod","rockroi"),
                      values=c(myscale[["unmod"]],myscale[["rockroi"]]))
 
+plot6<-ggrastr::rasterize(plot6, layers='Point', dpi=1000)
+
+plot6
+
+ggsave(file=file.path(datadir,"tsogenes.svg"), plot=plot6, width=2.7, height=2.7)
 
 ```
 
@@ -284,10 +321,17 @@ ggplot(df, aes(x=factor(sample_id,levels=c("unmod","rockroi")), y=tso_detected,f
 
 ```{r,fig.width=5.4,fig.height=2.7}
 
-plotUMAP(sces, colour_by = "sample_id",point_alpha=0.5,point_size=0.1) + 
+plot7<-plotUMAP(sces, colour_by = "sample_id",point_alpha=0.5,point_size=0.1) + 
   facet_wrap(~factor(colour_by,levels=c("unmod","rockroi")))+
   rock_roi_theme_multiple_panels()+
   scale_color_manual(values = c(myscale[["unmod"]],myscale[["rockroi"]]))
+
+
+plot7<-ggrastr::rasterize(plot7, layers='Point', dpi=1000)
+
+plot7
+
+ggsave(file=file.path(datadir,"umapsamples.svg"), plot=plot7, width=5.4, height=2.7)
 
 ```
 
@@ -295,7 +339,7 @@ plotUMAP(sces, colour_by = "sample_id",point_alpha=0.5,point_size=0.1) +
 
 ```{r,fig.width=5.4,fig.height=2.7}
 
-plotUMAP(sces, colour_by = "total", point_size = 0.1,point_alpha=0.5) + 
+plot8<-plotUMAP(sces, colour_by = "total", point_size = 0.1,point_alpha=0.5) + 
   facet_wrap(~factor(sces$sample_id,levels=c("unmod","rockroi")))+
   rock_roi_theme_multiple_panels()+
   scale_colour_gradient2(low="lightgrey",
@@ -303,13 +347,26 @@ plotUMAP(sces, colour_by = "total", point_size = 0.1,point_alpha=0.5) +
                          high=myscale[["low"]])+
   labs(colour="total")
 
-plotUMAP(sces, colour_by = "subsets_mouse_mito_percent", point_size = 0.1,point_alpha=0.5) + 
+plot8<-ggrastr::rasterize(plot8, layers='Point', dpi=1000)
+
+plot8
+
+ggsave(file=file.path(datadir,"umapgenesmt.svg"), plot=plot8, width=3.2, height=2.7)
+
+
+plot9<-plotUMAP(sces, colour_by = "subsets_mouse_mito_percent", point_size = 0.1,point_alpha=0.5) + 
   facet_wrap(~factor(sces$sample_id,levels=c("unmod","rockroi")))+
   rock_roi_theme_multiple_panels()+
   scale_colour_gradient2(low="lightgrey",
                          mid="lightgrey",
                          high=myscale[["low"]])+
   labs(colour="percent mt")
+
+plot9<-ggrastr::rasterize(plot9, layers='Point', dpi=1000)
+
+plot9
+
+ggsave(file=file.path(datadir,"umappercentmt.svg"), plot=plot9, width=3.2, height=2.7)
 
 ```
 
@@ -319,11 +376,18 @@ plotUMAP(sces, colour_by = "subsets_mouse_mito_percent", point_size = 0.1,point_
 
 names(myscale)<-unique(sces$annotation)
 
-plotUMAP(sces, colour_by="annotation",
+plot10<-plotUMAP(sces, colour_by="annotation",
          point_size = 0.1, point_alpha = 0.5) + 
   facet_wrap(~factor(sces$sample_id,levels=c("unmod","rockroi")))+
   rock_roi_theme_multiple_panels()+
-  scale_color_manual(values=myscale)
+  scale_color_manual(values=myscale)+
+  guides(colour = guide_legend(override.aes = list(size=1)))
+
+plot10<-ggrastr::rasterize(plot10, layers='Point', dpi=1000)
+
+plot10
+
+ggsave(file=file.path(datadir,"umapannotation.svg"), plot=plot10, width=5.4, height=5.4)
 
 ```
 
@@ -334,13 +398,28 @@ plotUMAP(sces, colour_by="annotation",
 markers <- read_sheet("https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=1756474524",
                       sheet = "markers-pdgfra")
 
-dittoDotPlot(sces,
-             markers$Marker,
+short_markers<-as.vector(sapply(strsplit(markers$Marker,"__"),"[",2))
+short_sces<-sces[markers$Marker,]
+rownames(short_sces)<-short_markers
+
+assay(short_sces)
+
+plot11<-dittoDotPlot(short_sces,
+             short_markers,
              group.by="annotation",
              min.color="grey", 
              max.color="darkorange",
-             min=-1)+
+             scale=FALSE,
+             size=2.5)+
   rock_roi_theme()
+
+plot11<-ggrastr::rasterize(plot11, layers='Point', dpi=1000)
+
+plot11
+
+ggsave(file=file.path(datadir,"markers.svg"), plot=plot11, width=5.2, height=5.2)
+
+rm(short_sces)
 
 ```
 
@@ -370,19 +449,25 @@ for(i in 1:length(cols)) {
 
 with(df, table(mesenchymal_broad > .35, epithelial_broad > .35))
 
-ggplot(df, aes(x = mesenchymal_broad, y = epithelial_broad, colour = annotation)) +
-  geom_jitter(width=.01, height = .01,size=1) +
+plot12<-ggplot(df, aes(x = mesenchymal_broad, y = epithelial_broad, colour = annotation)) +
+  geom_jitter(width=.01, height = .01,size=0.8,stroke=NA) +
   geom_hline(yintercept = .35, colour="orange", size = 1) +
   geom_vline(xintercept = .35, colour="orange", size = 1) +
   theme_bw()+
   rock_roi_theme()+
   scale_color_manual(values=myscale)
 
+plot12<-ggrastr::rasterize(plot12, layers='Point', dpi=1000)
+
+plot12
+
+ggsave(file=file.path(datadir,"markers.svg"), plot=plot12, width=2.7, height=2.7)
+
 ```
 
 ### Correlation plot
 
-```{r,fig.width=10,fig.height=10}
+```{r,fig.width=5.4,fig.height=5.4}
 
 with(colData(sces) %>% as.data.frame,
      table(annotation, sample_id))
@@ -434,14 +519,44 @@ corrplot(cor(pbs[keep,],method="pearson")[c("rockroi__Crypt_bottom_1",
                                             "unmod__Secretory_Goblet",
                                             "unmod__Secretory_Reg4",
                                             "unmod__Stem/TA",
-                                            "unmod__Tuft")],order="hclust",addrect=2,addCoef.col = 'darkorange',number.cex=0.8) 
-
+                                            "unmod__Tuft")],order="hclust",
+         addCoef.col = 'darkorange',
+         number.cex=0.4,
+         tl.col="black") 
 
 ```
 
+### Corrplot dataset Brügger et al.
+
+```{r,fig.width=4,fig.height=4}
+
+bruegger<-readRDS(paste0(here("01_pdgfra_experiment"),"/data/DSSuntreated_new.rds"))
+
+inds <- split(seq_len(ncol(bruegger)),bruegger$ident)
+
+lcounts <- logcounts(bruegger)
+
+pbs <- sapply(inds, function(u) rowMeans(lcounts[,u]))
+
+m <- rowMeans(pbs)
+v <- rowVars(pbs)
+
+smoothScatter(m, v)
+
+keep <- m > .1 & v > .5
+
+corrplot(cor(pbs[keep,],method="pearson"),order="hclust",
+         addCoef.col = 'darkorange',
+         number.cex=0.3,
+         tl.col="black",
+         tl.cex = 0.5) 
+
+```
+
+
 ### Junction analysis
 
-```{r,fig.width=2.7,fig.height=2.7}
+```{r,fig.width=2.3,fig.height=2.3}
 
 names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtom_cds","no_detection","doublets","low","pdgfra_unimodal")
 
@@ -452,11 +567,11 @@ datadir <- file.path(here("01_pdgfra_experiment"),
 
 se <- readRDS(file = file.path(datadir,
                                "junctions", "se-annotated-junctions.rds"))
+
 b <- readRDS(file = file.path(datadir,
                               "junctions", "df-annotated-junctions.rds"))
 
-
-(aa <- ggplot(b %>% filter(grepl("egfp", region)),
+(aa <- ggplot(b %>% dplyr::filter(grepl("egfp", region)),
                     aes(x = celltype, y = perc_expressed,
                         fill= factor(sample,levels=c("unmod","rockroi")),
                         label = perc_expressed,
@@ -484,9 +599,13 @@ b <- readRDS(file = file.path(datadir,
 
 ### ROIs in cell types
 
-```{r,fig.height=2.7,fig.width=8.1}
+```{r,fig.height=2.3,fig.width=4}
 
-(bb <- ggplot(b %>% filter(grepl("roi_[456]", region)),
+junctions1<-b %>% dplyr::filter(grepl("roi_[456]", region))
+regions<-c("[roi_4] chr5:75166771-75167837","[roi_5] chr5:75167967-75170495","[roi_6] chr5:75170666-75170762") # filtering canonical regions
+junctions1<-junctions1[which(junctions1$region %in% regions),]
+
+bb <- ggplot(junctions1,
                     aes(x = celltype, y = perc_expressed, fill = factor(sample,levels=c("unmod","rockroi")),
                         colour = factor(sample,levels=c("unmod","rockroi")), group = factor(sample,levels=c("unmod","rockroi")),
                         label = perc_expressed)) +
@@ -509,18 +628,28 @@ b <- readRDS(file = file.path(datadir,
                     values=c(myscale[["unmod"]],myscale[["rockroi"]]))+
   scale_color_manual(labels=sample,
                     values=c(myscale[["unmod"]],myscale[["rockroi"]]))+
-  theme(legend.position = "none"))
+  theme(legend.position = "none")
+
+bb<-ggrastr::rasterize(bb, layers='Point', dpi=1000)
+
+bb
+
+ggsave(file=file.path(datadir,"barplot1.svg"), plot=bb, width=4, height=2.2)
   
 ```
 
 ### Other regions
 
-```{r,fig.height=2.7,fig.width=8.1}
+```{r,fig.height=2.3,fig.width=4}
 
-b %>% filter(grepl("roi_[456]", region), 
+b %>% dplyr::filter(grepl("roi_[456]", region), 
              celltype=="Epithelial", sample=="rockroi")
 
-(cc<- ggplot(b %>% filter(grepl("roi_1[3456]", region)),
+junctions2<-b %>% dplyr::filter(grepl("roi_1[3456]", region))
+regions2<-c("[roi_13] chr5:75180272-75180999","[roi_14] chr5:75181109-75181522","[roi_15] chr5:75181675-75182976","[roi_16] chr5:75183142-75185514") # filtering canonical regions
+junctions2<-junctions2[which(junctions2$region %in% regions2),]
+
+(cc<- ggplot(junctions2,
                     aes(x = celltype, y = perc_expressed, fill = factor(sample,levels=c("unmod","rockroi")),
                         colour = factor(sample,levels=c("unmod","rockroi")), group = factor(sample,levels=c("unmod","rockroi")),
                         label = perc_expressed)) +
@@ -545,18 +674,26 @@ b %>% filter(grepl("roi_[456]", region),
                     values=c(myscale[["unmod"]],myscale[["rockroi"]]))+
   theme(legend.position = "none"))
 
+cc<-ggrastr::rasterize(cc, layers='Point', dpi=1000)
+
+cc
+
+ggsave(file=file.path(datadir,"barplot2.svg"), plot=cc, width=4.3, height=2.2)
+
 ```
 
 ### With region name
 
-```{r,fig.height=2.7,fig.width=8.1}
+```{r,fig.height=2.3,fig.width=4}
 
 b$region_name<-gsub(" chr5","",b$region_name)
 
 names(myscale)<-unique(sces$annotation)
 
-(bb <- ggplot(b %>% filter(grepl("roi_[456]", region_name)),
-                    aes(x = factor(sample,levels=c("unmod","rockroi")), y = perc_expressed, fill = celltype,
+bb <- ggplot(junctions1,
+                    aes(x = factor(sample,levels=c("unmod","rockroi")), 
+                        y = perc_expressed, 
+                        fill = celltype,
                         colour = celltype, group = celltype,
                         label = perc_expressed)) +
   geom_bar(position = position_dodge2(), stat = "identity") +
@@ -579,23 +716,29 @@ names(myscale)<-unique(sces$annotation)
         legend.title.align=0.5)+
   theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
   ylab("Percent cells expressed")+
-  scale_fill_manual(labels=b$celltype,
+  scale_fill_manual(labels=unique(junctions1$celltype),
                     values=c(myscale[["Crypt_bottom_1"]],myscale[["Crypt_top"]],myscale[["Enteroendocrine"]]))+
-  scale_color_manual(labels=b$celltype,
+  scale_color_manual(labels=unique(junctions1$celltype),
                     values=c(myscale[["Crypt_bottom_1"]],myscale[["Crypt_top"]],myscale[["Enteroendocrine"]]))+
-  xlab(""))
+  xlab("")
+
+bb<-ggrastr::rasterize(bb, layers='Point', dpi=1000)
+
+bb
+
+ggsave(file=file.path(datadir,"barplot3.svg"), plot=bb, width=4, height=1.9)
 
 ```
 
 ### With region name other regions
 
-```{r,fig.height=2.7,fig.width=10.5}
+```{r,fig.height=2.3,fig.width=4}
 
 b$region_name<-gsub(" chr5","",b$region_name)
 
 names(myscale)<-unique(sces$annotation)
 
-(bb <- ggplot(b %>% filter(grepl("roi_1[3456]", region_name)),
+(bb <- ggplot(junctions2,
                     aes(x = factor(sample,levels=c("unmod","rockroi")), y = perc_expressed, fill = celltype,
                         colour = celltype, group = celltype,
                         label = perc_expressed)) +
@@ -619,34 +762,40 @@ names(myscale)<-unique(sces$annotation)
         legend.title.align=0.5)+
   theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
   ylab("Percent cells expressed")+
-  scale_fill_manual(labels=b$celltype,
+  scale_fill_manual(labels=unique(junctions2$celltype),
                     values=c(myscale[["Crypt_bottom_1"]],myscale[["Crypt_top"]],myscale[["Enteroendocrine"]]))+
-  scale_color_manual(labels=b$celltype,
+  scale_color_manual(labels=unique(junctions2$celltype),
                     values=c(myscale[["Crypt_bottom_1"]],myscale[["Crypt_top"]],myscale[["Enteroendocrine"]]))+
   xlab(""))
+
+bb<-ggrastr::rasterize(bb, layers='Point', dpi=1000)
+
+bb
+
+ggsave(file=file.path(datadir,"barplot4.svg"), plot=bb, width=4.1, height=1.9)
 
 ```
 
 ### Sashimis by cell type
 
-```{r,fig.height=8.1,fig.width=16.2}
+```{r,fig.height=3,fig.width=8}
 
 names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtom_cds","no_detection","doublets","low","pdgfra_unimodal")
 
 options(ucscChromosomeNames=FALSE)
 
-anno <- import(file.path(datadir, "subset.gtf")) %>% 
-  as.data.frame %>% filter(type=="exon")
+anno <- rtracklayer::import(file.path(datadir, "subset.gtf")) %>% 
+  as.data.frame %>% dplyr::filter(type=="exon")
 colnames(anno)[1] <- "chromosome"
 
-gtf <- import("/Users/gimoro/figure_making_paper/rock_roi_paper/01_pdgfra_experiment/data/pdgfra.gtf")
+gtf <- rtracklayer::import("/Users/gimoro/figure_making_paper/rock_roi_paper/01_pdgfra_experiment/data/pdgfra.gtf")
 
 gtf_path<-dir(here("01_pdgfra_experiment"), ".*gtf", 
             recursive = TRUE, full.names = TRUE)
 
 track<-makeTxDbFromGFF(file="/Users/gimoro/figure_making_paper/rock_roi_paper/01_pdgfra_experiment/data/pdgfra.gtf", format="gtf")
 
-region_start<-min(start(ranges(gtf[which(gtf$gene_name=="Pdgfra"),])))-10000 # add extra 10000 because otherwise don't see labels in plot
+region_start<-min(start(ranges(gtf[which(gtf$gene_name=="Pdgfra"),])))-100 # add extra 10000 because otherwise don't see labels in plot
 region_end<-max(end(ranges(gtf[which(gtf$gene_name=="Pdgfra"),])))+100
 
 gm_pdgfra <- GeneRegionTrack(track,
@@ -807,10 +956,11 @@ displayPars(a_um_epi) <- list("background.title"=myscale[["unmod"]],
 
 
 
-b %>% filter(grepl("roi_[3456]", region_name)) -> regs
+b %>% dplyr::filter(grepl("roi_[3456]", region_name)) -> regs
 rng <- as.integer(c(min(regs$start), max(regs$end)))
 
 type<-c("histogram","sashimi")
+
 plotTracks(c(rr_cryptb, 
              a_rr_cryptb,
              um_cryptb,
@@ -819,42 +969,37 @@ plotTracks(c(rr_cryptb,
              a_rr_cryptt,
              um_cryptt,
              a_um_cryptt,
-             rr_epi, 
-             a_rr_epi,
-             um_epi,
-             a_um_epi,
              gm_pdgfra),
            from = region_start, 
            to = region_end,
            type=rep(type,6),
            chromosome = "chr5",
-           main = "Pdgfra",
            sashimiNumbers=TRUE, 
            col.axis="black",
            fontcolor.title="black",
            cex.axis = 0.5,
            cex.title=0.5,
            lwd.title=0.5,
+           sashimiHeight=2,
            cex=0.5,
-           sashimiHeight=20, 
            minSashimiHeight=0,
-           sizes=c(rep(2,12),4),
-           lwd.sashimiMax=2,
-           ylim=c(0,400))
+           sashimiScore=10,
+           sizes=c(1,2,1,0.1,1,2,1,0.1,2),
+           lwd.sashimiMax=2)
 
 ```
 
 ### eGFP 
 
-```{r,fig.width=5.4,fig.height=8.1}
+```{r,fig.width=2.3,fig.height=5}
 
 options(ucscChromosomeNames=FALSE)
 
-anno <- import(file.path(datadir, "subset.gtf")) %>% 
-  as.data.frame %>% filter(type=="exon")
+anno <- rtracklayer::import(file.path(datadir, "subset.gtf")) %>% 
+  as.data.frame %>% dplyr::filter(type=="exon")
 colnames(anno)[1] <- "chromosome"
 
-gtf <- import("/Users/gimoro/figure_making_paper/rock_roi_paper/01_pdgfra_experiment/data/pdgfra.gtf")
+gtf <- rtracklayer::import("/Users/gimoro/figure_making_paper/rock_roi_paper/01_pdgfra_experiment/data/pdgfra.gtf")
 
 gtf_path<-dir(here("01_pdgfra_experiment"), ".*gtf", 
             recursive = TRUE, full.names = TRUE)
@@ -966,7 +1111,7 @@ displayPars(um_epi) <- list("background.title"=myscale[["unmod"]],
                               col.histogram="black",
                                fill.histogram=TRUE)
 
-b %>% filter(grepl("roi_[3456]", region_name)) -> regs
+b %>% dplyr::filter(grepl("roi_[3456]", region_name)) -> regs
 rng <- as.integer(c(min(regs$start), max(regs$end)))
 
 plotTracks(c(rr_cryptb, 
