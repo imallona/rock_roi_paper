@@ -528,7 +528,7 @@ corrplot(cor(pbs[keep,],method="pearson")[c("rockroi__Crypt_bottom_1",
 
 ### Corrplot dataset Brügger et al.
 
-```{r,fig.width=4,fig.height=4}
+```{r,fig.width=3.3,fig.height=3.3}
 
 bruegger<-readRDS(paste0(here("01_pdgfra_experiment"),"/data/DSSuntreated_new.rds"))
 

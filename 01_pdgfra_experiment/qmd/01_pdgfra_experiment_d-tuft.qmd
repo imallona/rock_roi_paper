@@ -1,0 +1,239 @@
+---
+title: "01_pdgfra_experiment_d-tuft"
+format:
+  html:
+    toc: true
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(SingleCellExperiment)
+library(ggplot2)
+library(dplyr)
+library(UpSetR)
+library(scran)
+library(scater)
+library(scuttle)
+library(bluster)
+library(cowplot)
+library(pheatmap)
+library(here)
+library(tibble)
+library(limma)
+library(khroma)
+library(googlesheets4)
+library(gridExtra)
+library(GGally)
+library(tidyr)
+
+save_pheatmap_pdf <- function(x, filename, width=7, height=7) {
+   stopifnot(!missing(x))
+   stopifnot(!missing(filename))
+   pdf(filename, width=width, height=height)
+   grid::grid.newpage()
+   grid::grid.draw(x$gtable)
+   dev.off()
+}
+
+datadir <- file.path(here("01_pdgfra_experiment"), "data")
+
+# read filtered-clustered object to SCE
+sce <- readRDS(file.path(datadir, "sce_qc-filtered-nodoublets-clustered-epithelial.rds"))
+
+markers <- read_sheet("https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=1756474524",
+                      sheet = "markers-pdgfra")
+
+# myscale <- rainbow(13)
+# names(myscale) <- as.character(1:13)
+myscale <- c(color("muted")(9), gray="lightgray")
+names(myscale) <- as.character(1:10)
+
+```
+
+### Focus on potential Tuft cells
+
+```{r}
+
+sce <- sce[,sce$cluster==2]
+mgv <- modelGeneVar(sce, block = sce$sample_id)
+
+mgv_pb  <- lapply(mgv$per.block, function(u) {
+ o <- order(u$p.value)
+ u <- u[o,]
+ head(rownames(u), 500)
+})
+
+# most are sample-wise (?)
+upset(fromList(mgv_pb))
+
+all(rownames(sce)==rownames(mgv))
+
+# remove mito genes
+hvg <- mgv$bio > .01 & mgv$p.value < .05 & mgv$mean > .2 & 
+  rowData(sce)$gene_type != "mouse_mito"
+rn <- rownames(mgv)[hvg]
+length(rn)
+
+
+ggplot(mgv %>% data.frame,
+       aes(x=mean, y=bio, colour=p.value<.05)) +
+  geom_point()
+
+
+sce <- fixedPCA(sce, subset.row=rn, rank = 10) 
+sce <- runUMAP(sce, dimred="PCA")
+
+set.seed(1976)
+nn.clusters <- clusterCells(sce, use.dimred="PCA",
+                            BLUSPARAM=NNGraphParam(k=10))
+table(nn.clusters)
+sce$cluster <- nn.clusters
+
+(p <- plotUMAP(sce, colour_by="cluster", shape_by = "sample_id",
+         point_size = 3, point_alpha = .9) + 
+  scale_color_manual(values = myscale) +
+  facet_wrap(~shape_by))
+
+ggsave("tuft_umap.pdf", p, width = 11, height = 5)
+
+
+table(sce$sample_id, sce$cluster)
+
+mm <- model.matrix(~ cluster, 
+                   data=as.data.frame(colData(sce)))
+
+
+lcounts <- logcounts(sce)
+
+table(rs <- rowSums(lcounts)>5 & rowData(sce)$gene_type == "mouse_gene" )
+f <- lmFit(as.matrix(lcounts[rs,]), mm)
+f <- eBayes(f)
+
+tt <- topTable(f, coef=2:ncol(mm), number = 1e6, sort.by = "none")
+
+grep("Trpm5", rownames(sce), value = TRUE)
+
+plotUMAP(sce, colour_by = "ENSMUSG00000009246.14__Trpm5")
+plotExpression(sce, x = "cluster", features = c("ENSMUSG00000033740.17__St18",
+                                                    "ENSMUSG00000092083.4__Kcnb2",
+                                                    "ENSMUSG00000009246.14__Trpm5"),
+               colour_by = "cluster") +
+  scale_color_manual(values = myscale)
+
+aac <- aggregateAcrossCells(sce, sce$cluster,use.assay.type="wta")
+
+calc_entropy <- function(u) {
+  p <- u[u>0]
+  p <- p/sum(p)
+  -sum(p*log(p))
+}
+
+# adjust the aggregated counts for the number of cells
+agg_counts <- assay(aac,"wta")[rs,]
+for(i in 1:ncol(agg_counts))
+  agg_counts[,i] <- agg_counts[,i]/sum(agg_counts[,i])*1e6
+
+ents <- apply(agg_counts, 1, calc_entropy)
+
+plot(ents, tt$F, log="y")
+
+
+df <- data.frame(gene = names(ents), 
+                 entropy=ents, Fstat=tt$F,
+                 cluster.max = apply(agg_counts, 1, which.max)) %>%
+  mutate(order_by = Fstat / entropy) %>%
+  filter(Fstat > 50, entropy < 1.5) %>%
+  arrange(desc(order_by)) %>%
+  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 20)
+
+col_anno <- colData(sce)[,c("sample_id","cluster")] %>% as.data.frame
+
+table(df$cluster.max)
+
+inds <- split(seq_len(ncol(sce)), sce$cluster)
+set.seed(1976)
+
+co <- unlist(inds)
+
+genes <- split(df$gene, df$cluster.max) %>% unlist
+
+
+rowanno <- data.frame(Marker = genes) %>% 
+  left_join(markers %>% select(Marker, Broad_cell_type, Cell_type)) %>%
+  transmute(Marker = Marker,
+            broad_ct = replace_na(Broad_cell_type, ""),
+            celltype = replace_na(Cell_type, "")) %>%
+  tibble::column_to_rownames("Marker")
+
+cts <- unique(rowanno$celltype)
+
+ann_colors = list(cluster = myscale[seq_len(length(inds))],
+                  celltype = setNames(myscale[1:length(cts)], cts))
+
+
+ph <- pheatmap(lcounts[genes,co], show_rownames = TRUE,
+        show_colnames = FALSE, scale="none",
+        annotation_col = col_anno[co,],
+        clustering_distance_rows = "correlation",
+        clustering_distance_cols = "correlation",
+        annotation_row = rowanno,
+        cluster_rows = TRUE,
+        treeheight_row = 0,
+        cluster_cols = FALSE, fontsize_row = 9,
+        annotation_colors = ann_colors)
+
+save_pheatmap_pdf(ph, "tuft_clustering.pdf", width = 12, height = 8)
+
+gene_df <- data.frame(gene = names(ents), 
+                 entropy=ents, Fstat=tt$F,
+                 cluster.max = apply(agg_counts, 1, which.max)) %>%
+  left_join(markers %>% select(Marker, Broad_cell_type, Cell_type),
+            by = c("gene" = "Marker")) %>%
+  mutate(broad_ct = replace_na(Broad_cell_type, ""),
+         celltype = replace_na(Cell_type, "")) %>%
+  select(-Broad_cell_type,-Cell_type)
+
+agg_counts %>% as.data.frame %>% round(3) %>%
+  rownames_to_column("gene") %>%
+  left_join(gene_df) %>%
+  write.csv(file = "tuft_agg_by_cluster.csv", 
+            row.names = FALSE, quote = FALSE)
+
+p <- plotExpression(sce, x = "cluster", colour_by = "cluster",
+               features = markers$Marker[markers$Cell_type=="Tuft" |
+                                         markers$Cell_type=="Enteroendocrine" ],
+               ncol = 3) +
+  scale_color_manual(values = myscale)
+p
+
+
+ggsave("tuft_markers_by_cluster.pdf", p, height = 6, width = 10)
+
+
+
+```
+
+# Save output
+
+```{r}
+# save clustered object to RDS
+
+#saveRDS(sce, file.path(datadir, "sce_qc-filtered-nodoublets-clustered-epithelial-tuft.rds"))
+
+```
+
+### sessionInfo()
+
+```{r}
+
+sessionInfo()
+
+```
+
+
+

@@ -11,6 +11,9 @@ editor_options:
 ## Load packages, load data
 
 ```{r, warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
 library(SingleCellExperiment)
 library(scran)
 library(ggplot2)
@@ -75,7 +78,7 @@ ggplot(cd, aes(x = total,
                colour = subsets_mouse_mito_percent)) +
   geom_point() +
   scale_x_log10() + scale_y_log10() +
-  geom_density_2d() +
+  geom_density_2d(colour = "orange") +
   facet_wrap(~sample_id)
 
 ggplot(cd, aes(x = total, y = subsets_mouse_mito_percent)) +
@@ -85,21 +88,27 @@ ggplot(cd, aes(x = total, y = subsets_mouse_mito_percent)) +
   geom_vline(xintercept=c(2000), colour="orange") +
   geom_density2d()
 
+ggplot(cd, aes(x = detected, y = subsets_mouse_mito_percent)) +
+  geom_point() + scale_x_log10() + scale_y_sqrt() +
+  facet_wrap(~sample_id) + 
+  geom_hline(yintercept=c(1,75), colour="orange") +
+  geom_vline(xintercept=c(800), colour="orange") +
+  geom_density2d()
+
 
 # crude filter
 dim(sce)
 mito <- sce$subsets_mouse_mito_percent
-sces <- sce[,sce$total>2000 & mito>1 & mito<30]
+sces <- sce[,sce$detected>800 & mito>1 & mito<75]
 # sces <- sces[rowSums(assay(sces,1))>2 ,]  # don't b/c removes from off/on target mtx
 sces <- sces[rowSums(assay(sces,1))>2 | rowData(sces)$gene_type=="capture" ,] 
 dim(sces)
 
 
 # save filtered to RDS
-saveRDS(sces, file.path(datadir, "sce_qc-filtered.rds"))
 
 # remove extra things
-rm(cd, cds, sce); gc()
+rm(cd, sce); gc()
 
 ```
 
@@ -107,7 +116,7 @@ rm(cd, cds, sce); gc()
 
 ```{r}
 
-rowData(sces) %>% as.data.frame %>% tail(8)
+rowData(sces) %>% as.data.frame %>% tail(10)
 
 # df <- data.frame(sample_id = sces$sample_id,
 #                  rock_egfp_wta = assay(sces, "wta")["roi_egfp",],
@@ -173,8 +182,8 @@ ggplot(df, aes(x = tso_total, y = tso_mito_percent)) +
   scale_y_sqrt() +
   # geom_density2d() +
   facet_wrap(~sample_id)
-```
 
+```
 
 ## Selected TSOs by mouse/human expression
 
@@ -193,6 +202,14 @@ for(tso in names(sorted))
        xlab="mouse percent",
        ylab=tso)
 
+
+```
+
+### Session info
+
+```{r}
+
+sessionInfo()
 
 ```
 
