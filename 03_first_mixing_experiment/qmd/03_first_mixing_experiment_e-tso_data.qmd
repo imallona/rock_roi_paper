@@ -94,8 +94,8 @@ rock_roi_theme_multiple_panels<-function(){
         panel.grid.minor = element_blank(),
         strip.background = element_blank(),
         legend.key.size = unit(0.5, 'cm'),
-        legend.title=element_text(size=5,face="bold"),
-        legend.text=element_text(size=5),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=7),
         legend.margin=margin(0,0,0,0),
         legend.box.margin=margin(-5,-5,-5,-5),
         legend.title.align=0.5,
@@ -126,7 +126,7 @@ names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unk
 
 getwd() # after opening the .Rproj file, getwd() should be "/Users/gimoro/figure_making_paper/rock_roi_paper"
 
-rdss <- dir(here("03_first_mixing_experiment"), "^mixing.*rds", 
+rdss <- dir(here("03_first_mixing_experiment"), "*sce.rds", 
             recursive = TRUE, full.names = TRUE)
 
 names(rdss) <- gsub("_sce.rds", "", basename(rdss))
@@ -219,15 +219,21 @@ df<-data.frame(df_wta$wta_mito_percent,df_tso$tso_mito_percent)
 colnames(df)<-c("wta","tso")
 plottable<-melt(df)
 
-ggplot(plottable,aes(x=variable,y=value,fill=variable)) +
+plot1<-ggplot(plottable,aes(x=variable,y=value,fill=variable)) +
   geom_violin(show.legend = FALSE) +  
   theme_bw() +
   xlab("") +
-  ylab("percent mitochondrial transcripts")+ 
+  ylab("mitochondrial transcripts (%)")+ 
   geom_jitter(shape=16, position=position_jitter(0.2),alpha=0.5,size=0.2,show.legend = FALSE) +
   rock_roi_theme() +
   scale_fill_manual(labels=c("wta","tso"),
                      values=alpha(c(myscale[["unmod_n1"]],myscale[["unmod_n1"]]),c(1,0.3)))
+
+plot1<-rasterize(plot1, layers='Point', dpi=1000)
+
+plot1
+
+ggsave(file=file.path(datadir,"tso.svg"), plot=plot1, width=2.3, height=2.3)
 
 ```
 
@@ -332,7 +338,7 @@ human1<-subsetByOverlaps(match_human1,gtf_minus)
 human2<-subsetByOverlaps(match_human2,gtf_minus)
 human3<-subsetByOverlaps(match_human3,gtf_minus)
 
-match_6<-list(mouse1,human1,revmouse1,revmouse1)
+match_6<-list(mouse1,human1,revmouse1,revhuman1)
 match_6<-do.call(c, as(match_6, "GRangesList"))
 
 match_5<-list(mouse2,human2,revmouse2,revhuman2)
@@ -370,7 +376,7 @@ write.table(bed_4, file=file.path(datadir,"match_4.bed"), quote=F, sep="\t", row
 
 ### Runnning motif finder
 
-```{r}
+```{r,fig.width=5.4,fig.height=2.7}
 
 # run for genes of interest
 # no rev needed 
@@ -490,7 +496,7 @@ rownames(df_human)<-names(table(human_genes$combined_name))
 
 ### Checking in general if TSO pattern match == higher gene expression
 
-```{r,fig.height=2.7,fig.width=5.4}
+```{r}
 
 # need to get the gene expression for the transcripts with the TSO motif
 
@@ -522,22 +528,32 @@ for (i in intersect(rownames(df_human),rownames(n1_tso_sums))){
    n1_tso_sums[i,"presence_match"]<-1
 }
 
+# only taking the ones that have expression more than 10 in WTA or TSO
+
+n1_tso_sums<-n1_tso_sums[which(n1_tso_sums$tso_count+n1_tso_sums$wta_count>10),]
+
 table(n1_tso_sums$presence_match)
 
 # exporting object
 
 write.csv(n1_tso_sums, paste0(here("03_first_mixing_experiment"),"/data/","n1_tso_sums.csv"), row.names=TRUE)
 
-ggplot(data=n1_tso_sums,aes(x=as.character(presence_match),y=tso_count,fill=as.character(presence_match)))+
+plot2<-ggplot(data=n1_tso_sums,aes(x=as.character(presence_match),y=tso_count,fill=as.character(presence_match)))+
   geom_boxplot(outlier.size=1)+
   geom_jitter(shape=16, position=position_jitter(0.1),size=0.1,alpha=0.2)+
   scale_y_log10()+
   theme_bw()+
-  xlab("presence_match")+
+  xlab("presence match")+
   rock_roi_theme()+
   theme(legend.position = "none")+
   scale_fill_manual(labels=c("0","1"),
     values=c(myscale[["rockroi"]],"#8856A7"))
+
+plot2<-rasterize(plot2, layers='Point', dpi=1000)
+
+plot2
+
+ggsave(file=file.path(datadir,"match.svg"), plot=plot2, width=2.4, height=2.4)
 
 ```
 
@@ -557,17 +573,25 @@ both_wta_tso$name<-"both"
 
 plottable<-melt(rbind(wta_only,both_wta_tso))
 
-ggplot(data=plottable,aes(x=name,y=value,fill=name))+
+table(plottable$name)
+
+plot3<-ggplot(data=plottable,aes(x=name,y=value,fill=name))+
   geom_boxplot(outlier.size=1)+
   geom_jitter(shape=16, position=position_jitter(0.1),size=0.1,alpha=0.2)+
   theme_bw()+
   scale_y_log10()+
   xlab("")+
   rock_roi_theme()+
-  ylab("wta_count")+
+  ylab("WTA count")+
   theme(legend.position = "none")+
   scale_fill_manual(labels=c("wta_only","both"),
                     values=alpha(c(myscale[["unknown"]],myscale[["unknown"]]),c(1,0.3)))
+
+plot3<-rasterize(plot3, layers='Point', dpi=1000)
+
+plot3
+
+ggsave(file=file.path(datadir,"wtatso.svg"), plot=plot3, width=2.4, height=2.4)
 
 ```
 
@@ -587,17 +611,23 @@ both_wta_tso$name<-"both"
 
 plottable<-melt(rbind(tso_only,both_wta_tso))
 
-ggplot(data=plottable,aes(x=name,y=value,fill=name))+
+table(plottable$name)
+
+plot10<-ggplot(data=plottable,aes(x=name,y=value,fill=name))+
   geom_boxplot(outlier.size=1)+
   geom_jitter(shape=16, position=position_jitter(0.1),size=0.1,alpha=0.2)+
   theme_bw()+
   scale_y_log10()+
   xlab("")+
   rock_roi_theme()+
-  ylab("tso_count")+
+  ylab("TSO count")+
   theme(legend.position = "none")+
   scale_fill_manual(labels=c("tso_only","both"),
                     values=alpha(c(myscale[["human"]],myscale[["human"]]),c(1,0.3)))
+
+plot10<-rasterize(plot10, layers='Point', dpi=1000)
+
+ggsave(file=file.path(datadir,"tsodd.svg"), plot=plot10, width=2.4, height=2.4)
 
 ```
 

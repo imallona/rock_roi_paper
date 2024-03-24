@@ -35,8 +35,8 @@ library(khroma)
 
 library(knitr)
 
-knitr::opts_chunk$set(fig.width = 6,
-               fig.height = 6,
+knitr::opts_chunk$set(fig.width = 2.3,
+               fig.height = 2.3,
                fig.align = "center",
                include = TRUE,
                dev = c("png","svg"),
@@ -145,10 +145,10 @@ track<-makeTxDbFromGFF(file=gtf_path, format="gtf")
 
 ### Generating tracks for selected genes for mouse
 
-```{r}
+```{r,fig.height=2.3,fig.width=2.3}
 
-genes_of_interest<-unique(combined_gtf$gene_name[grep("^mt-",combined_gtf$gene_name)])
-#genes_of_interest<-"mt-Cytb"
+#genes_of_interest<-unique(combined_gtf$gene_name[grep("^mt-",combined_gtf$gene_name)])
+genes_of_interest<-c("mt-Cytb")
 
 bw_coverages<-list()
 gms<-list()
@@ -157,7 +157,7 @@ for (x in genes_of_interest){
   sub_gtf<-combined_gtf[grep(x,combined_gtf$gene_name),]
   chr<-unique(as.character(as.data.frame(sub_gtf)$seqnames))
   range<-max(end(ranges(sub_gtf)))-min(start(ranges(sub_gtf)))
-  region_start<-min(start(ranges(sub_gtf)))-500 # otherwise for short genes will be too long and opposite for long genes
+  region_start<-min(start(ranges(sub_gtf)))-100 # otherwise for short genes will be too long and opposite for long genes
   region_end<-max(end(ranges(sub_gtf)))+100
   
   dtrack <- AnnotationTrack(range=bed_mouse,name="tso")
@@ -235,15 +235,13 @@ for (x in genes_of_interest){
   plotTracks(c(overlays_bw_gene,
                dtrack,
                dtrack_6,
-               #dtrack_5,
-               #dtrack_4,
                gm),
           type="histogram",
           from=region_start,
           chromosome=chr,
           to=region_end,
           cex.axis = 0.5,
-          cex.title=0.5,
+          cex.title= 1,
           col.axis="white",
           col.title="white",
           col.border.title="white",
@@ -258,9 +256,10 @@ for (x in genes_of_interest){
 
 ### Generating tracks for selected genes for human
 
-```{r}
+```{r,fig.height=2.3,fig.width=2.3}
 
-genes_of_interest<-unique(combined_gtf$gene_name[grep("^MT-",combined_gtf$gene_name)])
+#genes_of_interest<-unique(combined_gtf$gene_name[grep("^MT-",combined_gtf$gene_name)])
+genes_of_interest<-c("MT-ND5","MT-CO2","MT-ND1")
 
 bw_coverages<-list()
 gms<-list()
@@ -269,7 +268,7 @@ for (x in genes_of_interest){
   sub_gtf<-combined_gtf[grep(x,combined_gtf$gene_name),]
   chr<-unique(as.character(as.data.frame(sub_gtf)$seqnames))
   range<-max(end(ranges(sub_gtf)))-min(start(ranges(sub_gtf)))
-  region_start<-min(start(ranges(sub_gtf)))-500 # otherwise for short genes will be too long and opposite for long genes
+  region_start<-min(start(ranges(sub_gtf)))-100 # otherwise for short genes will be too long and opposite for long genes
   region_end<-max(end(ranges(sub_gtf)))+100
   
   dtrack <- AnnotationTrack(range=bed_human,name="tso")
@@ -355,7 +354,7 @@ for (x in genes_of_interest){
           chromosome=chr,
           to=region_end,
           cex.axis = 0.5,
-          cex.title=0.5,
+          cex.title= 1,
           col.axis="white",
           col.title="white",
           col.border.title="white",

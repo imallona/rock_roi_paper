@@ -226,9 +226,11 @@ plot1<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=detect
   scale_color_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))+
   scale_fill_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))
 
-plot1<-rasterize(plot1, layers='Point', dpi=300)
+plot1<-rasterize(plot1, layers='Point', dpi=1000)
 
 plot1
+
+ggsave(file=file.path(datadir,"genes.svg"), plot=plot1, width=2.705, height=2.7)
 
 plot2<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=total)) +
         geom_violin()+  
@@ -243,24 +245,28 @@ plot2<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=total)
   guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
   scale_fill_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))
 
-plot2<-rasterize(plot2, layers='Point', dpi=300)
+plot2<-rasterize(plot2, layers='Point', dpi=1000)
 
 plot2
+
+ggsave(file=file.path(datadir,"transcripts.svg"), plot=plot2, width=2.7, height=2.7)
 
 plot3<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")),y=total_mito_percent)) +
         geom_violin()+  
   theme_bw()+
   xlab("")+
-  ylab("mitochondrial transcripts (%)")+ 
+  ylab("mitochondrial transcripts WTA (%)")+ 
   geom_jitter(aes(color=sce$species),shape=16, position=position_jitter(0.2),alpha=0.3,size=0.2)+
   rock_roi_theme()+
   labs(colour="species")+
   guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
   scale_color_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))
 
-plot3<-rasterize(plot3, layers='Point', dpi=300)
+plot3<-rasterize(plot3, layers='Point', dpi=1000)
 
 plot3
+
+ggsave(file=file.path(datadir,"mito.svg"), plot=plot3, width=2.6, height=2.7)
 
 ```
 
@@ -269,16 +275,22 @@ plot3
 
 ```{r,fig.width=5,fig.height=2.7}
 
-# species is alredy random 
+# species is already random
+
+# for filtering need to add column to cd
+
+cd$filt<-NA
+cd[cd$sample_id=="unmod",]$filt<-3000
+cd[cd$sample_id=="unmod_n1",]$filt<-3700
 
 plot4<-ggplot(cd, aes(x = total, y = total_mito_percent)) +
-  geom_point(aes(color=sce$species),size=0.1,alpha=0.3) + 
+  geom_point(aes(color=sce$species),size=0.5,alpha=0.5,stroke=NA) + 
   scale_x_log10() + 
   scale_y_sqrt() +
   facet_wrap(~factor(sample_id,levels=c("unmod","unmod_n1"))) + 
   theme_bw()+
   geom_hline(yintercept=c(3,28), colour="orange") +
-  geom_vline(xintercept=c(1400), colour="orange") +
+  geom_vline(data=cd,aes(xintercept=cd$filt), colour="orange") +
   xlab("# transcripts WTA")+
   ylab("mitochondrial transcripts WTA (%)")+
   theme(
@@ -291,9 +303,11 @@ plot4<-ggplot(cd, aes(x = total, y = total_mito_percent)) +
   guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
   scale_fill_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))
 
+plot4
+
 plot4<-rasterize(plot4, layers='Point', dpi=1000)
 
-ggsave(file=file.path(datadir,"qc.svg"), plot=plot4, width=5, height=2.7)
+ggsave(file=file.path(datadir,"qc.svg"), plot=plot4, width=5.5, height=3.2)
 
 ```
 
@@ -375,7 +389,7 @@ sce_filt$sample_id<-gsub("mixing_", "", sce_filt$sample_id)
 cd<-colData(sce_filt) %>% as.data.frame
 
 plot5<-ggplot(cd, aes(x = subsets_mouse_gene_sum,y = subsets_human_gene_sum,color=sce_filt$species))+
-  geom_point(alpha = 0.2,size=0.5) +
+  geom_point(alpha = 0.2,size=0.8,stroke=NA) +
   scale_x_log10() + scale_y_log10() +
   facet_wrap(~factor(sample_id, levels = c("unmod", "unmod_n1"))) +
   theme_bw() +
@@ -392,7 +406,7 @@ plot5<-rasterize(plot5, layers='Point', dpi=1000)
 
 plot5
 
-ggsave(file=file.path(datadir,"barnyard.svg"), plot=plot5, width=5.4, height=2.7)
+ggsave(file=file.path(datadir,"barnyard.svg"), plot=plot5, width=5.9, height=3.2)
 
 ```
 
@@ -470,6 +484,7 @@ tso_qc <- perCellQCMetrics(sce_nd, assay.type = "tso_off_and_ontarget_unique",
                                         mouse_mito=rds$type=="mouse_mito"))
 
 df <- data.frame(tso_total = tso_qc$total,
+                 tso_detected = tso_qc$detected,
                  tso_capture_sum = tso_qc$subsets_capture_sum,
                  tso_mito_percent = tso_qc$subsets_mouse_mito_percent+
                    tso_qc$subsets_human_mito_percent,
@@ -531,11 +546,56 @@ plot7<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=tso_to
   labs(colour="species")+
   guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
   scale_fill_manual(labels=c("unmod","unmod_roi","rock","rockroi"),
-                     values=c(myscale[["unmod"]],myscale[["unmod_n1"]]))
+                     values=c(myscale[["unmod"]],myscale[["unmod_n1"]]))+
+  theme(legend.position = "none")
 
-plot7<-rasterize(plot7, layers='Point', dpi=300)
+plot7<-rasterize(plot7, layers='Point', dpi=1000)
 
 plot7
+
+
+plot10<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=tso_detected,fill=sample_id)) +
+  geom_violin()+  
+  theme_bw()+
+  xlab("")+
+  ylab("total genes TSO")+ 
+  scale_y_log10()+
+  geom_jitter(shape=16, position=position_jitter(0.2),alpha=0.5,size=0.2)+
+  rock_roi_theme()+
+  labs(colour="species")+
+  guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
+  scale_fill_manual(labels=c("unmod","unmod_roi","rock","rockroi"),
+                     values=c(myscale[["unmod"]],myscale[["unmod_n1"]]))+
+  theme(legend.position = "none")
+
+plot10<-rasterize(plot10, layers='Point', dpi=1000)
+
+plot10
+
+plot11<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=tso_mito_percent,fill=sample_id)) +
+  geom_violin()+  
+  theme_bw()+
+  xlab("")+
+  ylab("mitochondrial transcripts TSO (%)")+ 
+  scale_y_log10()+
+  geom_jitter(shape=16, position=position_jitter(0.2),alpha=0.5,size=0.2)+
+  rock_roi_theme()+
+  labs(colour="species")+
+  guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
+  scale_fill_manual(labels=c("unmod","unmod_roi","rock","rockroi"),
+                     values=c(myscale[["unmod"]],myscale[["unmod_n1"]]))+
+  theme(legend.position = "none")
+  
+
+plot11<-rasterize(plot11, layers='Point', dpi=1000)
+
+plot11
+
+ggsave(file=file.path(datadir,"genest.svg"), plot=plot10, width=2.3, height=2.3)
+
+ggsave(file=file.path(datadir,"transcriptst.svg"), plot=plot7, width=2.3, height=2.3)
+
+ggsave(file=file.path(datadir,"mitot.svg"), plot=plot11, width=2.3, height=2.3)
 
 ```
 

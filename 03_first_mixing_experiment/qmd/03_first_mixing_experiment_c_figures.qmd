@@ -109,11 +109,26 @@ sce <- addPerCellQCMetrics(sce, assay.type = "wta",
 cd <- colData(sce) %>% as.data.frame %>% 
   mutate(total_mito_percent = subsets_mouse_mito_percent+subsets_human_mito_percent)
 
-ggplot(cd, aes(x = total, y = total_mito_percent)) +
-  geom_point() + scale_x_log10() + scale_y_sqrt() +
-  facet_wrap(~factor(sample_id,levels=c("unmod","unmod_n1"))) + 
+# separate filtering for the two 
+
+ggplot(cd[cd$sample_id=="unmod",], aes(x = total, y = total_mito_percent)) +
+  geom_point(size=0.5) + scale_x_log10() + scale_y_sqrt() +
   geom_hline(yintercept=c(2,28), colour="orange") +
-  geom_vline(xintercept=c(1400), colour="orange") +
+  geom_vline(xintercept=c(3000), colour="orange") +
+  geom_density2d()+
+  theme_bw()+
+  xlab("total number of transcripts")+
+  ylab("percent mitochondrial reads")+
+  labs(title="Total number of transcripts vs percent mitochondrial reads")+
+  theme(axis.text = element_text(size = 15), 
+        plot.title=element_text(size=15,face="bold"),
+        axis.title=element_text(size=15,face="bold"),
+        strip.text=element_text(size=15,face="bold"))
+
+ggplot(cd[cd$sample_id=="unmod_n1",], aes(x = total, y = total_mito_percent)) +
+  geom_point(size=0.5) + scale_x_log10() + scale_y_sqrt() +
+  geom_hline(yintercept=c(2,28), colour="orange") +
+  geom_vline(xintercept=c(3700), colour="orange") +
   geom_density2d()+
   theme_bw()+
   xlab("total number of transcripts")+
@@ -151,14 +166,27 @@ ggplot(cd, aes(x = total,
 
 ```{r}
 
+# unmod n1 3700, unmod 3000
+
 mito <- sce$subsets_mouse_mito_percent+sce$subsets_human_mito_percent
-sce_filt <- sce[,sce$total>1400 & mito>2 & mito<28]
+
+s_unmod<-sce[,sce$sample_id=="unmod"]
+s_n1<-sce[,sce$sample_id=="unmod_n1"]
+
+mito_unmod <- s_unmod$subsets_mouse_mito_percent+s_unmod$subsets_human_mito_percent
+mito_unmod_n1 <- s_n1$subsets_mouse_mito_percent+s_n1$subsets_human_mito_percent
+
+s_unmod<-s_unmod[,s_unmod$total>3000 & mito_unmod >2 & mito_unmod<28]
+s_n1<-s_n1[,s_n1$total>3700 & mito_unmod_n1 >2 & mito_unmod_n1<28]
+
+sce_filt<-cbind(s_unmod,s_n1)
+
 sce_filt <- sce_filt[rowSums(assay(sce_filt,1))>2 | rowData(sce_filt)$type=="capture" ,] 
 
-#saveRDS(sce_filt, file.path(datadir, "sce_filt.rds"))
+saveRDS(sce_filt, file.path(datadir, "sce_filt.rds"))
 sce_filt<-readRDS(file.path(datadir, "sce_filt.rds"))
 
-rm(sce,sces)
+rm(sce,sces,s_unmod,s_n1)
 
 ```
 
@@ -227,8 +255,6 @@ sce_nd<-readRDS(file.path(datadir, "sce_nd.rds"))
 rm(sce_filt)
 
 ```
-
-
 
 ### TSO vs WTA information 
 
