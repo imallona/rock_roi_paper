@@ -90,7 +90,7 @@ combined_gtf<-import(gtf)
 # read annotation info from GS
 anno_url <- "https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=978414281"
 anno_df <- read_sheet(anno_url, "transcript-regions-mark") %>%
-  filter(Experiment=="Mixing")
+  dplyr::filter(Experiment=="Mixing")
 regs <- split(anno_df$Name_in_gtf_file, anno_df$region_name)
 
 ```

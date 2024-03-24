@@ -37,8 +37,8 @@ library(viridis)
 library(gridExtra)
 library(googlesheets4)
 library(tools)
-library(gridExtra)
 library(khroma)
+library(ggrastr)
 
 packageVersion("Matrix")
 
@@ -133,7 +133,7 @@ rock_roi_theme_multiple_panels<-function(){
         strip.background = element_blank(),
         legend.key.size = unit(0.5, 'cm'),
         legend.title=element_text(size=7,face="bold"),
-        legend.text=element_text(size=5),
+        legend.text=element_text(size=7),
         legend.margin=margin(0,0,0,0),
         legend.box.margin=margin(-5,-5,-5,-5),
         legend.title.align=0.5,
@@ -181,25 +181,32 @@ cd <- colData(sce) %>% as.data.frame %>%
 
 table(sce$species) # not removing the unknown species yet
 
-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=detected)) +
+plot1<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=detected)) +
         geom_violin()+  
   theme_bw()+
   xlab("")+
-  ylab("number of genes")+ 
+  ylab("# genes WTA")+ 
   rock_roi_theme()+
-  geom_jitter(aes(color=sce$species),shape=16, position=position_jitter(0.2),alpha=0.2,size=0.2)+
+  geom_jitter(aes(color=sce$species),shape=16, position=position_jitter(0.2),alpha=0.2,size=0.5,stroke=NA)+
   geom_boxplot(aes(fill=species),width=0.3,outlier.size = 0.5)+
   labs(colour="species")+
   guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
   scale_color_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))+
   scale_fill_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))
 
-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=total)) +
+plot1<-rasterize(plot1, layers='Point', dpi=1000)
+
+plot1
+
+ggsave(file=file.path(datadir,"genes.svg"), plot=plot1, width=2.7, height=2.7)
+
+
+plot2<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=total)) +
         geom_violin()+  
   theme_bw()+
   xlab("")+
-  ylab("number of UMIs")+ 
-  geom_jitter(aes(color=sce$species),shape=16, position=position_jitter(0.2),alpha=0.2,size=0.2)+
+  ylab("# transcripts WTA")+ 
+  geom_jitter(aes(color=sce$species),shape=16, position=position_jitter(0.2),alpha=0.2,size=0.5,stroke=NA)+
   geom_boxplot(aes(fill=species),width=0.3,outlier.size = 0.5)+
   rock_roi_theme()+
   labs(colour="species")+
@@ -207,43 +214,67 @@ ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")
   guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
   scale_fill_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))
 
-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=subsets_mouse_mito_percent)) +
+plot2<-rasterize(plot2, layers='Point', dpi=1000)
+
+plot2
+
+ggsave(file=file.path(datadir,"transcripts.svg"), plot=plot2, width=2.75, height=2.75)
+
+plot3<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=total_mito_percent)) +
         geom_violin()+  
   theme_bw()+
   xlab("")+
-  ylab("% mitochondrial transcripts")+ 
-  geom_jitter(aes(color=sce$species),shape=16, position=position_jitter(0.2),alpha=0.2,size=0.2)+
+  ylab("mitochondrial transcripts WTA (%)")+ 
+  geom_jitter(aes(color=sce$species),shape=16, position=position_jitter(0.2),alpha=0.2,size=0.5,stroke=NA)+
   rock_roi_theme()+
   labs(colour="species")+
   guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
   scale_color_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))
 
+plot3<-rasterize(plot3, layers='Point', dpi=1000)
+
+plot3
+
+ggsave(file=file.path(datadir,"mitochondria.svg"), plot=plot3, width=2.7, height=2.7)
+
 ```
 
 ### Plots with UMI vs mito colored by human and mouse 
 
-```{r}
+```{r,height=2.7,width=5.4}
 
-ggplot(cd, aes(x = total, y = total_mito_percent)) +
-  geom_point(aes(color=sce$species),size=0.1,alpha=0.5) + 
+cd$filt<-NA
+cd[cd$sample_id=="unmod",]$filt<-3500
+cd[cd$sample_id=="unmod_roi",]$filt<-3500
+cd[cd$sample_id=="rock",]$filt<-2750
+cd[cd$sample_id=="rockroi",]$filt<-3700
+
+plot1<-ggplot(cd, aes(x = total, y = total_mito_percent)) +
+  geom_point(aes(color=sce$species),size=0.5,alpha=0.5,stroke=NA) + 
   scale_x_log10() + 
   scale_y_sqrt() +
   facet_wrap(~factor(sample_id,levels=c("unmod","unmod_roi",
-                                        "rock","rockroi"))) + 
+                                        "rock","rockroi")),nrow=1) + 
   theme_bw()+
-  xlab("total number of transcripts")+
-  ylab("percent mitochondrial reads")+
+  xlab("mitochondrial transcripts WTA (%)")+
+  ylab("# transcripts WTA")+
   theme(
     axis.text = element_text(size = 15),
     axis.title=element_text(size=20,face="bold"),
     strip.text=element_text(size=15,face="bold"))+
     rock_roi_theme_multiple_panels()+
-  geom_hline(yintercept=c(3,25), colour="orange") +
-  geom_vline(xintercept=c(2750), colour="orange") +
+  geom_hline(yintercept=c(2,28), colour="orange") +
+  geom_vline(data=cd,aes(xintercept=cd$filt), colour="orange") +
   labs(colour="species")+
   scale_color_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))+
   guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
   scale_fill_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))
+
+plot1<-rasterize(plot1, layers='Point', dpi=1000)
+
+plot1
+
+ggsave(file=file.path(datadir,"qc.svg"), plot=plot1, width=5.4, height=2.7)
 
 ```
 
@@ -303,6 +334,9 @@ table(ae$tso_tdtom_detection_score)
 
 altExp(sce_filt,"tso_ontarget_multi") <- ae
 
+
+
+
 ```
 
 ### Score regions wta_multi filt dataset 
@@ -328,6 +362,43 @@ table(ae$wta_egfp_detection_score)
 table(ae$wta_tdtom_detection_score)
 
 altExp(sce_filt,"wta_ontarget_multi") <- ae
+
+```
+
+### Generating detection score for both TSO and WTA
+
+```{r}
+
+ae_total<-assay(altExp(sce_filt,"wta_ontarget_multi",withColData=TRUE))+assay(altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE))
+ae_total<-SummarizedExperiment(ae_total)
+
+altExp(sce_filt,"combined_wta_tso")<-ae_total
+
+cd <- colData(ae_total)
+
+for(i in 1:length(regs))
+  cd[[ names(regs)[i] ]] <- colSums(assay(ae_total,1)[regs[[i]],,drop=FALSE])
+
+colData(altExp(sce_filt,"combined_wta_tso")) <- cd
+
+ae <- altExp(sce_filt,"combined_wta_tso",withColData=TRUE)
+
+ae$egfp_detection_score <- 0
+ae$egfp_detection_score[ae$egfp_tx>0] <- 1
+ae$egfp_detection_score[ae$egfp_cds>0] <- 2
+ae$egfp_detection_score[ae$egfp_roi>0] <- 3
+ae$egfp_detection_score[ae$egfp_roi>0] <- 4
+
+ae$tdtom_detection_score <- 0
+ae$tdtom_detection_score[ae$tdtom_tx>0] <- 1
+ae$tdtom_detection_score[ae$tdtom_cds>0] <- 2
+ae$tdtom_detection_score[ae$tdtom_roi1>0] <- 3
+ae$tdtom_detection_score[ae$tdtom_roi2>0] <- 3
+ae$tdtom_detection_score[ae$tdtom_roi2>0 & ae$tdtom_roi1>0] <- 4
+
+table(ae$detection_score)
+
+altExp(sce_filt,"combined_wta_tso") <- ae
 
 ```
 
@@ -357,19 +428,24 @@ sce_filt$sample_id<-gsub("mixing_", "", sce_filt$sample_id)
 
 cd<-colData(sce_filt) %>% as.data.frame
 
-ggplot(cd, aes(x = subsets_mouse_gene_sum,y = subsets_human_gene_sum,color=sce_filt$species))+
-  geom_point(alpha = 0.2,size=0.5) +
+plot2<-ggplot(cd, aes(x = subsets_mouse_gene_sum,y = subsets_human_gene_sum,color=sce_filt$species))+
+  geom_point(alpha = 0.2,size=0.5,stroke=NA) +
   scale_x_log10() + scale_y_log10() +
-  facet_wrap(~factor(sample_id, levels = c("unmod", "unmod_roi", "rock", "rockroi"))) +
+  facet_wrap(~factor(sample_id, levels = c("unmod", "unmod_roi", "rock", "rockroi")),nrow=1) +
   theme_bw() +
   xlab("mouse gene sum") +
-  ylab("gene sum")+
+  ylab("human gene sum")+
   ggtitle(" ")+
   rock_roi_theme_multiple_panels()+
   guides(colour = guide_legend(override.aes = list(alpha = 1)))+
   scale_color_manual(values=c("human"=myscale[["human"]],"mouse"=myscale[["mouse"]],"unknown"=myscale[["unknown"]]))+
   guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
   labs(colour="species")
+
+plot2<-rasterize(plot2, layers='Point', dpi=1000)
+plot2
+
+ggsave(file=file.path(datadir,"humanmouse.svg"), plot=plot2, width=5.4, height=2.7)
   
 ```
 
@@ -382,7 +458,7 @@ sce_filt <- sce_filt[, !sce_filt$species== "unknown"]
 ```
 
 
-### Barnyard plot with CDS detection
+### Barnyard plot with CDS detection for TSO data only 
 
 ```{r}
 
@@ -392,6 +468,8 @@ combined$wta_tdtom_detection_score<-altExp(sce_filt,"wta_ontarget_multi")$wta_td
 combined$wta_egfp_detection_score<-altExp(sce_filt,"wta_ontarget_multi")$wta_egfp_detection_score
 combined$tso_tdtom_detection_score<-altExp(sce_filt,"tso_ontarget_multi")$tso_tdtom_detection_score
 combined$tso_egfp_detection_score<-altExp(sce_filt,"tso_ontarget_multi")$tso_egfp_detection_score
+
+# colors
 
 combined$color<-myscale[["doublets"]] # these will be doublets
 
@@ -407,14 +485,15 @@ combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_d
 combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_detection_score==3)]<-myscale[["tdtom_cds"]] # rois are part of the cds
 combined$color[which(combined$tso_egfp_detection_score<=1 & combined$tso_tdtom_detection_score==4)]<-myscale[["tdtom_cds"]]# rois are part of the cds
 
-ggplot(combined, aes(
+table(combined$color)
+
+plot3<-ggplot(combined, aes(
   x = subsets_mouse_gene_sum,
   y = subsets_human_gene_sum,
-  color = color 
-)) +
-  geom_point(alpha = 0.4,size=0.5) +
+  color = color)) +
+  geom_point(alpha = 0.4,size=0.5,stroke=NA) +
   scale_x_log10() + scale_y_log10() +
-  facet_wrap(~factor(sample_id, levels = c("unmod", "unmod_roi", "rock", "rockroi"))) +
+  facet_wrap(~factor(sample_id, levels = c("unmod", "unmod_roi", "rock", "rockroi")),nrow=1) +
   theme_bw() +
   xlab("mouse gene sum") +
   ylab("human gene sum") +
@@ -427,11 +506,72 @@ ggplot(combined, aes(
   scale_color_manual(labels=c("egfp_cds","tdtom_cds","doublets","no_detection"), 
                      values=c("#117733","#AA4499","black","darkgray"))
 
+plot3<-rasterize(plot3, layers='Point', dpi=1000)
+
+plot3
+
+ggsave(file=file.path(datadir,"barnyardqc.svg"), plot=plot3, width=5.7, height=2.7)
+
+```
+
+### Barnyard plot with CDS detection for TSO and WTA data
+
+```{r}
+
+combined<-colData(sce_filt) %>% as.data.frame
+
+combined$tdtom_detection_score<-altExp(sce_filt,"combined_wta_tso")$tdtom_detection_score
+combined$egfp_detection_score<-altExp(sce_filt,"combined_wta_tso")$egfp_detection_score
+
+# colors
+
+combined$color<-myscale[["doublets"]] # these will be doublets
+
+combined$color[which(combined$egfp_detection_score==0 & combined$tdtom_detection_score==0)]<-myscale[["no_detection"]] # no detection of either
+combined$color[which(combined$egfp_detection_score==1 & combined$tdtom_detection_score>0)]<-myscale[["no_detection"]]# no detection of either
+combined$color[which(combined$egfp_detection_score>0 & combined$tdtom_detection_score==1)]<-myscale[["no_detection"]] # no detection of either
+
+combined$color[which(combined$egfp_detection_score==2 & combined$tdtom_detection_score<=1)]<-myscale[["egfp_cds"]] # rois are part of the cds
+combined$color[which(combined$egfp_detection_score==3 & combined$tdtom_detection_score<=1)]<-myscale[["egfp_cds"]] # rois are part of the cds
+combined$color[which(combined$egfp_detection_score==4 & combined$tdtom_detection_score<=1)]<-myscale[["egfp_cds"]] # rois are part of the cds
+
+combined$color[which(combined$egfp_detection_score<=1 & combined$tdtom_detection_score==2)]<-myscale[["tdtom_cds"]] # rois are part of the cds
+combined$color[which(combined$egfp_detection_score<=1 & combined$tdtom_detection_score==3)]<-myscale[["tdtom_cds"]] # rois are part of the cds
+combined$color[which(combined$egfp_detection_score<=1 & combined$tdtom_detection_score==4)]<-myscale[["tdtom_cds"]]# rois are part of the cds
+
+table(combined$color)
+
+
+plot3<-ggplot(combined, aes(
+  x = subsets_mouse_gene_sum,
+  y = subsets_human_gene_sum,
+  color = color)) +
+  geom_point(alpha = 0.4,size=0.5,stroke=NA) +
+  scale_x_log10() + scale_y_log10() +
+  facet_wrap(~factor(sample_id, levels = c("unmod", "unmod_roi", "rock", "rockroi")),nrow=1) +
+  theme_bw() +
+  xlab("mouse gene sum") +
+  ylab("human gene sum") +
+  rock_roi_theme_multiple_panels()+
+  scale_color_identity(
+    name = "Legend Title",
+    guide = "legend")+
+  labs(colour="CDS_detection")+
+  guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
+  scale_color_manual(labels=c("egfp_cds","tdtom_cds","doublets","no_detection"), 
+                     values=c("#117733","#AA4499","black","darkgray"))
+
+plot3<-rasterize(plot3, layers='Point', dpi=1000)
+
+plot3
+
+ggsave(file=file.path(datadir,"barnyardqc_total.svg"), plot=plot3, width=5.7, height=2.7)
+
 ```
 
 ### TSO vs WTA plot, colored by on target tso_ontarget_multi
 
-```{r,fig.width=10,fig.height=2.7}
+```{r}
 
 sce_nd$sample_id<-gsub("mixing_", "", sce_nd$sample_id)
 
@@ -494,11 +634,11 @@ grid.arrange(grobs=p,nrow=1)
 
 ```{r}
 
-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=tso_total,fill=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")))) +
+plot5<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=tso_total,fill=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")))) +
   geom_violin(show.legend = FALSE)+  
   theme_bw()+
   xlab("")+
-  ylab("total TSO UMI")+ 
+  ylab("total transcripts TSO")+ 
   scale_y_log10()+
   geom_jitter(shape=16, position=position_jitter(0.2),alpha=0.5,size=0.2,show.legend = FALSE)+
   rock_roi_theme()+
@@ -506,18 +646,29 @@ ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")
   scale_fill_manual(labels=c("unmod","unmod_roi","rock","rockroi"),
                      values=c(myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rockroi"]]))
 
+plot5<-rasterize(plot5, layers='Point', dpi=1000)
 
-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=tso_mito_percent,fill=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")))) +
+plot5
+
+ggsave(file=file.path(datadir,"transcripttso.svg"), plot=plot5, width=2.3, height=2.3)
+
+plot6<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=tso_mito_percent,fill=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")))) +
   geom_violin(show.legend = FALSE)+  
   theme_bw()+
   xlab("")+
-  ylab("% mitochondrial transcripts")+ 
+  ylab("mitochondrial transcripts TSO (%)")+ 
   scale_y_log10()+
   geom_jitter(shape=16, position=position_jitter(0.2),alpha=0.5,size=0.2,show.legend = FALSE)+
   rock_roi_theme()+
   labs(colour="species")+
   scale_fill_manual(labels=c("unmod","unmod_roi","rock","rockroi"),
                      values=c(myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rockroi"]]))
+
+plot6<-rasterize(plot6, layers='Point', dpi=1000)
+
+plot6
+
+ggsave(file=file.path(datadir,"barnyard.svg"), plot=plot6, width=2.3, height=2.3)
 
 ```
 
@@ -527,11 +678,11 @@ ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")
 
 ```{r}
 
-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=tso_detected,fill=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")))) +
+plot7<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=tso_detected,fill=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")))) +
   geom_violin(show.legend = FALSE)+  
   theme_bw()+
   xlab("")+
-  ylab("total TSO genes")+ 
+  ylab("total genes TSO")+ 
   scale_y_log10()+
   geom_jitter(shape=16, position=position_jitter(0.2),alpha=0.5,size=0.2,show.legend = FALSE)+
   rock_roi_theme()+
@@ -539,11 +690,17 @@ ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")
   scale_fill_manual(labels=c("unmod","unmod_roi","rock","rockroi"),
                      values=c(myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rockroi"]]))
 
+plot7<-rasterize(plot7, layers='Point', dpi=1000)
+
+plot7
+
+ggsave(file=file.path(datadir,"mito TSO.svg"), plot=plot7, width=2.3, height=2.3)
+
 ```
 
 ### False positive vs true positive
 
-```{r,fig.height=3,fig.width=6}
+```{r,fig.height=4,fig.width=8}
 
 exprs_nd <- assay(altExp(sce_nd,"tso_ontarget_multi",withColData=TRUE),1)
 
@@ -559,7 +716,8 @@ dfm <- melt(df, id.vars = c("human","mouse","sample"))
 human_targets <- grep("tdtomato", names(sorted), value = TRUE)
 
 p <- ggplot(dfm %>% dplyr::filter(variable %in% c("roi_1_tdtomato", "roi_2_tdtomato","rock_tdtomato")),
-                      aes(m = value, d = human, colour=sample, group=sample)) + 
+                      aes(m = value, d = human, colour=factor(sample,levels=c("unmod","unmod_roi","rock","rockroi")), 
+                                                              group=factor(sample,levels=c("unmod","unmod_roi","rock","rockroi")))) + 
   geom_roc(size = 0.3, alpha = .8,
            position = position_dodge2(width=.001),
            labels=FALSE,
@@ -572,12 +730,17 @@ p <- ggplot(dfm %>% dplyr::filter(variable %in% c("roi_1_tdtomato", "roi_2_tdtom
   rock_roi_theme_multiple_panels()+
   scale_color_manual(labels=c("unmod","unmod_roi","rock","rockroi"), 
                      values=c(myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rockroi"]]))+
-  guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))
+  guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
+  theme(legend.title = element_blank())+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  
+
 
 mouse_targets <- grep("egfp", names(sorted), value = TRUE)
 
-q <- ggplot(dfm %>% filter(dplyr::variable %in% c("rock_egfp","roi_egfp")),
-                      aes(m = value, d = mouse, colour=sample, group=sample)) + 
+q <- ggplot(dfm %>% dplyr::filter(variable %in% c("rock_egfp","roi_egfp")),
+                      aes(m = value, d = mouse, colour=factor(sample,levels=c("unmod","unmod_roi","rock","rockroi")), 
+                          group=factor(sample,levels=c("unmod","unmod_roi","rock","rockroi")))) + 
   geom_roc(size = 0.3, alpha = .8,
            position = position_dodge2(width=.001),
            linealpha=0.5,
@@ -591,7 +754,10 @@ q <- ggplot(dfm %>% filter(dplyr::variable %in% c("rock_egfp","roi_egfp")),
   theme(plot.title=element_text(margin=margin(t=0.1,unit="cm")))+
   scale_color_manual(labels=c("unmod","unmod_roi","rock","rockroi"), 
                      values=c(myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rockroi"]]))+
-  guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))
+  guides(colour = guide_legend(override.aes = list(alpha = 1,size=1)))+
+  guides(fill = guide_legend(title = ""))+
+  theme(legend.title = element_blank())+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 grid.arrange(p,q)
 
@@ -599,7 +765,7 @@ grid.arrange(p,q)
 
 ### Library size per cell WTA vs TSO (previous plots from Izaskun)
 
-```{r,fig.width=10,fig.height=2.7}
+```{r}
 
 rds <- rowData(sce_nd)
 
@@ -634,7 +800,7 @@ for (i in samples){
      p[[i]]<-ggplot(df[df$sample_id==i,], aes(x = wta_capture_sum,
                     y = tso_capture_sum,
                     color = wta_total)) +
-      geom_point(alpha = 0.5,size=0.5) +
+      geom_point(alpha = 0.5,size=0.5,stroke=NA) +
       geom_smooth(colour="black") +
       scale_x_continuous(trans='log1p',limits=c(0,max(df$wta_capture_sum))) +
       scale_y_continuous(trans='log1p',limits=c(0,max(df$tso_capture_sum))) +
@@ -650,14 +816,76 @@ for (i in samples){
                          mid=myscale[[i]],
                          high=myscale[[i]],
                          midpoint=max(df$wta_total))
-     
-      p[[i]]<-ggExtra::ggMarginal(p[[i]],type = "density")
+     #p[[i]]<-rasterize(p[[i]],layers='Point', dpi=1000)
+
+     p[[i]]<-ggExtra::ggMarginal(p[[i]],type = "density")
 }
 
-grid.arrange(grobs=p,nrow=1)
+plot<-grid.arrange(grobs=p,nrow=1)
+plot
+
+#ggsave(file=file.path(datadir,"density.svg"), plot=plot, width=8.1, height=2.7)
 
 ```
 
+### Barplot with just CDS
+
+```{r}
+
+df$egfp_capture_sum_cds<-colSums(assay(ae_tso,1)[regs$egfp_cds,,drop=FALSE])+colSums(assay(ae_wta,1)[regs$egfp_cds,,drop=FALSE])
+df$tdtom_capture_sum_cds<-colSums(assay(ae_tso,1)[regs$tdtom_cds,,drop=FALSE])+colSums(assay(ae_wta,1)[regs$tdtom_cds,,drop=FALSE])
+
+df$egfp_capture_sum<-colSums(assay(ae_tso,1)[regs$egfp_tx,,drop=FALSE])+colSums(assay(ae_wta,1)[regs$egfp_tx,,drop=FALSE])
+df$tdtom_capture_sum<-colSums(assay(ae_tso,1)[regs$tdtom_tx,,drop=FALSE])+colSums(assay(ae_wta,1)[regs$tdtom_tx,,drop=FALSE])
+
+df$species<-sce_nd$species
+
+mouse<-df[df$species=="mouse",]
+human<-df[df$species=="human",]
+
+positive_cells<-data.frame(matrix(nrow=4,ncol=2))
+
+colnames(positive_cells)<-c("mouse_egfp","human_tdtomato")
+
+rows<-c()
+for (i in unique(df$sample_id)){
+  rows<-c(rows,paste0(i,"_CDS"))
+}
+
+rownames(positive_cells)<-rows
+
+for (i in unique(mouse$sample_id)){
+  positive_cells[paste0(i,"_CDS"),1]<-length(which(mouse[mouse$sample_id==i,]$egfp_capture_sum_cds>0))/
+    length(mouse[mouse$sample_id==i,]$egfp_capture_sum_cds)*100
+  positive_cells[paste0(i,"_CDS"),2]<-length(which(human[human$sample_id==i,]$tdtom_capture_sum_cds>0))/
+    length(human[human$sample_id==i,]$tdtom_capture_sum_cds)*100
+}
+
+plottable<-melt(positive_cells)
+
+plottable$sample<-rep(rownames(positive_cells),2)
+
+plottable$hjs<-c(-0.5,1,2,2,-0.5,2,2,2)
+
+samples<-c("unmod_CDS","unmod_roi_CDS","rock_CDS","rockroi_CDS")
+
+ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=samples)))+
+  geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9),alpha=c(rep(c(1,0.5),4)))+
+  xlab(" ")+
+  ylab("positive cells (%)")+
+  theme_bw()+
+  ylim(0,100)+
+  rock_roi_theme()+
+  geom_text(aes(label=format(round(value,2),nsmall=2),hjust=hjs,vjust=0.5), 
+            position=position_dodge(width=0.9), 
+            size=2,
+            angle = 90)+
+  scale_fill_manual(labels=samples, 
+                     values=alpha(c(myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rockroi"]]),c(rep(c(1),4))))+
+  guides(colour = guide_legend(override.aes = list(size=3)))+
+  theme(legend.title = element_blank())
+
+```
 
 ### Barplot with % positive cells, ORF vs tx in same plot for mouse and human
 
@@ -700,7 +928,7 @@ plottable<-melt(positive_cells)
 
 plottable$sample<-rep(rownames(positive_cells),2)
 
-plottable$hjs<-rep(c(2,2,2,2,-0.5,2,-0.5,2),2)
+plottable$hjs<-rep(c(-0.5,2,1,2,2,2,2,2),2)
 
 samples<-c("unmod_CDS","unmod_tx","unmod_roi_CDS","unmod_roi_tx","rock_CDS","rock_tx","rockroi_CDS","rockroi_tx")
 
@@ -718,7 +946,9 @@ ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=samples))
   labs(fill="samples",fill = NULL)+
   scale_fill_manual(labels=samples, 
                      values=alpha(c(myscale[["unmod"]],myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rock"]],myscale[["rockroi"]],myscale[["rockroi"]]),c(rep(c(1,0.5),4))))+
-  guides(colour = guide_legend(override.aes = list(size=3)))
+  guides(colour = guide_legend(override.aes = list(size=3)))+
+  theme(legend.title = element_blank())
+
 
 ```
 
@@ -768,7 +998,8 @@ ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=samples))
   labs(fill="samples",fill = NULL)+
   scale_fill_manual(labels=samples, 
                      values=alpha(c(myscale[["unmod"]],myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rock"]],myscale[["rockroi"]],myscale[["rockroi"]]),c(rep(c(1,0.5),4))))+
-  guides(colour = guide_legend(override.aes = list(size=3)))
+  guides(colour = guide_legend(override.aes = list(size=3)))+
+  theme(legend.title = element_blank())
 
 ```
 

@@ -25,8 +25,8 @@ library(reshape2)
 
 ```{r}
 
-knitr::opts_chunk$set(fig.width = 2.7,
-               fig.height = 5.4,
+knitr::opts_chunk$set(fig.width = 3.4,
+               fig.height = 3.4,
                fig.align = "center",
                include = TRUE,
                dev = c("png","svg"),

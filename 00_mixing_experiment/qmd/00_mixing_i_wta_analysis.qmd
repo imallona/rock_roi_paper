@@ -44,6 +44,7 @@ library(edgeR)
 library(DESeq2)
 library(ggrepel)
 library(corrplot)
+library(GGally)
 
 packageVersion("Matrix")
 
@@ -313,12 +314,27 @@ mouse_logcpm<-mouse_logcpm[,1:4]
 colnames(mouse_logcpm)<-gsub("mixing_","",colnames(mouse_logcpm))
 mouse_logcpm<-mouse_logcpm[,c("unmod","unmod_roi","rock","rockroi")]
 
+
 corrplot.mixed(cor(mouse_logcpm,method="pearson"),
                number.digits = 3,
                number.cex = 0.5,
                tl.cex = 0.5,
                cex.col = 0.5,
                cl.cex = 0.5)
+
+tiff(file.path(datadir,"mouse_corr.tiff"), units="in", width=2.7, height=2.7, res=1000)
+
+ggpairs(mouse_logcpm,
+        diag = list(continuous = "blankDiag"),
+        upper = list(continuous = GGally::wrap(ggally_cor, stars = F,size = 4,col="black")),
+        lower = list(continuous = wrap("points", size=0.1)))+
+  theme_bw()+
+  rock_roi_theme_multiple_panels()+
+  theme(axis.line=element_blank(),
+        axis.text=element_blank(),
+        axis.ticks=element_blank())
+
+dev.off()
 
 ```
 
@@ -504,6 +520,20 @@ corrplot.mixed(cor(human_logcpm,method="pearson"),
                tl.cex = 0.5,
                cex.col = 0.5,
                cl.cex = 0.5)
+
+tiff(file.path(datadir,"human_corr.tiff"), units="in", width=2.7, height=2.7, res=1000)
+
+ggpairs(human_logcpm,
+        diag = list(continuous = "blankDiag"),
+        upper = list(continuous = GGally::wrap(ggally_cor, stars = F,size = 4,col="black")),
+        lower = list(continuous = wrap("points", size=0.1)))+
+  theme_bw()+
+  rock_roi_theme_multiple_panels()+
+  theme(axis.line=element_blank(),
+        axis.text=element_blank(),
+        axis.ticks=element_blank())
+
+dev.off()
 
 ```
 

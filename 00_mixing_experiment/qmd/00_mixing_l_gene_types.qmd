@@ -45,8 +45,8 @@ library(khroma)
 
 ```{r}
 
-knitr::opts_chunk$set(fig.width = 2.7,
-               fig.height = 2.7,
+knitr::opts_chunk$set(fig.width = 5.4,
+               fig.height = 5.4,
                fig.align = "center",
                include = TRUE,
                dev = c("png","svg"),
@@ -86,7 +86,7 @@ rock_roi_theme_multiple_panels<-function(){
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         strip.background = element_blank(),
-        legend.key.size = unit(0.5, 'cm'),
+        legend.key.size = unit(0.3, 'cm'),
         legend.title=element_text(size=5,face="bold"),
         legend.text=element_text(size=5),
         legend.margin=margin(0,0,0,0),
@@ -117,14 +117,14 @@ names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unk
 
 ```{r}
 
-rdss <- dir(here("00_mixing_experiment"), "^mixing.*rds", 
+rdss <- dir(here("00_mixing_experiment"), "*sce.rds", 
             recursive = TRUE, full.names = TRUE)
 
 datadir <- dirname(rdss)[1] # folder where the .rds files are 
 
 sce_nd<-readRDS(file.path(datadir, "sce_nd.rds"))
-
 sce_nd$sample_id<-gsub("mixing_", "", sce_nd$sample_id)
+
 
 ```
 
@@ -277,7 +277,70 @@ ggplot(top_10_plottable,aes(x=variable,y=value,fill=factor(type,levels=rep(rowna
                                myscale[[10]]),
                       aesthetics = c("colour", "fill"))+
   theme(legend.title = element_blank())
-  
+
+### adding protein coding and other
+
+top_10_gene_type<-gene_type[c(top_10,"protein_coding"),]
+top_10_gene_type["other",]<-c(as.numeric(100-colSums(top_10_gene_type[1:8])),"other")
+
+top_10_plottable<-melt(top_10_gene_type,id="type")
+
+top_10_plottable$value<-as.numeric(top_10_plottable$value)
+
+plot1<-ggplot(top_10_plottable,aes(x=variable,y=value,fill=factor(type,levels=unique(type))))+
+  geom_bar(stat = "identity",position="stack")+
+  theme_bw()+
+  rock_roi_theme()+
+  ylab("transcript type (%)")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  scale_colour_manual(values=c(myscale[[1]],
+                               myscale[[2]],
+                               myscale[[3]],
+                               myscale[[4]],
+                               myscale[[5]],
+                               myscale[[6]],
+                               myscale[[7]],
+                               myscale[[8]],
+                               myscale[[9]],
+                               myscale[[10]],
+                               myscale[[12]],
+                               myscale[[13]]),
+                      aesthetics = c("colour", "fill"))+
+  theme(legend.title = element_blank())
+
+ggsave(file=file.path(datadir,"prot.svg"),plot=plot1,width=4.2,height=4.2)
+
+### same but no protein coding
+
+top_10_gene_type<-top_10_gene_type[-which(rownames(top_10_gene_type)=="protein_coding"),]
+
+top_10_plottable<-melt(top_10_gene_type,id="type")
+
+top_10_plottable$value<-as.numeric(top_10_plottable$value)
+
+plot2<-ggplot(top_10_plottable,aes(x=variable,y=value,fill=factor(type,levels=unique(type))))+
+  geom_bar(stat = "identity",position="stack")+
+  theme_bw()+
+  rock_roi_theme()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  ylab("transcript type (%)")+
+  scale_colour_manual(values=c(myscale[[1]],
+                               myscale[[2]],
+                               myscale[[3]],
+                               myscale[[4]],
+                               myscale[[5]],
+                               myscale[[6]],
+                               myscale[[7]],
+                               myscale[[8]],
+                               myscale[[9]],
+                               myscale[[10]],
+                               myscale[[13]]),
+                      aesthetics = c("colour", "fill"))+
+  theme(legend.title = element_blank())
+
+ggsave(file=file.path(datadir,"noprot.svg"),plot=plot2,width=4.2,height=4.2)
+
+
 ```
 
 ### Plot with non-capture TSO
@@ -310,7 +373,7 @@ cap$type<-rownames(cap)
 
 plottable<-melt(cap)
 
-ggplot(plottable,aes(x=variable,y=value,fill=type))+
+plot3<-ggplot(plottable,aes(x=variable,y=value,fill=type))+
   geom_bar(stat = "identity",position="stack")+
   theme_bw()+
   rock_roi_theme()+
@@ -319,8 +382,11 @@ ggplot(plottable,aes(x=variable,y=value,fill=type))+
                                tdtom_tx=myscale[["tdtom_cds"]]),
                       aesthetics = c("colour", "fill"))+
   theme(legend.title = element_blank())+
-  xlab=c("")+
-  labl=c("percentage captured")
+  xlab("")+
+  ylab("TSO captured (%)")
+
+ggsave(file=file.path(datadir,"tsoperc.svg"),plot=plot3,width=2.8,height=2.8)
+
 
 ```
 

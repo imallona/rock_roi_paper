@@ -39,6 +39,9 @@ library(googlesheets4)
 library(tools)
 library(gridExtra)
 library(khroma)
+library(ggrastr)
+
+packageVersion("raster")
 
 packageVersion("Matrix")
 
@@ -84,12 +87,12 @@ regs <- split(anno_df$Name_in_gtf_file, anno_df$region_name)
 ```{r}
 
 rock_roi_theme<-function(){
-  theme(axis.text = element_text(size=5), 
+  theme(axis.text = element_text(size=7), 
         plot.title=element_text(size=7,face="bold",hjust=0.5),
         axis.title=element_text(size=7,face="bold"),
         strip.text=element_text(size=7,face="bold"),
         legend.title=element_text(size=7,face="bold"),
-        legend.text=element_text(size=5),
+        legend.text=element_text(size=7),
         aspect.ratio=1,
         legend.key.size = unit(0.5, 'cm'),
         legend.margin=margin(0,0,0,0),
@@ -100,7 +103,7 @@ rock_roi_theme<-function(){
 }
 
 rock_roi_theme_multiple_panels<-function(){
-    theme(axis.text = element_text(size=5), 
+    theme(axis.text = element_text(size=7), 
         plot.title=element_text(size=7,face="bold",hjust=0.5),
         axis.title=element_text(size=7,face="bold"),
         strip.text=element_text(size=7,face="bold"),
@@ -110,7 +113,7 @@ rock_roi_theme_multiple_panels<-function(){
         strip.background = element_blank(),
         legend.key.size = unit(0.5, 'cm'),
         legend.title=element_text(size=7,face="bold"),
-        legend.text=element_text(size=5),
+        legend.text=element_text(size=7),
         legend.margin=margin(0,0,0,0),
         legend.box.margin=margin(-5,-5,-5,-5),
         legend.title.align=0.5,
@@ -176,8 +179,8 @@ tdtom$sample<-"tdtom"
 
 tot<-bind_rows(egfp1,egfp2,wt,tdtom)
 
-ggplot(tot, aes(x=sample, y=nSpots)) + 
-  geom_jitter(shape=16, position=position_jitter(0.3),aes(fill=sample,color=sample),alpha=0.3,size=1,show.legend = FALSE) + 
+plot1<-ggplot(tot, aes(x=sample, y=nSpots)) + 
+  geom_jitter(shape=16, position=position_jitter(0.3),aes(fill=sample,color=sample),alpha=0.3,size=0.1,show.legend = FALSE) + 
   geom_boxplot(width=0.8,outlier.shape=NA,show.legend = FALSE,alpha=0) +
   theme_bw() +
   rock_roi_theme() +
@@ -186,6 +189,11 @@ ggplot(tot, aes(x=sample, y=nSpots)) +
   scale_color_manual(labels=c("egfp1","egfp2","tdtom","wt"),
                      values=c(myscale[["egfp_cds"]],myscale[["egfp_cds"]],myscale[["tdtom_cds"]],myscale[["no_detection"]]))
 
+plot1<-rasterize(plot1, layers='Point', dpi=1000)
+
+plot1
+
+ggsave(file=file.path(datadir,"rnascopedetection.svg"), plot=plot1, width=1.9, height=1.9)
 
 ```
 
@@ -204,8 +212,8 @@ plottable$id<-paste0(plottable$sample_id,"_",plottable$variable)
 
 samples<-c("unmod_CDS","unmod_tx","unmod_roi_CDS","unmod_roi_tx","rock_CDS","rock_tx","rockroi_CDS","rockroi_tx")
 
-ggplot(plottable, aes(x=factor(id,levels=samples), y=value,factor(id,levels=samples))) + 
-  geom_jitter(shape=16, position=position_jitter(0.3),aes(fill=factor(id,levels=samples),color=factor(id,levels=samples)),size=1,show.legend = FALSE)+
+plot2<-ggplot(plottable, aes(x=factor(id,levels=samples), y=value,factor(id,levels=samples))) + 
+  geom_jitter(shape=16, position=position_jitter(0.3),aes(fill=factor(id,levels=samples),color=factor(id,levels=samples)),size=0.1,show.legend = FALSE)+
   geom_boxplot(width=0.8,outlier.shape=NA,show.legend = FALSE,alpha=0)+
   theme_bw()+
   rock_roi_theme()+
@@ -221,6 +229,11 @@ ggplot(plottable, aes(x=factor(id,levels=samples), y=value,factor(id,levels=samp
   guides(colour = guide_legend(override.aes = list(size=3)))+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))
   
+plot2<-rasterize(plot2, layers='Point', dpi=1000)
+
+plot2
+
+ggsave(file=file.path(datadir,"umisrnascope.svg"), plot=plot2, width=2.45, height=2.45)
                     
 
 ```

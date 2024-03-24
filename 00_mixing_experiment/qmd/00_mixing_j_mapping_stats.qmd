@@ -127,7 +127,7 @@ names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unk
 
 ```{r}
 
-qc_stats<-data.frame(matrix(nrow=9,ncol=9))
+qc_stats<-data.frame(matrix(nrow=9,ncol=7))
 rownames(qc_stats)<-c("n_mapped_reads",
                       "n_alignments",
                       "n_aligned_genes",
@@ -285,9 +285,14 @@ plottable<-melt(df_features,id="name")
 
 ```{r}
 
-merged <- do.call("rbind", list(df_features,df_summary))
+merged <- do.call("rbind", list(df_features,df_summary,qc_stats))
 
-selected_merged <- merged[c("Number of Reads",
+selected_merged <- merged[c("n_mapped_reads",
+                            "n_alignments",
+                            "n_aligned_genes",
+                            "n_mito_human_bases",
+                            "n_mito_mouse_bases",
+                            "Number of Reads",
                             "Reads With Valid Barcodes",
                             "Reads Mapped to Genome: Unique+Multiple",
                             "Reads Mapped to Gene: Unique Gene",
@@ -332,6 +337,32 @@ for (i in unique(plottable$name)){
 }
     
 ```
+
+
+### Plotting stacking barplots
+
+```{r}
+
+exo_intro <- merged[c("% intronic","% intergenic","% exonic"),]
+exo_intro$unmod_wta<-as.numeric(exo_intro$unmod_wta)
+exo_intro$unmod_roi_wta<-as.numeric(exo_intro$unmod_roi_wta)
+exo_intro$unmod_roi_tso<-as.numeric(exo_intro$unmod_roi_tso)
+exo_intro$rock_wta<-as.numeric(exo_intro$rock_wta)
+exo_intro$rock_tso<-as.numeric(exo_intro$rock_tso)
+exo_intro$rockroi_wta<-as.numeric(exo_intro$rockroi_wta)
+exo_intro$rockroi_tso<-as.numeric(exo_intro$rockroi_tso)
+
+plottable<-melt(exo_intro,id="name")
+
+ggplot(plottable,aes(x=variable,y=value,fill=name))+
+  geom_bar(stat = "identity",position="stack")+
+  theme_bw()+
+  rock_roi_theme()+
+  scale_fill_manual(labels=c("% exonic","% intergenic","% intronic"),
+                    values=alpha(c(myscale[["high"]],myscale[["high"]],myscale[["high"]]),c(1,0.5,0.2)))
+
+```
+
 
 ### Session info
 
