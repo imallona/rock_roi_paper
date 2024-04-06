@@ -195,7 +195,7 @@ plot2<-ggplot(cd, aes(x = total, y = subsets_mouse_mito_percent)) +
   scale_x_log10() + scale_y_sqrt() +
   facet_wrap(~factor(sample_id,levels=c("unmod","rockroi")))+
   theme_bw()+
-  geom_hline(yintercept=c(1,30), colour="orange") +
+  geom_hline(yintercept=c(1,75), colour="orange") +
   geom_vline(xintercept=c(2000), colour="orange") +
   theme_bw()+
   theme(
