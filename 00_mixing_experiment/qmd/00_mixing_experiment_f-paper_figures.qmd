@@ -650,6 +650,13 @@ plot5<-rasterize(plot5, layers='Point', dpi=1000)
 
 plot5
 
+mean(df[which(df$sample_id=="unmod"),]$tso_total)
+mean(df[-which(df$sample_id=="unmod"),]$tso_total)
+mean(df[which(df$sample_id=="unmod_roi"),]$tso_total)
+mean(df[which(df$sample_id=="rock"),]$tso_total)
+mean(df[which(df$sample_id=="rockroi"),]$tso_total)
+
+
 ggsave(file=file.path(datadir,"transcripttso.svg"), plot=plot5, width=2.3, height=2.3)
 
 plot6<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=tso_mito_percent,fill=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")))) +
@@ -693,6 +700,12 @@ plot7<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","ro
 plot7<-rasterize(plot7, layers='Point', dpi=1000)
 
 plot7
+
+mean(df[which(df$sample_id=="unmod"),]$tso_detected)
+mean(df[-which(df$sample_id=="unmod"),]$tso_detected)
+mean(df[which(df$sample_id=="unmod_roi"),]$tso_detected)
+mean(df[which(df$sample_id=="rock"),]$tso_detected)
+mean(df[which(df$sample_id=="rockroi"),]$tso_detected)
 
 ggsave(file=file.path(datadir,"mito TSO.svg"), plot=plot7, width=2.3, height=2.3)
 
