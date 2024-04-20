@@ -142,6 +142,12 @@ for (x in chr){
   gms[[x]]<-gm
 }
 
+min(start(ranges(gms$egfp@range)))
+max(end(ranges(gms$egfp@range)))
+
+min(start(ranges(gms$tdtomato@range)))
+max(end(ranges(gms$tdtomato@range)))
+
 ```
 
 ### Reading .bam files
@@ -475,7 +481,7 @@ for (x in chr){
 
 ### zoom into polyA tail 
 
-```{r,fig.width = 2.4,fig.height = 3.5}
+```{r,fig.width = 4,fig.height = 2.7}
 
 chr<-c("egfp")
 
@@ -561,7 +567,7 @@ for (x in chr){
 
 ### zoom in polyA for tdTomato 
 
-```{r,fig.width = 2.4,fig.height = 3.5}
+```{r,fig.width = 4,fig.height = 2.7}
 
 chr<-c("tdtomato")
 

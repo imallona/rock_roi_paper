@@ -334,9 +334,6 @@ table(ae$tso_tdtom_detection_score)
 
 altExp(sce_filt,"tso_ontarget_multi") <- ae
 
-
-
-
 ```
 
 ### Score regions wta_multi filt dataset 
@@ -678,7 +675,6 @@ plot6
 ggsave(file=file.path(datadir,"barnyard.svg"), plot=plot6, width=2.3, height=2.3)
 
 ```
-
 
 
 ### Same for genes

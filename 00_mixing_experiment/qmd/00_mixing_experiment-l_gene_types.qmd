@@ -1,0 +1,426 @@
+---
+title: "/00_mixing_l_gene_types.qmd"
+author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(plotROC)
+library(ggpubr)
+library(here)
+library(RColorBrewer)
+library(ggnewscale)
+library(scales)
+library(rmarkdown)
+library(irlba)
+library(viridis)
+library(gridExtra)
+library(googlesheets4)
+library(tools)
+library(gridExtra)
+library(khroma)
+
+```
+
+
+### Setting up knitr 
+
+```{r}
+
+knitr::opts_chunk$set(fig.width = 5.4,
+               fig.height = 5.4,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache=TRUE,
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+### Themes
+
+```{r}
+
+rock_roi_theme<-function(){
+  theme(axis.text = element_text(size=7), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=7),
+        aspect.ratio=1, 
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+}
+
+rock_roi_theme_multiple_panels<-function(){
+    theme(axis.text = element_text(size=7), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        aspect.ratio=1,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.title=element_text(size=5,face="bold"),
+        legend.text=element_text(size=5),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.border = element_rect(colour = "black", fill = NA))
+}
+
+```
+
+### Defining colors
+
+```{r}
+
+myscale<-c(color("muted")(9), gray="darkgrey", 
+             black = "black", darkorange = "darkorange",
+             yellowgreen = "yellowgreen")
+
+# defining colors for samples and for species
+
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtom_cds","no_detection","doublets","unmod_n1","high")
+
+#plot(1:13, col=myscale, pch=19, cex=4)
+
+```
+
+### Loading data
+
+```{r}
+
+rdss <- dir(here("00_mixing_experiment"), "*sce.rds", 
+            recursive = TRUE, full.names = TRUE)
+
+datadir <- dirname(rdss)[1] # folder where the .rds files are 
+
+sce_nd<-readRDS(file.path(datadir, "sce_nd.rds"))
+sce_nd$sample_id<-gsub("mixing_", "", sce_nd$sample_id)
+
+
+```
+
+### Want to generate a barplot with the % of different detected elements from count table
+
+```{r}
+
+tso<-assay(sce_nd,"tso_off_and_ontarget_unique")
+wta<-assay(sce_nd,"wta")
+
+ae_tso <- altExp(sce_nd,"tso_ontarget_multi")
+ae_wta <- altExp(sce_nd,"wta_ontarget_multi")
+
+```
+
+### Importing annotation file
+
+```{r}
+
+# read annotation info from GS
+anno_url <- "https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=978414281"
+anno_df <- read_sheet(anno_url, "transcript-regions-mark") 
+anno_df<-anno_df[anno_df$Experiment=="Mixing",]
+regs <- split(anno_df$Name_in_gtf_file, anno_df$region_name)
+
+```
+
+### Importing .gtf file
+
+```{r}
+
+gtf <- rtracklayer::import(file.path(datadir,"mixing.gtf"))
+
+gtf$combined<-paste0(gtf$gene_id,"__",gtf$gene_name)
+
+gtf<-as.data.frame(gtf[,c("gene_type","gene_id","combined")])
+
+```
+
+### Calculating combined stats
+
+```{r}
+
+rds <- rowData(sce_nd)
+
+tso_qc <- perCellQCMetrics(sce_nd, assay.type = "tso_off_and_ontarget_unique",
+                           subsets=list(capture=rds$type=="capture",
+                                        human_gene=rds$type=="human_gene",
+                                        human_mito=rds$type=="human_mito",
+                                        mouse_gene=rds$type=="mouse_gene",
+                                        mouse_mito=rds$type=="mouse_mito"))
+
+df_tso <- data.frame(tso_total = tso_qc$total,
+                 tso_detected = tso_qc$detected,
+                 tso_capture_sum = tso_qc$subsets_capture_sum,
+                 tso_mito_percent = tso_qc$subsets_mouse_mito_percent+
+                   tso_qc$subsets_human_mito_percent)
+
+wta_qc <- perCellQCMetrics(sce_nd, assay.type = "wta",
+                           subsets=list(capture=rds$type=="capture",
+                                        human_gene=rds$type=="human_gene",
+                                        human_mito=rds$type=="human_mito",
+                                        mouse_gene=rds$type=="mouse_gene",
+                                        mouse_mito=rds$type=="mouse_mito"))
+
+df_wta <- data.frame(wta_total = wta_qc$total,
+                 wta_detected = wta_qc$detected,
+                 wta_capture_sum = wta_qc$subsets_capture_sum,
+                 wta_mito_percent = wta_qc$subsets_mouse_mito_percent+
+                   wta_qc$subsets_human_mito_percent)
+
+```
+
+### First --> barplot with all the types detected in the .gtf
+
+```{r}
+
+# subsampling the .gtf by the genes detected in the dataset and removing captured
+
+sub_gtf<-gtf[gtf$combined %in% rownames(assay(sce_nd,"wta")),]
+
+types<-unique(sub_gtf$gene_type)[1:33]
+
+gene_type<-data.frame(matrix(nrow=length(types),ncol=8))
+
+colnames(gene_type)<-c("unmod_wta","unmod_tso","unmod_roi_wta","unmod_roi_tso","rock_wta","rock_tso","rockroi_wta","rockroi_tso")
+
+rownames(gene_type)<-types
+
+for (i in unique(sce_nd$sample_id)){
+    for (k in rownames(gene_type)){
+      s_tso<-assay(sce_nd[,sce_nd$sample_id==i],"tso_off_and_ontarget_unique")
+      s_wta<-assay(sce_nd[,sce_nd$sample_id==i],"wta")
+      total_wta<-sum(s_wta)
+      total_tso<-sum(s_tso)
+      g_names<-unique(sub_gtf[which(sub_gtf$gene_type==k),]$combined)
+      sum_tso<-sum(s_tso[g_names,])
+      sum_wta<-sum(s_wta[g_names,])
+      gene_type[k,paste0(i,"_","wta")]<-sum_wta/total_wta*100
+      gene_type[k,paste0(i,"_","tso")]<-sum_tso/total_tso*100
+  }
+}
+
+gene_type$type<-rownames(gene_type)
+
+plottable<-melt(gene_type)
+
+ggplot(plottable,aes(x=variable,y=value,fill=type))+
+  geom_bar(stat = "identity",position="stack")+
+  theme_bw()+
+  rock_roi_theme()
+
+# removing protein coding category, otherwise too much
+
+sub_gene_type<-gene_type[-which(rownames(gene_type)=="protein_coding"),]
+
+sub_gene_type<-sub_gene_type[names(sort(rowSums(sub_gene_type[1:8]),decreasing=TRUE)),]
+
+sub_plottable<-melt(sub_gene_type)
+
+sub_gene_type
+
+ggplot(sub_plottable,aes(x=variable,y=value,fill=factor(type,levels=rep(rownames(sub_gene_type,8)))))+
+  geom_bar(stat = "identity",position="stack")+
+  theme_bw()+
+  rock_roi_theme()+
+  scale_fill_discrete(name = "gene type")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+# too many colors, just plot top 10 non-protein coding
+
+top_10<-rownames(sub_gene_type)[1:10]
+
+top_10_gene_type<-gene_type[top_10,]
+
+top_10_plottable<-melt(top_10_gene_type)
+
+ggplot(top_10_plottable,aes(x=variable,y=value,fill=factor(type,levels=rep(rownames(sub_gene_type,8)))))+
+  geom_bar(stat = "identity",position="stack")+
+  theme_bw()+
+  rock_roi_theme()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  scale_colour_manual(values=c(myscale[[1]],
+                               myscale[[2]],
+                               myscale[[3]],
+                               myscale[[4]],
+                               myscale[[5]],
+                               myscale[[6]],
+                               myscale[[7]],
+                               myscale[[8]],
+                               myscale[[9]],
+                               myscale[[10]]),
+                      aesthetics = c("colour", "fill"))+
+  theme(legend.title = element_blank())
+
+### adding protein coding and other
+
+top_10_gene_type<-gene_type[c(top_10,"protein_coding"),]
+top_10_gene_type["other",]<-c(as.numeric(100-colSums(top_10_gene_type[1:8])),"other")
+
+top_10_plottable<-melt(top_10_gene_type,id="type")
+
+top_10_plottable$value<-as.numeric(top_10_plottable$value)
+
+plot1<-ggplot(top_10_plottable,aes(x=variable,y=value,fill=factor(type,levels=unique(type))))+
+  geom_bar(stat = "identity",position="stack")+
+  theme_bw()+
+  rock_roi_theme()+
+  ylab("transcript type (%)")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  scale_colour_manual(values=c(myscale[[1]],
+                               myscale[[2]],
+                               myscale[[3]],
+                               myscale[[4]],
+                               myscale[[5]],
+                               myscale[[6]],
+                               myscale[[7]],
+                               myscale[[8]],
+                               myscale[[9]],
+                               myscale[[10]],
+                               myscale[[12]],
+                               myscale[[13]]),
+                      aesthetics = c("colour", "fill"))+
+  theme(legend.title = element_blank())
+
+ggsave(file=file.path(datadir,"prot.svg"),plot=plot1,width=4.2,height=4.2)
+
+### same but no protein coding
+
+top_10_gene_type<-top_10_gene_type[-which(rownames(top_10_gene_type)=="protein_coding"),]
+
+top_10_plottable<-melt(top_10_gene_type,id="type")
+
+top_10_plottable$value<-as.numeric(top_10_plottable$value)
+
+plot2<-ggplot(top_10_plottable,aes(x=variable,y=value,fill=factor(type,levels=unique(type))))+
+  geom_bar(stat = "identity",position="stack")+
+  theme_bw()+
+  rock_roi_theme()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  ylab("transcript type (%)")+
+  scale_colour_manual(values=c(myscale[[1]],
+                               myscale[[2]],
+                               myscale[[3]],
+                               myscale[[4]],
+                               myscale[[5]],
+                               myscale[[6]],
+                               myscale[[7]],
+                               myscale[[8]],
+                               myscale[[9]],
+                               myscale[[10]],
+                               myscale[[13]]),
+                      aesthetics = c("colour", "fill"))+
+  theme(legend.title = element_blank())
+
+ggsave(file=file.path(datadir,"noprot.svg"),plot=plot2,width=4.2,height=4.2)
+
+
+```
+
+### test pseudogene
+
+```{r}
+
+pseudo_gtf<-gtf[which(sub_gtf$gene_type=="lncRNA"),]
+
+tso<-assay(sce_nd,"tso_off_and_ontarget_unique")
+wta<-assay(sce_nd,"wta")
+
+pseudo_gtf$combined
+
+
+dfs<-data.frame(matrix(nrow=length(unique(pseudo_gtf$combined)),ncol=2))
+colnames(dfs)<-c("wta","tso")
+rownames(dfs)<-unique(pseudo_gtf$combined)
+
+dfs$wta<-rowSums(wta[unique(pseudo_gtf$combined),])
+dfs$tso<-rowSums(tso[unique(pseudo_gtf$combined),])
+
+
+```
+
+### Plot with non-capture TSO
+
+```{r}
+
+cap<-data.frame(matrix(nrow=2,ncol=6))
+
+colnames(cap)<-c("unmod_roi_wta","unmod_roi_tso","rock_wta","rock_tso","rockroi_wta","rockroi_tso")
+
+rownames(cap)<-c("egfp_tx","tdtom_tx")
+
+colSums(cap[1:6])
+
+for (i in c("unmod_roi","rock","rockroi")){
+      s_tso<-assay(sce_nd[,sce_nd$sample_id==i],"tso_off_and_ontarget_unique")
+      s_wta<-assay(sce_nd[,sce_nd$sample_id==i],"wta")
+      total_wta<-sum(s_tso)+sum(assay(altExp(sce_nd,"tso_ontarget_multi")))
+      total_tso<-sum(s_wta)+sum(assay(altExp(sce_nd,"wta_ontarget_multi")))
+      sum_capture_wta_egfp<-sum(assay(altExp(sce_nd[,sce_nd$sample_id==i],"wta_ontarget_multi"))[regs$egfp_tx,,drop=FALSE])
+      sum_capture_wta_tdtom<-sum(assay(altExp(sce_nd[,sce_nd$sample_id==i],"wta_ontarget_multi"))[regs$tdtom_tx,,drop=FALSE])
+      sum_capture_tso_egfp<-sum(assay(altExp(sce_nd[,sce_nd$sample_id==i],"tso_ontarget_multi"))[regs$egfp_tx,,drop=FALSE])
+      sum_capture_tso_tdtom<-sum(assay(altExp(sce_nd[,sce_nd$sample_id==i],"tso_ontarget_multi"))[regs$tdtom_tx,,drop=FALSE])
+      
+      cap["egfp_tx",paste0(i,"_","wta")]<-sum_capture_wta_egfp/total_wta*100
+      cap["egfp_tx",paste0(i,"_","tso")]<-sum_capture_tso_egfp/total_tso*100
+      cap["tdtom_tx",paste0(i,"_","wta")]<-sum_capture_wta_tdtom/total_wta*100
+      cap["tdtom_tx",paste0(i,"_","tso")]<-sum_capture_tso_tdtom/total_tso*100
+}
+
+cap$type<-rownames(cap)
+
+plottable<-melt(cap)
+
+plot3<-ggplot(plottable,aes(x=variable,y=value,fill=type))+
+  geom_bar(stat = "identity",position="stack")+
+  theme_bw()+
+  rock_roi_theme()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  scale_colour_manual(values=c(egfp_tx=myscale[["egfp_cds"]],
+                               tdtom_tx=myscale[["tdtom_cds"]]),
+                      aesthetics = c("colour", "fill"))+
+  theme(legend.title = element_blank())+
+  xlab("")+
+  ylab("TSO captured (%)")
+
+ggsave(file=file.path(datadir,"tsoperc.svg"),plot=plot3,width=2.8,height=2.8)
+
+
+```
+
+### Session info
+
+```{r}
+
+sessionInfo()
+
+```
+

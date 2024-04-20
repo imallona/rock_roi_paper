@@ -75,6 +75,8 @@ sces <- mapply(function(u,v)  {
 
 sce <- Reduce(cbind, sces)
 
+sce
+
 ```
 
 ### setting up knitr 
