@@ -45,6 +45,7 @@ library(GenomicFeatures)
 library(memes)
 library(universalmotif)
 library(plyranges)
+library(ggrastr)
 
 ```
 
@@ -187,7 +188,7 @@ pheatmap(top_100,
 
 ```{r}
 
-rds <- rowData(sce_nd)
+rds <- rowData(n1)
 
 tso_qc <- perCellQCMetrics(n1, assay.type = "tso_off_and_ontarget_unique",
                            subsets=list(capture=rds$type=="capture",
@@ -531,8 +532,8 @@ for (i in intersect(rownames(df_human),rownames(n1_tso_sums))){
 # only taking the ones that have expression more than 10 in WTA or TSO
 
 n1_tso_sums<-n1_tso_sums[which(n1_tso_sums$tso_count+n1_tso_sums$wta_count>10),]
-
-table(n1_tso_sums$presence_match)
+mean(n1_tso_sums[which(n1_tso_sums$presence_match==0),]$tso_count)
+mean(n1_tso_sums[which(n1_tso_sums$presence_match==1),]$tso_count)
 
 # exporting object
 

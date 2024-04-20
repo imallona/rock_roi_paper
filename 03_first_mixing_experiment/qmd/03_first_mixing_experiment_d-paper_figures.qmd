@@ -8,7 +8,6 @@ format:
     keep_md: true
 ---
 
-
 ### Load packages
 
 ```{r,warning=FALSE, message=FALSE}
@@ -553,6 +552,9 @@ plot7<-rasterize(plot7, layers='Point', dpi=1000)
 
 plot7
 
+mean(df[which(df$sample_id=="unmod"),]$tso_total)
+mean(df[which(df$sample_id=="unmod_n1"),]$tso_total)
+
 
 plot10<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=tso_detected,fill=sample_id)) +
   geom_violin()+  
@@ -571,10 +573,8 @@ plot10<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=tso_d
 plot10<-rasterize(plot10, layers='Point', dpi=1000)
 
 mean(df[which(df$sample_id=="unmod"),]$tso_detected)
-mean(df[-which(df$sample_id=="unmod"),]$tso_detected)
-mean(df[which(df$sample_id=="unmod_roi"),]$tso_detected)
-mean(df[which(df$sample_id=="rock"),]$tso_detected)
-mean(df[which(df$sample_id=="rockroi"),]$tso_detected)
+mean(df[which(df$sample_id=="unmod_n1"),]$tso_detected)
+
 
 plot10
 
@@ -596,6 +596,7 @@ plot11<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=tso_m
 plot11<-rasterize(plot11, layers='Point', dpi=1000)
 
 plot11
+
 
 ggsave(file=file.path(datadir,"genest.svg"), plot=plot10, width=2.3, height=2.3)
 

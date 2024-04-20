@@ -135,7 +135,7 @@ d <- melt(merged_total_coverages, id.vars="transcript position")
 colnames(d)<-c("transcript_position","variable","value")
 
 ggplot(d,aes(x=`transcript_position`,y=value,color=variable))+
-  geom_line()+
+  geom_line(size=2)+
   theme_bw()+
   rock_roi_theme()+
   ylab("coverage")+

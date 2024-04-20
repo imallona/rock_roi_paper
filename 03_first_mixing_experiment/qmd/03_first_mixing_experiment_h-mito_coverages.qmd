@@ -160,6 +160,8 @@ for (x in genes_of_interest){
   region_start<-min(start(ranges(sub_gtf)))-100 # otherwise for short genes will be too long and opposite for long genes
   region_end<-max(end(ranges(sub_gtf)))+100
   
+  print(paste0(x,"_",chr,"_",region_start,"_",region_end))
+  
   dtrack <- AnnotationTrack(range=bed_mouse,name="tso")
   dtrack_6 <- AnnotationTrack(range=bed_6,name="tso_6")
   #dtrack_4 <- AnnotationTrack(range=bed_4,name="tso_4")
@@ -270,6 +272,8 @@ for (x in genes_of_interest){
   range<-max(end(ranges(sub_gtf)))-min(start(ranges(sub_gtf)))
   region_start<-min(start(ranges(sub_gtf)))-100 # otherwise for short genes will be too long and opposite for long genes
   region_end<-max(end(ranges(sub_gtf)))+100
+  
+  print(paste0(x,"_",chr,"_",region_start,"_",region_end))
   
   dtrack <- AnnotationTrack(range=bed_human,name="tso")
   dtrack_6 <- AnnotationTrack(range=bed_6,name="tso_6")
