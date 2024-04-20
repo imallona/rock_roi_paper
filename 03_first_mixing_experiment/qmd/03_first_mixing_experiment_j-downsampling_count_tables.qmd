@@ -1,0 +1,125 @@
+---
+title: "03_first_mixing_experiment_j-downsampling_count_tables"
+author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+### Load packages
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(plotROC)
+library(here)
+library(RColorBrewer)
+library(ggnewscale)
+library(scales)
+library(rmarkdown)
+library(irlba)
+library(viridis)
+library(gridExtra)
+library(quarto)
+library(googlesheets4)
+
+```
+
+### Load data
+
+```{r}
+
+getwd() # after opening the .Rproj file, getwd() should be "/Users/gimoro/figure_making_paper/rock_roi_paper"
+
+rdss <- dir(here("03_first_mixing_experiment"), "*sce.rds", 
+            recursive = TRUE, full.names = TRUE)
+
+names(rdss) <- gsub("_sce.rds", "", basename(rdss))
+rdss # prints the .rds files in the 00_mixing_experiment folder
+
+datadir <- dirname(rdss)[1] # folder where the .rds files are 
+
+sces <- mapply(function(u,v)  {
+  rds <- readRDS(u)
+  rds$sample_id <- v
+  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
+  colnames(rowData(rds)) <- c("name", "type", "value","captured")
+  g <- grepl("^ENS", rownames(rds))
+  rownames(rds)[g] <- paste0(rownames(rds)[g], 
+                             "__", rowData(rds)$name[g])
+  rowData(rds)$type <- "capture"
+  k <- grepl("^ENSG", rownames(rds))
+  rowData(rds)$type[k] <- "human_gene"
+  k <- grepl("^ENSMUS", rownames(rds))
+  rowData(rds)$type[k] <- "mouse_gene"
+  k <- grepl("^mt", rowData(rds)$name)
+  rowData(rds)$type[k] <- "mouse_mito"
+  k <- grepl("^MT", rowData(rds)$name)
+  rowData(rds)$type[k] <- "human_mito"
+  rds
+}, rdss, names(rdss))
+
+for (i in sces){
+  print(paste0(mainExpName(i),"_",sum(assay(i,"wta"))))
+}
+
+
+```
+
+### Using downsample Matrix
+
+```{r}
+
+mean(colSums(assay(sces[["unmod"]],"wta"))) #smallest in unmod
+mean(colSums(assay(sces[["unmod_n1"]],"wta"))) 
+
+# proportion 
+
+proportion<-mean(colSums(assay(sces[["unmod"]],"wta")))/mean(colSums(assay(sces[["unmod_n1"]],"wta"))) 
+
+test<-downsampleMatrix(x=assay(sces[["unmod_n1"]],"wta"), prop=proportion, bycol = TRUE, sink = NULL)
+mean(colSums(test))
+
+sum(test)
+sum(assay(sces[["unmod_n1"]],"wta"))
+sum(assay(sces[["unmod"]],"wta"))
+
+downsampled_unmod_n1<-sces[["unmod_n1"]]
+
+assay(downsampled_unmod_n1,"wta")<-test
+
+sces$downsampled_unmod_n1<-downsampled_unmod_n1
+
+sces$downsampled_unmod_n1$sample_id<-"downsampled_unmod_n1"
+
+sce <- Reduce(cbind, sces)
+
+#saveRDS(sce,file.path(datadir, "downsampled_no_filt.rds"))
+
+```
+
+### SessionInfo
+
+```{r}
+
+sessionInfo()
+
+```
+
+
+
+
