@@ -1,0 +1,128 @@
+---
+title: "01_pdgfra_experiment_h-downsampling_files"
+format:
+  html:
+    toc: true
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Load packages, load data
+
+```{r, warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(plotROC)
+library(here)
+
+rdss <- dir(here("01_pdgfra_experiment"), "*_sce.rds", 
+            recursive = TRUE, full.names = TRUE)
+names(rdss) <- gsub("_sce.rds", "", basename(rdss))
+rdss
+
+datadir <- dirname(rdss)[1]
+
+sces <- mapply(function(u,v)  {
+  rds <- readRDS(u)
+  rds$sample_id <- v
+  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
+  colnames(rowData(rds)) <- c("name", "type", "value")
+  g <- grepl("^ENS", rownames(rds))
+  rownames(rds)[g] <- paste0(rownames(rds)[g], 
+                             "__", rowData(rds)$name[g])
+  rowData(rds)$gene_type <- "capture"
+  k <- grepl("^ENSG", rownames(rds))
+  rowData(rds)$gene_type[k] <- "human_gene"
+  k <- grepl("^ENSMUS", rownames(rds))
+  rowData(rds)$gene_type[k] <- "mouse_gene"
+  k <- grepl("^mt", rowData(rds)$name)
+  rowData(rds)$gene_type[k] <- "mouse_mito"
+  k <- grepl("^MT", rowData(rds)$name)
+  rowData(rds)$gene_type[k] <- "human_mito"
+  rds
+}, rdss, names(rdss))
+
+sces
+
+sce <- Reduce(cbind, sces)
+
+table(sce$sample_id)
+
+for (i in sces){
+  print(paste0(mainExpName(i),"_",sum(assay(i,"wta")))) # pdgfra_rockroi_unimodal is the one with the lowest 45085217, but since we are only using it for a smaller set of the analysis lowest is "pdgfra_rockroi_multimodal_47281014"
+}
+
+names(sces)
+
+```
+
+### Using downsample Matrix
+
+```{r}
+
+mean(colSums(assay(sces[["pdgfra_rockroi_multimodal"]],"wta"))) 
+mean(colSums(assay(sces[["pdgfra_rockroi_unimodal"]],"wta"))) 
+mean(colSums(assay(sces[["pdgfra_unmod_unimodal"]],"wta"))) # smallest in unmod unimodal 
+
+# proportion 
+
+proportion_rockroi_multimodal<-mean(colSums(assay(sces[["pdgfra_unmod_unimodal"]],"wta")))/mean(colSums(assay(sces[["pdgfra_rockroi_multimodal"]],"wta"))) 
+proportion_rockroi_unimodal<-mean(colSums(assay(sces[["pdgfra_unmod_unimodal"]],"wta")))/mean(colSums(assay(sces[["pdgfra_rockroi_unimodal"]],"wta"))) 
+
+test_rockroi_multimodal<-downsampleMatrix(x=assay(sces[["pdgfra_rockroi_multimodal"]],"wta"), prop=proportion_rockroi_multimodal, bycol = TRUE, sink = NULL)
+test_rockroi_unimodal<-downsampleMatrix(x=assay(sces[["pdgfra_rockroi_unimodal"]],"wta"), prop=proportion_rockroi_unimodal, bycol = TRUE, sink = NULL)
+
+mean(colSums(assay(sces[["pdgfra_unmod_unimodal"]],"wta")))
+
+mean(colSums(test_rockroi_multimodal))
+mean(colSums(test_rockroi_unimodal))
+
+sum(test_rockroi_multimodal)
+sum(test_rockroi_unimodal)
+sum(assay(sces[["pdgfra_rockroi_multimodal"]],"wta"))
+sum(assay(sces[["pdgfra_unmod_unimodal"]],"wta"))
+sum(assay(sces[["pdgfra_rockroi_unimodal"]],"wta"))
+
+downsampled_rockroi_multimodal<-sces[["pdgfra_rockroi_multimodal"]]
+downsampled_rockroi_unimodal<-sces[["pdgfra_rockroi_unimodal"]]
+downsampled_unmod_unimodal<-sces[["pdgfra_unmod_unimodal"]]
+
+assay(downsampled_rockroi_multimodal,"wta")<-test_rockroi_multimodal
+assay(downsampled_rockroi_unimodal,"wta")<-test_rockroi_unimodal
+
+sces$downsampled_rockroi_multimodal<-downsampled_rockroi_multimodal
+sces$downsampled_rockroi_unimodal<-downsampled_rockroi_unimodal
+
+sces$downsampled_rockroi_multimodal$sample_id<-"downsampled_rockroi_multimodal"
+sces$downsampled_rockroi_unimodal$sample_id<-"downsampled_rockroi_unimodal"
+
+sce <- Reduce(cbind, sces)
+
+table(sce$sample_id)
+
+#saveRDS(sce,file.path(datadir, "downsampled_no_filt.rds"))
+
+```
+
+### Session info 
+
+```{r}
+
+sessionInfo()
+
+```
+
+
