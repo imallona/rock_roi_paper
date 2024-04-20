@@ -111,7 +111,6 @@ plotUMAP(sces, colour_by = "total", shape_by = "sample_id", point_size = 4) +
 
 ```
 
-
 ## Do doublet removal
 
 ```{r}

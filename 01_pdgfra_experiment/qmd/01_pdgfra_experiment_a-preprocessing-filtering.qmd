@@ -104,8 +104,9 @@ sces <- sce[,sce$detected>800 & mito>1 & mito<75]
 sces <- sces[rowSums(assay(sces,1))>2 | rowData(sces)$gene_type=="capture" ,] 
 dim(sces)
 
-
 # save filtered to RDS
+
+saveRDS(sces, file.path(datadir, "downsampled_sce_qc-filtered.rds"))
 
 # remove extra things
 rm(cd, sce); gc()
