@@ -50,8 +50,9 @@ library(ggrastr)
 
 datadir <- file.path(here("01_pdgfra_experiment"), "data")
 
-rdss <- dir(here("01_pdgfra_experiment"), "^pd.*rds$", 
+rdss <- dir(here("01_pdgfra_experiment"), "*_sce.rds", 
             recursive = TRUE, full.names = TRUE)
+
 names(rdss) <- gsub("_sce.rds", "", basename(rdss))
 names(rdss)<-c("m_pdgfra_rockroi","u_pdgfra_rockroi","m_pdgfra_unmod")
 
@@ -160,6 +161,8 @@ names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unk
 sce<-sce[,sce$sample_id==c("m_pdgfra_rockroi","m_pdgfra_unmod")]
 sce$sample_id<-gsub("m_pdgfra_","",sce$sample_id)
 
+table(sce$sample_id)
+
 rd <- rowData(sce)
 sce <- addPerCellQCMetrics(sce, assay.type = "wta",
                            subsets=list(capture=rd$gene_type=="capture",
@@ -234,6 +237,12 @@ ggsave(file=file.path(datadir,"qc3.svg"), plot=plot3, width=3.2, height=2.7)
 
 rm(sce)
 rm(sces)
+
+mean(cd[which(cd$sample_id=="unmod"),]$subsets_mouse_mito_percent)
+mean(cd[which(cd$sample_id=="rockroi"),]$subsets_mouse_mito_percent)
+
+mean(cd[which(cd$sample_id=="unmod"),]$detected)
+mean(cd[which(cd$sample_id=="rockroi"),]$detected)
 
 ```
 
@@ -469,6 +478,8 @@ ggsave(file=file.path(datadir,"markers.svg"), plot=plot12, width=2.7, height=2.7
 
 ```{r,fig.width=5.4,fig.height=5.4}
 
+table(sces$annotation,sces$sample_id)
+
 with(colData(sces) %>% as.data.frame,
      table(annotation, sample_id))
 
@@ -491,6 +502,8 @@ v <- rowVars(pbs)
 smoothScatter(m, v)
 
 keep <- m > .1 & v > .5
+
+length(keep)
 
 pheatmap(cor(pbs[keep,],method="pearson"))
 
@@ -553,7 +566,6 @@ corrplot(cor(pbs[keep,],method="pearson"),order="hclust",
 
 ```
 
-
 ### Junction analysis
 
 ```{r,fig.width=2.3,fig.height=2.3}
@@ -565,13 +577,41 @@ datadir <- file.path(here("01_pdgfra_experiment"),
 
 # read in SummarizedExperiment with the junction counts
 
-se <- readRDS(file = file.path(datadir,
-                               "junctions", "se-annotated-junctions.rds"))
+b_tso <- readRDS(file = file.path(datadir,
+                              "junctions", "tso_df-annotated-junctions.rds"))
 
-b <- readRDS(file = file.path(datadir,
-                              "junctions", "df-annotated-junctions.rds"))
+b_wta <- readRDS(file = file.path(datadir,
+                              "junctions", "wta_df-annotated-junctions.rds"))
 
-(aa <- ggplot(b %>% dplyr::filter(grepl("egfp", region)),
+# Same plots for TSO and WTA separately, start with TSO
+
+(aa <- ggplot(b_tso %>% dplyr::filter(grepl("egfp", region)),
+                    aes(x = celltype, y = perc_expressed,
+                        fill= factor(sample,levels=c("unmod","rockroi")),
+                        label = perc_expressed,
+                        colour = factor(sample,levels=c("unmod","rockroi"))))+
+  geom_bar(position = position_dodge2(), stat = "identity") +
+  geom_text(aes(label = round(perc_expressed, 1), 
+                y = perc_expressed+1.5), 
+            colour = "black",
+            position = position_dodge(width = 0.9),
+            size=2,
+            vjust=17) +
+  facet_wrap(~region, nrow = 1) +
+  theme_bw() +
+  rock_roi_theme_multiple_panels() +
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+  ylab("Percent cells expressed")+
+  scale_fill_manual(labels=sample,
+                    values=c(myscale[["unmod"]],myscale[["rockroi"]]))+
+  scale_color_manual(labels=sample,
+                    values=c(myscale[["unmod"]],myscale[["rockroi"]]))+
+  theme(legend.position = "none"))+
+  xlab("")
+
+# same for WTA
+
+(aa <- ggplot(b_wta[which(b_wta$region_name=="[roi_egfp] egfp"),],
                     aes(x = celltype, y = perc_expressed,
                         fill= factor(sample,levels=c("unmod","rockroi")),
                         label = perc_expressed,
@@ -601,7 +641,9 @@ b <- readRDS(file = file.path(datadir,
 
 ```{r,fig.height=2.3,fig.width=4}
 
-junctions1<-b %>% dplyr::filter(grepl("roi_[456]", region))
+# For TSO
+
+junctions1<-b_tso %>% dplyr::filter(grepl("roi_[456]", region))
 regions<-c("[roi_4] chr5:75166771-75167837","[roi_5] chr5:75167967-75170495","[roi_6] chr5:75170666-75170762") # filtering canonical regions
 junctions1<-junctions1[which(junctions1$region %in% regions),]
 
@@ -634,7 +676,45 @@ bb<-ggrastr::rasterize(bb, layers='Point', dpi=1000)
 
 bb
 
-ggsave(file=file.path(datadir,"barplot1.svg"), plot=bb, width=4, height=2.2)
+ggsave(file=file.path(datadir,"barplot1_tso.svg"), plot=bb, width=4, height=2.2)
+
+
+# For WTA
+
+junctions1<-b_wta %>% dplyr::filter(grepl("roi_[456]", region))
+regions<-c("[roi_4] chr5:75166771-75167837","[roi_5] chr5:75167967-75170495","[roi_6] chr5:75170666-75170762") # filtering canonical regions
+junctions1<-junctions1[which(junctions1$region %in% regions),]
+
+bb <- ggplot(junctions1,
+                    aes(x = celltype, y = perc_expressed, fill = factor(sample,levels=c("unmod","rockroi")),
+                        colour = factor(sample,levels=c("unmod","rockroi")), group = factor(sample,levels=c("unmod","rockroi")),
+                        label = perc_expressed)) +
+  geom_bar(position = position_dodge2(), stat = "identity") +
+  geom_text(aes(label = round(perc_expressed, 1), 
+                y = perc_expressed+1.5), colour = "black",
+            position = position_dodge2(width = 1),
+            size=2,
+            vjust=0.5) +
+  facet_wrap(~region, nrow = 1) +
+  theme_classic()+
+  theme(axis.text = element_text(size=5),
+                plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=3,face="bold"),
+        )+
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+  ylab("Percent cells expressed")+
+  scale_fill_manual(labels=sample,
+                    values=c(myscale[["unmod"]],myscale[["rockroi"]]))+
+  scale_color_manual(labels=sample,
+                    values=c(myscale[["unmod"]],myscale[["rockroi"]]))+
+  theme(legend.position = "none")
+
+bb
+
+bb<-ggrastr::rasterize(bb, layers='Point', dpi=1000)
+
+ggsave(file=file.path(datadir,"barplot1_wta.svg"), plot=bb, width=4, height=2.2)
   
 ```
 
@@ -642,10 +722,12 @@ ggsave(file=file.path(datadir,"barplot1.svg"), plot=bb, width=4, height=2.2)
 
 ```{r,fig.height=2.3,fig.width=4}
 
-b %>% dplyr::filter(grepl("roi_[456]", region), 
+# For TSO
+
+b_tso %>% dplyr::filter(grepl("roi_[456]", region), 
              celltype=="Epithelial", sample=="rockroi")
 
-junctions2<-b %>% dplyr::filter(grepl("roi_1[3456]", region))
+junctions2<-b_tso %>% dplyr::filter(grepl("roi_1[3456]", region))
 regions2<-c("[roi_13] chr5:75180272-75180999","[roi_14] chr5:75181109-75181522","[roi_15] chr5:75181675-75182976","[roi_16] chr5:75183142-75185514") # filtering canonical regions
 junctions2<-junctions2[which(junctions2$region %in% regions2),]
 
@@ -678,7 +760,47 @@ cc<-ggrastr::rasterize(cc, layers='Point', dpi=1000)
 
 cc
 
-ggsave(file=file.path(datadir,"barplot2.svg"), plot=cc, width=4.3, height=2.2)
+ggsave(file=file.path(datadir,"barplot2_TSO.svg"), plot=cc, width=4.3, height=2.2)
+
+# For WTA
+
+b_wta %>% dplyr::filter(grepl("roi_[456]", region), 
+             celltype=="Epithelial", sample=="rockroi")
+
+junctions2<-b_wta %>% dplyr::filter(grepl("roi_1[3456]", region))
+regions2<-c("[roi_13] chr5:75180272-75180999","[roi_14] chr5:75181109-75181522","[roi_15] chr5:75181675-75182976","[roi_16] chr5:75183142-75185514") # filtering canonical regions
+junctions2<-junctions2[which(junctions2$region %in% regions2),]
+
+(cc<- ggplot(junctions2,
+                    aes(x = celltype, y = perc_expressed, fill = factor(sample,levels=c("unmod","rockroi")),
+                        colour = factor(sample,levels=c("unmod","rockroi")), group = factor(sample,levels=c("unmod","rockroi")),
+                        label = perc_expressed)) +
+  geom_bar(position = position_dodge2(), stat = "identity") +
+  geom_text(aes(label = round(perc_expressed, 1), 
+                y = perc_expressed+1.5), colour = "black",
+            position = position_dodge2(width = 1),
+            size=2,
+            vjust=0.5) +
+  facet_wrap(~region, nrow = 1) +
+  theme_classic()+
+  theme(axis.text = element_text(size=5),
+                plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=3,face="bold"),
+        )+
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+  ylab("Percent cells expressed")+
+  scale_fill_manual(labels=sample,
+                    values=c(myscale[["unmod"]],myscale[["rockroi"]]))+
+  scale_color_manual(labels=sample,
+                    values=c(myscale[["unmod"]],myscale[["rockroi"]]))+
+  theme(legend.position = "none"))
+
+cc<-ggrastr::rasterize(cc, layers='Point', dpi=1000)
+
+cc
+
+ggsave(file=file.path(datadir,"barplot2_WTA.svg"), plot=cc, width=4.3, height=2.2)
 
 ```
 
@@ -686,7 +808,13 @@ ggsave(file=file.path(datadir,"barplot2.svg"), plot=cc, width=4.3, height=2.2)
 
 ```{r,fig.height=2.3,fig.width=4}
 
-b$region_name<-gsub(" chr5","",b$region_name)
+# For TSO
+
+b_tso$region_name<-gsub(" chr5","",b_tso$region_name)
+
+junctions1<-b_tso %>% dplyr::filter(grepl("roi_[456]", region))
+regions<-c("[roi_4] chr5:75166771-75167837","[roi_5] chr5:75167967-75170495","[roi_6] chr5:75170666-75170762") # filtering canonical regions
+junctions1<-junctions1[which(junctions1$region %in% regions),]
 
 names(myscale)<-unique(sces$annotation)
 
@@ -726,7 +854,57 @@ bb<-ggrastr::rasterize(bb, layers='Point', dpi=1000)
 
 bb
 
-ggsave(file=file.path(datadir,"barplot3.svg"), plot=bb, width=4, height=1.9)
+ggsave(file=file.path(datadir,"barplot3_tso.svg"), plot=bb, width=4, height=1.9)
+
+
+
+# For WTA
+
+b_wta$region_name<-gsub(" chr5","",b_wta$region_name)
+
+junctions1<-b_wta %>% dplyr::filter(grepl("roi_[456]", region))
+regions<-c("[roi_4] chr5:75166771-75167837","[roi_5] chr5:75167967-75170495","[roi_6] chr5:75170666-75170762") # filtering canonical regions
+junctions1<-junctions1[which(junctions1$region %in% regions),]
+
+names(myscale)<-unique(sces$annotation)
+
+bb <- ggplot(junctions1,
+                    aes(x = factor(sample,levels=c("unmod","rockroi")), 
+                        y = perc_expressed, 
+                        fill = celltype,
+                        colour = celltype, group = celltype,
+                        label = perc_expressed)) +
+  geom_bar(position = position_dodge2(), stat = "identity") +
+  geom_text(aes(label = round(perc_expressed, 1), 
+                y = perc_expressed+1.5), colour = "black",
+            position = position_dodge2(width = 1),
+            size=2,
+            vjust=-0.2) +
+  facet_wrap(~region_name, nrow = 1) +
+  theme_classic()+
+  theme(axis.text = element_text(size=5),
+                plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=5,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5)+
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+  ylab("Percent cells expressed")+
+  scale_fill_manual(labels=unique(junctions1$celltype),
+                    values=c(myscale[["Crypt_bottom_1"]],myscale[["Crypt_top"]],myscale[["Enteroendocrine"]]))+
+  scale_color_manual(labels=unique(junctions1$celltype),
+                    values=c(myscale[["Crypt_bottom_1"]],myscale[["Crypt_top"]],myscale[["Enteroendocrine"]]))+
+  xlab("")
+
+bb<-ggrastr::rasterize(bb, layers='Point', dpi=1000)
+
+bb
+
+ggsave(file=file.path(datadir,"barplot3_wta.svg"), plot=bb, width=4, height=1.9)
 
 ```
 
@@ -734,7 +912,13 @@ ggsave(file=file.path(datadir,"barplot3.svg"), plot=bb, width=4, height=1.9)
 
 ```{r,fig.height=2.3,fig.width=4}
 
-b$region_name<-gsub(" chr5","",b$region_name)
+# For TSO
+
+junctions2<-b_tso %>% dplyr::filter(grepl("roi_1[3456]", region))
+regions2<-c("[roi_13] chr5:75180272-75180999","[roi_14] chr5:75181109-75181522","[roi_15] chr5:75181675-75182976","[roi_16] chr5:75183142-75185514") # filtering canonical regions
+junctions2<-junctions2[which(junctions2$region %in% regions2),]
+
+b_tso$region_name<-gsub(" chr5","",b_tso$region_name)
 
 names(myscale)<-unique(sces$annotation)
 
@@ -772,9 +956,332 @@ bb<-ggrastr::rasterize(bb, layers='Point', dpi=1000)
 
 bb
 
-ggsave(file=file.path(datadir,"barplot4.svg"), plot=bb, width=4.1, height=1.9)
+ggsave(file=file.path(datadir,"barplot4_TSO.svg"), plot=bb, width=4.1, height=1.9)
+
+# Same for WTA 
+
+junctions2<-b_wta %>% dplyr::filter(grepl("roi_1[3456]", region))
+regions2<-c("[roi_13] chr5:75180272-75180999","[roi_14] chr5:75181109-75181522","[roi_15] chr5:75181675-75182976","[roi_16] chr5:75183142-75185514") # filtering canonical regions
+junctions2<-junctions2[which(junctions2$region %in% regions2),]
+
+b_wta$region_name<-gsub(" chr5","",b_wta$region_name)
+
+names(myscale)<-unique(sces$annotation)
+
+(bb <- ggplot(junctions2,
+                    aes(x = factor(sample,levels=c("unmod","rockroi")), y = perc_expressed, fill = celltype,
+                        colour = celltype, group = celltype,
+                        label = perc_expressed)) +
+  geom_bar(position = position_dodge2(), stat = "identity") +
+  geom_text(aes(label = round(perc_expressed, 1), 
+                y = perc_expressed+1.5), colour = "black",
+            position = position_dodge2(width = 1),
+            size=2,
+            vjust=-0.2) +
+  facet_wrap(~region_name, nrow = 1) +
+  theme_classic()+
+  theme(axis.text = element_text(size=5),
+                plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=5,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5)+
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+  ylab("Percent cells expressed")+
+  scale_fill_manual(labels=unique(junctions2$celltype),
+                    values=c(myscale[["Crypt_bottom_1"]],myscale[["Crypt_top"]],myscale[["Enteroendocrine"]]))+
+  scale_color_manual(labels=unique(junctions2$celltype),
+                    values=c(myscale[["Crypt_bottom_1"]],myscale[["Crypt_top"]],myscale[["Enteroendocrine"]]))+
+  xlab(""))
+
+bb<-ggrastr::rasterize(bb, layers='Point', dpi=1000)
+
+bb
+
+ggsave(file=file.path(datadir,"barplot4_WTA.svg"), plot=bb, width=4.1, height=1.9)
 
 ```
+
+### Same but for Pdgfra positive cells only 
+
+### eGFP 
+
+```{r,fig.width=2.3,fig.height=2.3}
+
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtom_cds","no_detection","doublets","low","pdgfra_unimodal")
+
+datadir <- file.path(here("01_pdgfra_experiment"), 
+                     "data")
+
+# read in SummarizedExperiment with the junction counts
+
+rm(b_tso,b_wta)
+
+b_tso <- readRDS(file = file.path(datadir,
+                              "junctions", "pdgfra_only_tso_df-annotated-junctions.rds"))
+
+b_wta <- readRDS(file = file.path(datadir,
+                              "junctions", "pdgfra_only_wta_df-annotated-junctions.rds"))
+
+# Same plots for TSO and WTA separately, start with TSO
+
+(aa <- ggplot(b_tso %>% dplyr::filter(grepl("egfp", region)),
+                    aes(x = celltype, y = perc_expressed,
+                        fill= factor(sample,levels=c("unmod","rockroi")),
+                        label = perc_expressed,
+                        colour = factor(sample,levels=c("unmod","rockroi"))))+
+  geom_bar(position = position_dodge2(), stat = "identity") +
+  geom_text(aes(label = round(perc_expressed, 1), 
+                y = perc_expressed+1.5), 
+            colour = "black",
+            position = position_dodge(width = 0.9),
+            size=2,
+            vjust=17) +
+  facet_wrap(~region, nrow = 1) +
+  theme_bw() +
+  rock_roi_theme_multiple_panels() +
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+  ylab("Percent cells expressed")+
+  scale_fill_manual(labels=sample,
+                    values=c(myscale[["unmod"]],myscale[["rockroi"]]))+
+  scale_color_manual(labels=sample,
+                    values=c(myscale[["unmod"]],myscale[["rockroi"]]))+
+  theme(legend.position = "none"))+
+  xlab("")
+
+# same for WTA --> 0 
+
+# (aa <- ggplot(b_wta[which(b_wta$region_name=="[roi_egfp] egfp"),],
+#                     aes(x = celltype, y = perc_expressed,
+#                         fill= factor(sample,levels=c("unmod","rockroi")),
+#                         label = perc_expressed,
+#                         colour = factor(sample,levels=c("unmod","rockroi"))))+
+#   geom_bar(position = position_dodge2(), stat = "identity") +
+#   geom_text(aes(label = round(perc_expressed, 1), 
+#                 y = perc_expressed+1.5), 
+#             colour = "black",
+#             position = position_dodge(width = 0.9),
+#             size=2,
+#             vjust=17) +
+#   facet_wrap(~region, nrow = 1) +
+#   theme_bw() +
+#   rock_roi_theme_multiple_panels() +
+#   theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+#   ylab("Percent cells expressed")+
+#   scale_fill_manual(labels=sample,
+#                     values=c(myscale[["unmod"]],myscale[["rockroi"]]))+
+#   scale_color_manual(labels=sample,
+#                     values=c(myscale[["unmod"]],myscale[["rockroi"]]))+
+#   theme(legend.position = "none"))+
+#   xlab("")
+
+```
+
+### Regions 1
+
+```{r,fig.height=2.3,fig.width=4}
+
+# For TSO
+
+b_tso$region_name<-gsub(" chr5","",b_tso$region_name)
+
+junctions1<-b_tso %>% dplyr::filter(grepl("roi_[456]", region))
+regions<-c("[roi_4] chr5:75166771-75167837","[roi_5] chr5:75167967-75170495","[roi_6] chr5:75170666-75170762") # filtering canonical regions
+junctions1<-junctions1[which(junctions1$region %in% regions),]
+
+names(myscale)<-unique(sces$annotation)
+
+bb <- ggplot(junctions1,
+                    aes(x = factor(sample,levels=c("unmod","rockroi")), 
+                        y = perc_expressed, 
+                        fill = celltype,
+                        colour = celltype, group = celltype,
+                        label = perc_expressed)) +
+  geom_bar(position = position_dodge2(), stat = "identity") +
+  geom_text(aes(label = round(perc_expressed, 1), 
+                y = perc_expressed+1.5), colour = "black",
+            position = position_dodge2(width = 1),
+            size=2,
+            vjust=-0.2) +
+  facet_wrap(~region_name, nrow = 1) +
+  theme_classic()+
+  theme(axis.text = element_text(size=5),
+                plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=5,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5)+
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+  ylab("Percent cells expressed")+
+  scale_fill_manual(labels=unique(junctions1$celltype),
+                    values=c(myscale[["Crypt_bottom_1"]],myscale[["Crypt_top"]],myscale[["Enteroendocrine"]]))+
+  scale_color_manual(labels=unique(junctions1$celltype),
+                    values=c(myscale[["Crypt_bottom_1"]],myscale[["Crypt_top"]],myscale[["Enteroendocrine"]]))+
+  xlab("")
+
+bb<-ggrastr::rasterize(bb, layers='Point', dpi=1000)
+
+bb
+
+ggsave(file=file.path(datadir,"pdgfra_only_barplot3_tso.svg"), plot=bb, width=4, height=1.9)
+
+
+# For WTA
+
+b_wta$region_name<-gsub(" chr5","",b_wta$region_name)
+
+junctions1<-b_wta %>% dplyr::filter(grepl("roi_[456]", region))
+regions<-c("[roi_4] chr5:75166771-75167837","[roi_5] chr5:75167967-75170495","[roi_6] chr5:75170666-75170762") # filtering canonical regions
+junctions1<-junctions1[which(junctions1$region %in% regions),]
+
+names(myscale)<-unique(sces$annotation)
+
+bb <- ggplot(junctions1,
+                    aes(x = factor(sample,levels=c("unmod","rockroi")), 
+                        y = perc_expressed, 
+                        fill = celltype,
+                        colour = celltype, group = celltype,
+                        label = perc_expressed)) +
+  geom_bar(position = position_dodge2(), stat = "identity") +
+  geom_text(aes(label = round(perc_expressed, 1), 
+                y = perc_expressed+1.5), colour = "black",
+            position = position_dodge2(width = 1),
+            size=2,
+            vjust=-0.2) +
+  facet_wrap(~region_name, nrow = 1) +
+  theme_classic()+
+  theme(axis.text = element_text(size=5),
+                plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=5,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5)+
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+  ylab("Percent cells expressed")+
+  scale_fill_manual(labels=unique(junctions1$celltype),
+                    values=c(myscale[["Crypt_bottom_1"]],myscale[["Crypt_top"]],myscale[["Enteroendocrine"]]))+
+  scale_color_manual(labels=unique(junctions1$celltype),
+                    values=c(myscale[["Crypt_bottom_1"]],myscale[["Crypt_top"]],myscale[["Enteroendocrine"]]))+
+  xlab("")
+
+bb<-ggrastr::rasterize(bb, layers='Point', dpi=1000)
+
+bb
+
+ggsave(file=file.path(datadir,"pdgfra_only_barplot3_wta.svg"), plot=bb, width=4, height=1.9)
+
+```
+
+### Other regions
+
+```{r,fig.height=2.3,fig.width=4}
+
+# For TSO
+
+junctions2<-b_tso %>% dplyr::filter(grepl("roi_1[3456]", region))
+regions2<-c("[roi_13] chr5:75180272-75180999","[roi_14] chr5:75181109-75181522","[roi_15] chr5:75181675-75182976","[roi_16] chr5:75183142-75185514") # filtering canonical regions
+junctions2<-junctions2[which(junctions2$region %in% regions2),]
+
+b_tso$region_name<-gsub(" chr5","",b_tso$region_name)
+
+names(myscale)<-unique(sces$annotation)
+
+(bb <- ggplot(junctions2,
+                    aes(x = factor(sample,levels=c("unmod","rockroi")), y = perc_expressed, fill = celltype,
+                        colour = celltype, group = celltype,
+                        label = perc_expressed)) +
+  geom_bar(position = position_dodge2(), stat = "identity") +
+  geom_text(aes(label = round(perc_expressed, 1), 
+                y = perc_expressed+1.5), colour = "black",
+            position = position_dodge2(width = 1),
+            size=2,
+            vjust=-0.2) +
+  facet_wrap(~region_name, nrow = 1) +
+  theme_classic()+
+  theme(axis.text = element_text(size=5),
+                plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=5,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5)+
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+  ylab("Percent cells expressed")+
+  scale_fill_manual(labels=unique(junctions2$celltype),
+                    values=c(myscale[["Crypt_bottom_1"]],myscale[["Crypt_top"]],myscale[["Enteroendocrine"]]))+
+  scale_color_manual(labels=unique(junctions2$celltype),
+                    values=c(myscale[["Crypt_bottom_1"]],myscale[["Crypt_top"]],myscale[["Enteroendocrine"]]))+
+  xlab(""))
+
+bb<-ggrastr::rasterize(bb, layers='Point', dpi=1000)
+
+bb
+
+ggsave(file=file.path(datadir,"pdgfra_only_barplot4_TSO.svg"), plot=bb, width=4.1, height=1.9)
+
+# Same for WTA 
+
+junctions2<-b_wta %>% dplyr::filter(grepl("roi_1[3456]", region))
+regions2<-c("[roi_13] chr5:75180272-75180999","[roi_14] chr5:75181109-75181522","[roi_15] chr5:75181675-75182976","[roi_16] chr5:75183142-75185514") # filtering canonical regions
+junctions2<-junctions2[which(junctions2$region %in% regions2),]
+
+b_wta$region_name<-gsub(" chr5","",b_wta$region_name)
+
+names(myscale)<-unique(sces$annotation)
+
+(bb <- ggplot(junctions2,
+                    aes(x = factor(sample,levels=c("unmod","rockroi")), y = perc_expressed, fill = celltype,
+                        colour = celltype, group = celltype,
+                        label = perc_expressed)) +
+  geom_bar(position = position_dodge2(), stat = "identity") +
+  geom_text(aes(label = round(perc_expressed, 1), 
+                y = perc_expressed+1.5), colour = "black",
+            position = position_dodge2(width = 1),
+            size=2,
+            vjust=-0.2) +
+  facet_wrap(~region_name, nrow = 1) +
+  theme_classic()+
+  theme(axis.text = element_text(size=5),
+                plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=5,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5)+
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
+  ylab("Percent cells expressed")+
+  scale_fill_manual(labels=unique(junctions2$celltype),
+                    values=c(myscale[["Crypt_bottom_1"]],myscale[["Crypt_top"]],myscale[["Enteroendocrine"]]))+
+  scale_color_manual(labels=unique(junctions2$celltype),
+                    values=c(myscale[["Crypt_bottom_1"]],myscale[["Crypt_top"]],myscale[["Enteroendocrine"]]))+
+  xlab(""))
+
+bb<-ggrastr::rasterize(bb, layers='Point', dpi=1000)
+
+bb
+
+ggsave(file=file.path(datadir,"pdgfra_only_barplot4_WTA.svg"), plot=bb, width=4.1, height=1.9)
+
+```
+
 
 ### Sashimis by cell type
 
@@ -795,8 +1302,13 @@ gtf_path<-dir(here("01_pdgfra_experiment"), ".*gtf",
 
 track<-makeTxDbFromGFF(file="/Users/gimoro/figure_making_paper/rock_roi_paper/01_pdgfra_experiment/data/pdgfra.gtf", format="gtf")
 
-region_start<-min(start(ranges(gtf[which(gtf$gene_name=="Pdgfra"),])))-100 # add extra 10000 because otherwise don't see labels in plot
+region_start<-min(start(ranges(gtf[which(gtf$gene_name=="Pdgfra"),])))-100 # add extra 100 because otherwise don't see labels in plot
 region_end<-max(end(ranges(gtf[which(gtf$gene_name=="Pdgfra"),])))+100
+
+print(region_start)
+print(region_end)
+
+# annotation track Pdgfra
 
 gm_pdgfra <- GeneRegionTrack(track,
                       name="Pdgfra",
@@ -818,161 +1330,288 @@ displayPars(gm_pdgfra) <- list(fill="grey")
 z<- GRanges("chr5", IRanges(region_start,region_end))
 param <- ScanBamParam(which=z)
 
-rr_cryptb <- DataTrack(file.path(datadir, "rockroi__Crypt_bottom.bam"),
+# Loading .bam files 
+
+tso_rr_cryptb <- DataTrack(file.path(datadir, "tso_rockroi__Crypt_bottom.bam"),
+                             name = "Crypt_bottom",
+                             isPaired = FALSE,
+                       chromosome="chr5",
+                     from=region_start,
+                     to=region_end,
+                     col.histogram="grey",
+                     fill.histogram="gray",
+                     ylim=c(0,700))
+
+wta_rr_cryptb <- DataTrack(file.path(datadir, "wta_rockroi__Crypt_bottom.bam"),
                              name = "Crypt_bottom",
                              isPaired = FALSE,
                        chromosome="chr5",
                      from=region_start,
                      to=region_end,
                      col.histogram="black",
-                               fill.histogram=TRUE)
+                     fill.histogram="black",
+                     ylim=c(0,700))
 
-a_rr_cryptb<-AlignmentsTrack(range=file.path(datadir, "rockroi__Crypt_bottom.bam"), 
+tso_a_rr_cryptb<-AlignmentsTrack(range=file.path(datadir, "tso_rockroi__Crypt_bottom.bam"), 
                              chromosome="chr5",
                              from=region_start,
                              to=region_end,
                              name="Crypt_bottom")
 
-displayPars(rr_cryptb) <- list("background.title"=myscale[["rockroi"]],
-                               "col"="black",
-                               col.histogram="black",
-                               fill.histogram=TRUE)
+wta_a_rr_cryptb<-AlignmentsTrack(range=file.path(datadir, "wta_rockroi__Crypt_bottom.bam"), 
+                             chromosome="chr5",
+                             from=region_start,
+                             to=region_end,
+                             name="Crypt_bottom")
 
-displayPars(a_rr_cryptb) <- list("background.title"=myscale[["rockroi"]],
+displayPars(tso_rr_cryptb) <- list("background.title"=myscale[["rockroi"]],
+                               col.histogram="grey",
+                               fill.histogram="gray")
+
+displayPars(wta_rr_cryptb) <- list("background.title"=myscale[["rockroi"]],
+                               col.histogram="black",
+                               fill.histogram="black")
+
+displayPars(tso_a_rr_cryptb) <- list("background.title"=myscale[["rockroi"]],
                                "col"="black")
 
-rr_cryptt <- DataTrack(file.path(datadir, "rockroi__Crypt_top.bam"),
+displayPars(wta_a_rr_cryptb) <- list("background.title"=myscale[["rockroi"]],
+                               "col"="black")
+
+tso_rr_cryptt <- DataTrack(file.path(datadir, "tso_rockroi__Crypt_top.bam"),
+                             name = "Crypt_top",
+                             isPaired = FALSE,
+                       chromosome="chr5",
+                     from=region_start,
+                     to=region_end,col.histogram="grey",
+                     fill.histogram="gray",
+                     ylim=c(0,200))
+
+wta_rr_cryptt <- DataTrack(file.path(datadir, "wta_rockroi__Crypt_top.bam"),
                              name = "Crypt_top",
                              isPaired = FALSE,
                        chromosome="chr5",
                      from=region_start,
                      to=region_end,col.histogram="black",
-                               fill.histogram=TRUE)
+                     fill.histogram="black",
+                     ylim=c(0,200))
 
-a_rr_cryptt<-AlignmentsTrack(range=file.path(datadir, "rockroi__Crypt_top.bam"), 
+tso_a_rr_cryptt<-AlignmentsTrack(range=file.path(datadir, "tso_rockroi__Crypt_top.bam"), 
                              chromosome="chr5",
                              from=region_start,
                              to=region_end,
                              name="Crypt_top")
 
-displayPars(rr_cryptt) <- list("background.title"=myscale[["rockroi"]],
-                               "col"="black",
+wta_a_rr_cryptt<-AlignmentsTrack(range=file.path(datadir, "wta_rockroi__Crypt_top.bam"), 
+                             chromosome="chr5",
+                             from=region_start,
+                             to=region_end,
+                             name="Crypt_top")
+
+displayPars(tso_rr_cryptt) <- list("background.title"=myscale[["rockroi"]],
+                               col.histogram="grey",
+                               fill.histogram="gray")
+
+displayPars(wta_rr_cryptt) <- list("background.title"=myscale[["rockroi"]],
                                col.histogram="black",
-                               fill.histogram=TRUE)
-displayPars(a_rr_cryptt) <- list("background.title"=myscale[["rockroi"]],
+                               fill.histogram="black")
+
+displayPars(wta_rr_cryptt) <- list("background.title"=myscale[["rockroi"]],
                                "col"="black")
 
+displayPars(tso_a_rr_cryptt) <- list("background.title"=myscale[["rockroi"]],
+                               "col"="black")
 
-rr_epi <- DataTrack(file.path(datadir, "rockroi__Epithelial.bam"),
+displayPars(wta_a_rr_cryptt) <- list("background.title"=myscale[["rockroi"]],
+                               "col"="black")
+
+tso_rr_epi <- DataTrack(file.path(datadir, "tso_rockroi__Epithelial.bam"),
+                             name = "Epithelial",
+                             isPaired = FALSE,
+                    chromosome="chr5",
+                     from=region_start,
+                     to=region_end,
+                    col.histogram="grey",
+                    fill.histogram="gray")
+
+wta_rr_epi <- DataTrack(file.path(datadir, "wta_rockroi__Epithelial.bam"),
                              name = "Epithelial",
                              isPaired = FALSE,
                     chromosome="chr5",
                      from=region_start,
                      to=region_end,
                     col.histogram="black",
-                               fill.histogram=TRUE)
+                    fill.histogram="black")
 
-a_rr_epi<-AlignmentsTrack(range=file.path(datadir, "rockroi__Epithelial.bam"), 
+tso_a_rr_epi<-AlignmentsTrack(range=file.path(datadir, "tso_rockroi__Epithelial.bam"), 
                              chromosome="chr5",
                              from=region_start,
                              to=region_end,
                              name="Epithelial")
 
-displayPars(rr_epi)<-list("background.title"=myscale[["rockroi"]],
-                               "col"="black",
+wta_a_rr_epi<-AlignmentsTrack(range=file.path(datadir, "wta_rockroi__Epithelial.bam"), 
+                             chromosome="chr5",
+                             from=region_start,
+                             to=region_end,
+                             name="Epithelial")
+
+displayPars(tso_rr_epi)<-list("background.title"=myscale[["rockroi"]],
+                               col.histogram="grey",
+                              fill.histogram="gray")
+
+displayPars(wta_rr_epi)<-list("background.title"=myscale[["rockroi"]],
                                col.histogram="black",
-                               fill.histogram=TRUE)
-displayPars(a_rr_epi) <- list("background.title"=myscale[["rockroi"]],
+                              fill.histogram="black")
+
+displayPars(tso_a_rr_epi) <- list("background.title"=myscale[["rockroi"]],
                                "col"="black")
 
-um_cryptb <- DataTrack(file.path(datadir, "unmod__Crypt_bottom.bam"),
+displayPars(wta_a_rr_epi) <- list("background.title"=myscale[["rockroi"]],
+                               "col"="black")
+
+tso_um_cryptb <- DataTrack(file.path(datadir, "tso_unmod__Crypt_bottom.bam"),
+                             ylim = c(0,20), name = "Crypt_bottom",
+                             isPaired = FALSE,
+                       chromosome="chr5",
+                     from=region_start,
+                     to=region_end,
+                     col.histogram="grey",
+                     fill.histogram="gray",
+                     ylim=c(0,700))
+
+wta_um_cryptb <- DataTrack(file.path(datadir, "wta_unmod__Crypt_bottom.bam"),
                              ylim = c(0,20), name = "Crypt_bottom",
                              isPaired = FALSE,
                        chromosome="chr5",
                      from=region_start,
                      to=region_end,
                      col.histogram="black",
-                               fill.histogram=TRUE)
+                     fill.histogram="black",
+                     ylim=c(0,700))
 
-a_um_cryptb<-AlignmentsTrack(range=file.path(datadir, "unmod__Crypt_bottom.bam"), 
+tso_a_um_cryptb<-AlignmentsTrack(range=file.path(datadir, "tso_unmod__Crypt_bottom.bam"), 
                              chromosome="chr5",
                              from=region_start,
                              to=region_end,
                              name="Crypt_bottom")
 
-displayPars(um_cryptb) <- list("background.title"=myscale[["unmod"]],
-                               "col"="black",
+wta_a_um_cryptb<-AlignmentsTrack(range=file.path(datadir, "wta_unmod__Crypt_bottom.bam"), 
+                             chromosome="chr5",
+                             from=region_start,
+                             to=region_end,
+                             name="Crypt_bottom")
+
+displayPars(tso_um_cryptb) <- list("background.title"=myscale[["unmod"]],
+                               col.histogram="grey",
+                               fill.histogram="gray")
+
+displayPars(wta_um_cryptb) <- list("background.title"=myscale[["unmod"]],
                                col.histogram="black",
-                               fill.histogram=TRUE)
-displayPars(a_um_cryptb) <- list("background.title"=myscale[["unmod"]],
+                               fill.histogram="black")
+
+displayPars(tso_a_um_cryptb) <- list("background.title"=myscale[["unmod"]],
                                "col"="black")
 
+displayPars(wta_a_um_cryptb) <- list("background.title"=myscale[["unmod"]],
+                               "col"="black")
 
-um_cryptt <- DataTrack(file.path(datadir, "unmod__Crypt_top.bam"),
+tso_um_cryptt <- DataTrack(file.path(datadir, "tso_unmod__Crypt_top.bam"),
+                             ylim = c(0,20), name = "Crypt_top",
+                             isPaired = FALSE,
+                       chromosome="chr5",
+                     from=region_start,
+                     to=region_end,
+                     col.histogram="grey",
+                     fill.histogram="gray",
+                     ylim=c(0,200))
+
+wta_um_cryptt <- DataTrack(file.path(datadir, "wta_unmod__Crypt_top.bam"),
                              ylim = c(0,20), name = "Crypt_top",
                              isPaired = FALSE,
                        chromosome="chr5",
                      from=region_start,
                      to=region_end,
                      col.histogram="black",
-                               fill.histogram=TRUE)
+                     fill.histogram="black",
+                     ylim=c(0,200))
 
-a_um_cryptt<-AlignmentsTrack(range=file.path(datadir, "unmod__Crypt_top.bam"), 
+tso_a_um_cryptt<-AlignmentsTrack(range=file.path(datadir, "tso_unmod__Crypt_top.bam"), 
                              chromosome="chr5",
                              from=region_start,
                              to=region_end,
                              name="Crypt_top")
 
-displayPars(um_cryptt) <- list("background.title"=myscale[["unmod"]],
-                               "col"="black",
-                               col.histogram="black",
-                               fill.histogram=TRUE)
-displayPars(a_um_cryptt) <- list("background.title"=myscale[["unmod"]],
-                               "col"="black")
-
-
-um_epi <- DataTrack(file.path(datadir, "unmod__Epithelial.bam"),
-                             ylim = c(0,20), name = "Epithelial",
-                             isPaired = FALSE,
-                    chromosome="chr5",
-                     from=region_start,
-                     to=region_end,
-                    col.histogram="black",
-                               fill.histogram=TRUE)
-
-a_um_epi<-AlignmentsTrack(range=file.path(datadir, "unmod__Epithelial.bam"), 
+wta_a_um_cryptt<-AlignmentsTrack(range=file.path(datadir, "wta_unmod__Crypt_top.bam"), 
                              chromosome="chr5",
                              from=region_start,
                              to=region_end,
-                             name="Epithelial")
+                             name="Crypt_top")
 
-displayPars(um_epi) <- list("background.title"=myscale[["unmod"]],
+displayPars(tso_um_cryptt) <- list("background.title"=myscale[["unmod"]],
+                               col.histogram="grey",
+                               fill.histogram="grey")
+
+displayPars(wta_um_cryptt) <- list("background.title"=myscale[["unmod"]],
                                "col"="black",
-                              col.histogram="black",
-                               fill.histogram=TRUE)
+                               col.histogram="black",
+                               fill.histogram="black")
 
-displayPars(a_um_epi) <- list("background.title"=myscale[["unmod"]],
+displayPars(tso_a_um_cryptt) <- list("background.title"=myscale[["unmod"]],
                                "col"="black")
 
+displayPars(wta_a_um_cryptt) <- list("background.title"=myscale[["unmod"]],
+                               "col"="black")
+
+displayPars(wta_um_cryptt) <- list("background.title"=myscale[["unmod"]],
+                               "col"="black",
+                               col.histogram="black",
+                               fill.histogram="black")
 
 
-b %>% dplyr::filter(grepl("roi_[3456]", region_name)) -> regs
-rng <- as.integer(c(min(regs$start), max(regs$end)))
+# overlaying tracks
 
+rr_cryptb<-OverlayTrack(trackList=list(wta_rr_cryptb,tso_rr_cryptb))
+rr_cryptt<-OverlayTrack(trackList=list(wta_rr_cryptt,tso_rr_cryptt))
+
+displayPars(rr_cryptb)<-list(background.title=myscale[["rockroi"]])
+displayPars(rr_cryptt)<-list(background.title=myscale[["rockroi"]])
+    
 type<-c("histogram","sashimi")
 
+# plotTracks(c(tso_rr_cryptb, 
+#              tso_a_rr_cryptb,
+#              tso_um_cryptb,
+#              tso_a_um_cryptb,
+#              tso_rr_cryptt, 
+#              tso_a_rr_cryptt,
+#              tso_um_cryptt,
+#              tso_a_um_cryptt,
+#              gm_pdgfra),
+#            from = region_start, 
+#            to = region_end,
+#            type=rep(type,6),
+#            chromosome = "chr5",
+#            sashimiNumbers=TRUE, 
+#            col.axis="black",
+#            fontcolor.title="black",
+#            cex.axis = 0.5,
+#            cex.title=0.5,
+#            lwd.title=0.5,
+#            sashimiHeight=2,
+#            cex=0.5,
+#            minSashimiHeight=0,
+#            sashimiScore=10,
+#            sizes=c(1,2,1,0.1,1,2,1,0.1,2),
+#            lwd.sashimiMax=2)
+
 plotTracks(c(rr_cryptb, 
-             a_rr_cryptb,
-             um_cryptb,
-             a_um_cryptb,
+             wta_um_cryptb,
              rr_cryptt, 
-             a_rr_cryptt,
-             um_cryptt,
-             a_um_cryptt,
+             wta_um_cryptt,
              gm_pdgfra),
            from = region_start, 
            to = region_end,
-           type=rep(type,6),
+           type=rep("histogram",6),
            chromosome = "chr5",
            sashimiNumbers=TRUE, 
            col.axis="black",
@@ -984,14 +1623,125 @@ plotTracks(c(rr_cryptb,
            cex=0.5,
            minSashimiHeight=0,
            sashimiScore=10,
-           sizes=c(1,2,1,0.1,1,2,1,0.1,2),
+           sizes=c(1,1,1,1,1),
            lwd.sashimiMax=2)
+
+```
+
+### Representation zoomed in region Pdgfra
+
+```{r,fig.heigh=40,fig.width=4}
+
+type<-c("histogram","pileup","sashimi")
+
+print(region_start+30000)
+print(region_end-12500)
+
+plotTracks(c(rr_cryptb, 
+             tso_a_rr_cryptb,
+             gm_pdgfra),
+           from = region_start+30000, 
+           to = region_end-12500,
+           type=type,
+           chromosome = "chr5",
+           sashimiNumbers=TRUE, 
+           col.axis="black",
+           fontcolor.title="black",
+           cex.axis=0.5,
+           cex.title=0.5,
+           lwd.title=0.5,
+           cex=0.5,
+           col.gaps="orange",
+           lwd.sashimiMax=2,
+           lwd.gaps=0.6,
+           stacking="squish",
+           sashimiScore=1,
+           max.height=0.7,
+           min.height=0.7,
+           sashimiHeight=2,
+           sizes=c(3,30,3),
+           ylim=c(0,300))
+
+plotTracks(c(wta_um_cryptb, 
+             wta_a_um_cryptb,
+             gm_pdgfra),
+           from = region_start+30000, 
+           to = region_end-12500,
+           type=type,
+           chromosome = "chr5",
+           sashimiNumbers=TRUE, 
+           col.axis="black",
+           fontcolor.title="black",
+           cex.axis=0.5,
+           cex.title=0.7,
+           lwd.title=0.7,
+           cex=0.5,
+           col.gaps="orange",
+           lwd.sashimiMax=2,
+           lwd.gaps=0.6,
+           stacking="squish",
+           sashimiScore=1,
+           max.height=0.5,
+           min.height=0.5,
+           sashimiHeight=2,
+           sizes=c(3,30,3),
+           ylim=c(0,150))
+
+plotTracks(c(tso_rr_cryptt, 
+             tso_a_rr_cryptt,
+             gm_pdgfra),
+           from = region_start+30000, 
+           to = region_end-12500,
+           type=type,
+           chromosome = "chr5",
+           sashimiNumbers=TRUE, 
+           col.axis="black",
+           fontcolor.title="black",
+           cex.axis=0.5,
+           cex.title=0.5,
+           lwd.title=0.5,
+           cex=0.5,
+           col.gaps="orange",
+           lwd.sashimiMax=2,
+           lwd.gaps=0.6,
+           stacking="squish",
+           sashimiScore=1,
+           max.height=0.7,
+           min.height=0.7,
+           sashimiHeight=2,
+           sizes=c(3,30,3),
+           ylim=c(0,40))
+
+plotTracks(c(wta_um_cryptt, 
+             wta_a_um_cryptt,
+             gm_pdgfra),
+           from = region_start+30000, 
+           to = region_end-12500,
+           type=type,
+           chromosome = "chr5",
+           sashimiNumbers=TRUE, 
+           col.axis="black",
+           fontcolor.title="black",
+           cex.axis=0.5,
+           cex.title=0.7,
+           lwd.title=0.7,
+           sashimiHeight=2,
+           cex=0.5,
+           col.gaps="orange",
+           lwd.sashimiMax=2,
+           lwd.gaps=0.6,
+           stacking="squish",
+           sashimiScore=1,
+           max.height=0.5,
+           min.height=0.5,
+           sizes=c(3,30,3),
+           ylim=c(0,70))
 
 ```
 
 ### eGFP 
 
-```{r,fig.width=2.3,fig.height=5}
+```{r,fig.width=2.7,fig.height=2.7}
 
 options(ucscChromosomeNames=FALSE)
 
@@ -1009,6 +1759,9 @@ track<-makeTxDbFromGFF(file="/Users/gimoro/figure_making_paper/rock_roi_paper/01
 region_start<-min(start(ranges(gtf[which(seqnames(gtf)=="egfp"),])))-100 # add extra 10000 because otherwise don't see labels in plot
 region_end<-max(end(ranges(gtf[which(seqnames(gtf)=="egfp"),])))
 
+print(region_start)
+print(region_end)
+
 gm_egfp <- GeneRegionTrack(track,
                       name="egfp",
                       geneSymbol=TRUE,
@@ -1025,101 +1778,153 @@ displayPars(gm_egfp)<-list(col="black",
 
 displayPars(gm_egfp) <- list(fill= "grey")
 
-z<- GRanges("chr5", IRanges(region_start,region_end))
+z<- GRanges("egfp", IRanges(region_start,region_end))
 param <- ScanBamParam(which=z)
 
-rr_cryptb <- DataTrack(file.path(datadir, "rockroi__Crypt_bottom.bam"),
+tso_rr_cryptb <- DataTrack(file.path(datadir, "tso_rockroi__Crypt_bottom.bam"),
+                             name = "Crypt_bottom",
+                             isPaired = FALSE,
+                       chromosome="egfp",
+                     from=region_start,
+                     to=region_end,
+                     col.histogram="grey",
+                     fill.histogram="gray")
+
+wta_rr_cryptb <- DataTrack(file.path(datadir, "wta_rockroi__Crypt_bottom.bam"),
                              name = "Crypt_bottom",
                              isPaired = FALSE,
                        chromosome="egfp",
                      from=region_start,
                      to=region_end,
                      col.histogram="black",
-                               fill.histogram=TRUE)
+                     fill.histogram="black")
 
-displayPars(rr_cryptb) <- list("background.title"=myscale[["rockroi"]],
-                               "col"="black",
+displayPars(tso_rr_cryptb) <- list("background.title"=myscale[["rockroi"]],
+                               col.histogram="grey",
+                               fill.histogram="gray")
+
+displayPars(wta_rr_cryptb) <- list("background.title"=myscale[["rockroi"]],
                                col.histogram="black",
-                               fill.histogram=TRUE)
+                               fill.histogram="black")
 
-rr_cryptt <- DataTrack(file.path(datadir, "rockroi__Crypt_top.bam"),
+tso_rr_cryptt <- DataTrack(file.path(datadir, "tso_rockroi__Crypt_top.bam"),
+                             name = "Crypt_top",
+                             isPaired = FALSE,
+                       chromosome="egfp",
+                     from=region_start,
+                     to=region_end,col.histogram="grey",
+                     fill.histogram="gray")
+
+wta_rr_cryptt <- DataTrack(file.path(datadir, "wta_rockroi__Crypt_top.bam"),
                              name = "Crypt_top",
                              isPaired = FALSE,
                        chromosome="egfp",
                      from=region_start,
                      to=region_end,col.histogram="black",
-                               fill.histogram=TRUE)
+                     fill.histogram="black")
 
-displayPars(rr_cryptt) <- list("background.title"=myscale[["rockroi"]],
-                               "col"="black",
+displayPars(tso_rr_cryptt) <- list("background.title"=myscale[["rockroi"]],
+                               col.histogram="grey",
+                               fill.histogram="gray")
+
+displayPars(wta_rr_cryptt) <- list("background.title"=myscale[["rockroi"]],
                                col.histogram="black",
-                               fill.histogram=TRUE)
+                               fill.histogram="black")
 
-rr_epi <- DataTrack(file.path(datadir, "rockroi__Epithelial.bam"),
-                             name = "Epithelial",
+displayPars(wta_rr_cryptt) <- list("background.title"=myscale[["rockroi"]],
+                               "col"="black")
+
+tso_um_cryptb <- DataTrack(file.path(datadir, "tso_unmod__Crypt_bottom.bam"),
+                             ylim = c(0,20), name = "Crypt_bottom",
                              isPaired = FALSE,
-                    chromosome="egfp",
+                       chromosome="egfp",
                      from=region_start,
                      to=region_end,
-                    col.histogram="black",
-                               fill.histogram=TRUE)
+                     col.histogram="grey",
+                     fill.histogram="gray")
 
-displayPars(rr_epi)<-list("background.title"=myscale[["rockroi"]],
-                               "col"="black",
-                               col.histogram="black",
-                               fill.histogram=TRUE)
-
-um_cryptb <- DataTrack(file.path(datadir, "unmod__Crypt_bottom.bam"),
+wta_um_cryptb <- DataTrack(file.path(datadir, "wta_unmod__Crypt_bottom.bam"),
                              ylim = c(0,20), name = "Crypt_bottom",
                              isPaired = FALSE,
                        chromosome="egfp",
                      from=region_start,
                      to=region_end,
                      col.histogram="black",
-                               fill.histogram=TRUE)
+                     fill.histogram="black")
 
-displayPars(um_cryptb) <- list("background.title"=myscale[["unmod"]],
-                               "col"="black",
+tso_a_um_cryptb<-AlignmentsTrack(range=file.path(datadir, "tso_unmod__Crypt_bottom.bam"), 
+                             chromosome="egfp",
+                             from=region_start,
+                             to=region_end,
+                             name="Crypt_bottom")
+
+wta_a_um_cryptb<-AlignmentsTrack(range=file.path(datadir, "wta_unmod__Crypt_bottom.bam"), 
+                             chromosome="egfp",
+                             from=region_start,
+                             to=region_end,
+                             name="Crypt_bottom")
+
+displayPars(tso_um_cryptb) <- list("background.title"=myscale[["unmod"]],
+                               col.histogram="grey",
+                               fill.histogram="gray")
+
+displayPars(wta_um_cryptb) <- list("background.title"=myscale[["unmod"]],
                                col.histogram="black",
-                               fill.histogram=TRUE)
+                               fill.histogram="black")
 
-um_cryptt <- DataTrack(file.path(datadir, "unmod__Crypt_top.bam"),
-                             ylim = c(0,20), name = "Crypt_top",
+displayPars(tso_a_um_cryptb) <- list("background.title"=myscale[["unmod"]],
+                               "col"="black")
+
+displayPars(wta_a_um_cryptb) <- list("background.title"=myscale[["unmod"]],
+                               "col"="black")
+
+tso_um_cryptt <- DataTrack(file.path(datadir, "tso_unmod__Crypt_top.bam"),
+                              name = "Crypt_top",
+                             isPaired = FALSE,
+                       chromosome="egfp",
+                     from=region_start,
+                     to=region_end,
+                     col.histogram="grey",
+                     fill.histogram="gray")
+
+wta_um_cryptt <- DataTrack(file.path(datadir, "wta_unmod__Crypt_top.bam"),
+                              name = "Crypt_top",
                              isPaired = FALSE,
                        chromosome="egfp",
                      from=region_start,
                      to=region_end,
                      col.histogram="black",
-                               fill.histogram=TRUE)
+                     fill.histogram="black")
 
-displayPars(um_cryptt) <- list("background.title"=myscale[["unmod"]],
+displayPars(tso_um_cryptt) <- list("background.title"=myscale[["unmod"]],
+                               col.histogram="grey",
+                               fill.histogram="grey")
+
+displayPars(wta_um_cryptt) <- list("background.title"=myscale[["unmod"]],
                                "col"="black",
                                col.histogram="black",
-                               fill.histogram=TRUE)
+                               fill.histogram="black")
 
-um_epi <- DataTrack(file.path(datadir, "unmod__Epithelial.bam"),
-                             ylim = c(0,20), name = "Epithelial",
-                             isPaired = FALSE,
-                    chromosome="egfp",
-                     from=region_start,
-                     to=region_end,
-                    col.histogram="black",
-                               fill.histogram=TRUE)
-
-displayPars(um_epi) <- list("background.title"=myscale[["unmod"]],
+displayPars(wta_um_cryptt) <- list("background.title"=myscale[["unmod"]],
                                "col"="black",
-                              col.histogram="black",
-                               fill.histogram=TRUE)
+                               col.histogram="black",
+                               fill.histogram="black")
 
-b %>% dplyr::filter(grepl("roi_[3456]", region_name)) -> regs
-rng <- as.integer(c(min(regs$start), max(regs$end)))
+
+# overlaying tracks
+
+rr_cryptb<-OverlayTrack(trackList=list(wta_rr_cryptb,tso_rr_cryptb))
+rr_cryptt<-OverlayTrack(trackList=list(wta_rr_cryptt,tso_rr_cryptt))
+
+displayPars(rr_cryptb)<-list(background.title=myscale[["rockroi"]])
+displayPars(rr_cryptt)<-list(background.title=myscale[["rockroi"]])
+    
+type<-c("histogram","sashimi")
 
 plotTracks(c(rr_cryptb, 
-             um_cryptb,
+             wta_um_cryptb,
              rr_cryptt, 
-             um_cryptt,
-             rr_epi, 
-             um_epi,
+             wta_um_cryptt,
              gm_egfp),
            from = region_start, 
            to = region_end,
@@ -1134,9 +1939,9 @@ plotTracks(c(rr_cryptb,
            cex=0.5,
            sashimiHeight=20, 
            minSashimiHeight=0,
-           sizes=c(rep(2,6),4),
+           sizes=c(1,1,1,1,1),
            lwd.sashimiMax=2,
-           ylim=c(0,400))
+           ylim=c(0,800))
 
 ```
 
