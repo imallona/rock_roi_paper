@@ -198,6 +198,12 @@ plotReducedDim(mouse, "UMAP", colour_by="label")
 summed <- aggregateAcrossCells(mouse, 
     ids=colData(mouse)[,c("sample_id")],use.assay.type="wta")
 
+# remove gene with 0 counts 
+
+summed<-summed[-which(rowSums(assay(summed,"wta"))==0),]
+
+length(rownames(summed))
+
 assay(summed,"wta")
 
 # DEG plots
@@ -242,8 +248,6 @@ mouse_logcpm$label[1:10]<-mouse_logcpm$genes[1:10]
 
 # ggplot
 
-## calculating corr same way as Mark for Pdgfra
-
 plot1<-ggplot(mouse_logcpm,aes(x=unmod,y=unmod_n1,label=label))+
   geom_point(alpha=0.2,size=0.5,stroke=NA)+
   xlab("pseudobulk expression (logcpm) unmod")+
@@ -253,9 +257,7 @@ plot1<-ggplot(mouse_logcpm,aes(x=unmod,y=unmod_n1,label=label))+
   ggtitle("Mouse")+
   theme(axis.title.x=element_text(colour=myscale[["unmod"]]))+
   theme(axis.title.y=element_text(colour=myscale[["unmod_n1"]]))+
-  geom_text(x=5, y=13, label=format(round(pearson_corr,3)),size=3)
-
-
+  geom_text(x=5, y=13, label=paste0("r=",format(round(pearson_corr,3))),size=3)
 
 plot1<-rasterize(plot1, layers='Point', dpi=1000)
 
@@ -340,6 +342,12 @@ plotReducedDim(human, "UMAP", colour_by="label")
 summed <- aggregateAcrossCells(human, 
     ids=colData(human)[,c("sample_id")],use.assay.type="wta")
 
+# remove gene with 0 counts 
+
+summed<-summed[-which(rowSums(assay(summed,"wta"))==0),]
+
+length(rownames(summed))
+
 assay(summed,"wta")
 
 # DEG plots
@@ -393,7 +401,7 @@ plot2<-ggplot(human_logcpm,aes(x=unmod,y=unmod_n1,label=label))+
   ggtitle("Human")+
   theme(axis.title.x=element_text(colour=myscale[["unmod"]]))+
   theme(axis.title.y=element_text(colour=myscale[["unmod_n1"]]))+
-  geom_text(x=5, y=13, label=format(round(pearson_corr,3)),size=3)
+  geom_text(x=5, y=13, label=paste0("r=",format(round(pearson_corr,3))),size=3)
 
 
 plot2<-rasterize(plot2, layers='Point', dpi=1000)
