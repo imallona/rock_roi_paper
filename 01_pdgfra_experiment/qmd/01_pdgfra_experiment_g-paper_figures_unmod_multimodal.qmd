@@ -1626,6 +1626,8 @@ plotTracks(c(rr_cryptb,
            sizes=c(1,1,1,1,1),
            lwd.sashimiMax=2)
 
+
+
 ```
 
 ### Representation zoomed in region Pdgfra
@@ -1687,7 +1689,7 @@ plotTracks(c(wta_um_cryptb,
            sizes=c(3,30,3),
            ylim=c(0,150))
 
-plotTracks(c(tso_rr_cryptt, 
+plotTracks(c(rr_cryptt, 
              tso_a_rr_cryptt,
              gm_pdgfra),
            from = region_start+30000, 
