@@ -36,8 +36,10 @@ library(gridExtra)
 library(corrplot)
 library(RColorBrewer)
 
-rdss <- dir(here("01_pdgfra_experiment"), "^pd.*rds$", 
+rdss <- dir(here("01_pdgfra_experiment"), "*_sce.rds", 
             recursive = TRUE, full.names = TRUE)
+names(rdss) <- gsub("_sce.rds", "", basename(rdss))
+rdss
 
 names(rdss) <- gsub("_sce.rds", "", basename(rdss))
 rdss
@@ -166,7 +168,7 @@ sces_nd <- scDblFinder(sces_adj, samples = "sample_id")
 
 sces_nd <- sces_nd[,sces_nd$scDblFinder.class=="singlet"]
 
-saveRDS(sces, file.path(datadir, "uni_multi_filtered_doublet_removed.rds")) # commented out so always use same object 
+#saveRDS(sces, file.path(datadir, "uni_multi_filtered_doublet_removed.rds")) # commented out so always use same object 
 
 rm(sces,sces_nd,sce)
 

@@ -308,7 +308,9 @@ ggplot(plottable,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","unmod","100_
                              "25_gfp"="#99CA3C",
                              "25_dt"="#AA4599",
                              "10_gfp"="#99CA3C",
-                             "10_dt"="#AA4599"))
+                             "10_dt"="#AA4599"))+
+  scale_y_continuous(limits = c(50000, 100000), breaks = seq(50000, 100000, 10000))
+
 
 
 list_filt_titration<-list()
@@ -340,7 +342,8 @@ ggplot(plottable,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","unmod","100_
                              "25_gfp"="#99CA3C",
                              "25_dt"="#AA4599",
                              "10_gfp"="#99CA3C",
-                             "10_dt"="#AA4599"))
+                             "10_dt"="#AA4599"))+
+  scale_y_continuous(limits = c(30000, 90000), breaks = seq(30000, 90000, 20000))
 
 ```
 
