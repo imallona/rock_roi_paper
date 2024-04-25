@@ -1,0 +1,223 @@
+---
+title: "Sankey_stats_first_mixing"
+author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+
+### Load packages
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(googlesheets4)
+library(readr)
+library(plotROC)
+library(here)
+library(RColorBrewer)
+library(ggnewscale)
+library(scales)
+library(rmarkdown)
+library(khroma)
+library(irlba)
+library(viridis)
+library(gridExtra)
+library(quarto)
+library(ggrastr)
+library(svglite)
+
+```
+
+### Setting up knitr 
+
+```{r}
+
+knitr::opts_chunk$set(fig.width = 2.7,
+               fig.height = 2.7,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache=TRUE,
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+### Themes
+
+```{r}
+
+rock_roi_theme<-function(){
+  theme(axis.text = element_text(size=7), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=7),
+        aspect.ratio=1,
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+}
+
+rock_roi_theme_multiple_panels<-function(){
+    theme(axis.text = element_text(size=7), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        aspect.ratio=1,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=7),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.border = element_rect(colour = "black", fill = NA))
+}
+
+```
+
+
+### Load data
+
+```{r}
+
+getwd() # after opening the .Rproj file, getwd() should be "/Users/gimoro/figure_making_paper/rock_roi_paper"
+
+rdss <- dir(here("03_first_mixing_experiment"), "*sce.rds", 
+            recursive = TRUE, full.names = TRUE)
+
+names(rdss) <- gsub("_sce.rds", "", basename(rdss))
+
+rdss # prints the .rds files in the 00_mixing_experiment folder
+
+datadir <- dirname(rdss)[1] # folder where the .rds files are 
+
+sces <- mapply(function(u,v)  {
+  rds <- readRDS(u)
+  rds$sample_id <- v
+  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
+  colnames(rowData(rds)) <- c("name", "type", "value","captured")
+  g <- grepl("^ENS", rownames(rds))
+  rownames(rds)[g] <- paste0(rownames(rds)[g], 
+                             "__", rowData(rds)$name[g])
+  rowData(rds)$type <- "capture"
+  k <- grepl("^ENSG", rownames(rds))
+  rowData(rds)$type[k] <- "human_gene"
+  k <- grepl("^ENSMUS", rownames(rds))
+  rowData(rds)$type[k] <- "mouse_gene"
+  k <- grepl("^mt", rowData(rds)$name)
+  rowData(rds)$type[k] <- "mouse_mito"
+  k <- grepl("^MT", rowData(rds)$name)
+  rowData(rds)$type[k] <- "human_mito"
+  rds
+}, rdss, names(rdss))
+
+sce<-Reduce(cbind, sces)
+
+sce_filt<-readRDS(file.path(datadir, "sce_filt.rds"))
+
+sce_nd<-readRDS(file.path(datadir, "sce_nd.rds"))
+
+```
+
+### Defining regions in filt dataset for tso_ontarget_multi and wta_ontarget_multi
+
+```{r}
+
+anno_url <- "https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=978414281"
+anno_df <- read_sheet(anno_url, "transcript-regions-mark") 
+anno_df <- anno_df[anno_df$Experiment=="Mixing",]
+
+regs <- split(anno_df$Name_in_gtf_file, anno_df$region_name)
+
+# compute aggregates for egfp/tdtomato for TSO
+ae <- altExp(sce_filt,"tso_ontarget_multi")
+cd <- colData(ae)
+
+for(i in 1:length(regs))
+  cd[[ names(regs)[i] ]] <- colSums(assay(ae,1)[regs[[i]],,drop=FALSE])
+
+colData(altExp(sce_filt,"tso_ontarget_multi")) <- cd
+# ---------------
+
+# compute aggregates for egfp/tdtomato for WTA
+ae <- altExp(sce_filt,"wta_ontarget_multi")
+cd <- colData(ae)
+
+for(i in 1:length(regs))
+  cd[[ names(regs)[i] ]] <- colSums(assay(ae,1)[regs[[i]],,drop=FALSE])
+
+colData(altExp(sce_filt,"wta_ontarget_multi")) <- cd
+# ---------------
+
+```
+
+### Total
+
+```{r}
+
+sum(assay(sce[,sce$sample_id=="unmod"],1))
+
+sum(assay(sce[,sce$sample_id=="unmod"],2))
+
+sum(assay(sce[,sce$sample_id=="unmod_n1"],1))
+
+sum(assay(sce[,sce$sample_id=="unmod_n1"],2))
+
+```
+
+### On target unique
+
+```{r}
+
+on_target_wta<-sum(assay(sce[,sce$sample_id=="unmod_n1"],1)[regs$egfp_cds,,drop=FALSE])+
+  sum(assay(sce[,sce$sample_id=="unmod_n1"],1)[regs$tdtom_cds,,drop=FALSE])
+
+on_target_tso<-sum(assay(sce[,sce$sample_id=="unmod_n1"],2)[regs$egfp_cds,,drop=FALSE])+
+  sum(assay(sce[,sce$sample_id=="unmod_n1"],2)[regs$tdtom_cds,,drop=FALSE])
+
+```
+
+### On target multimapped
+
+```{r}
+
+on_target_wta<-sum(assay(altExp(sce[,sce$sample_id=="unmod_n1"],1))[regs$egfp_cds,,drop=FALSE])+
+  sum(assay(altExp(sce[,sce$sample_id=="unmod_n1"],1))[regs$tdtom_cds,,drop=FALSE])
+
+on_target_tso<-sum(assay(altExp(sce[,sce$sample_id=="unmod_n1"],2))[regs$egfp_cds,,drop=FALSE])+
+  sum(assay(altExp(sce[,sce$sample_id=="unmod_n1"],2))[regs$tdtom_cds,,drop=FALSE])
+
+```
+
+### Session Info
+
+```{r}
+
+sessionInfo()
+
+```
+

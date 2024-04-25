@@ -1,5 +1,5 @@
 ---
-title: "01_pdgfra_experiment_e-unimodal_vs_multimodal.qmd"
+title: "01_pdgfra_experiment_f-unimodal_multimodal_paper_figures"
 author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
 format: 
   html:
@@ -8,9 +8,9 @@ format:
     keep_md: true
 ---
 
-## Load packages, load data
+### Loading libraries and data
 
-```{r, warning=FALSE, message=FALSE}
+```{r,warning=FALSE, message=FALSE}
 
 rm(list=ls())
 
@@ -32,51 +32,29 @@ library(Matrix)
 library(scDblFinder)
 library(edgeR)
 library(ggpubr)
+library(khroma)
 library(gridExtra)
 library(corrplot)
 library(RColorBrewer)
+library(ggrastr)
 
 rdss <- dir(here("01_pdgfra_experiment"), "^pd.*rds$", 
             recursive = TRUE, full.names = TRUE)
 
 names(rdss) <- gsub("_sce.rds", "", basename(rdss))
-rdss
 
 datadir <- dirname(rdss)[1]
 
-sces <- mapply(function(u,v)  {
-  rds <- readRDS(u)
-  rds$sample_id <- v
-  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
-  colnames(rowData(rds)) <- c("name", "type", "value")
-  g <- grepl("^ENS", rownames(rds))
-  rownames(rds)[g] <- paste0(rownames(rds)[g], 
-                             "__", rowData(rds)$name[g])
-  rowData(rds)$gene_type <- "capture"
-  k <- grepl("^ENSG", rownames(rds))
-  rowData(rds)$gene_type[k] <- "human_gene"
-  k <- grepl("^ENSMUS", rownames(rds))
-  rowData(rds)$gene_type[k] <- "mouse_gene"
-  k <- grepl("^mt", rowData(rds)$name)
-  rowData(rds)$gene_type[k] <- "mouse_mito"
-  k <- grepl("^MT", rowData(rds)$name)
-  rowData(rds)$gene_type[k] <- "human_mito"
-  rds
-}, rdss, names(rdss))
-
-sces<-sces[c("pdgfra_rockroi_multimodal","pdgfra_rockroi_unimodal")]
-sce <- Reduce(cbind, sces)
-
-table(sce$sample_id)
+sce<-readRDS(file.path(datadir, "uni_multi_filtered_doublet_removed.rds"))
 
 ```
 
-### Setting up knitr 
+### Setting up knitr
 
 ```{r}
 
-knitr::opts_chunk$set(fig.width = 2.7,
-               fig.height = 2.7,
+knitr::opts_chunk$set(fig.width = 3,
+               fig.height = 3,
                fig.align = "center",
                include = TRUE,
                dev = c("png","svg"),
@@ -92,13 +70,13 @@ knitr::opts_chunk$set(fig.width = 2.7,
 ```{r}
 
 rock_roi_theme<-function(){
-  theme(axis.text = element_text(size=7), 
-        plot.title=element_text(size=7,face="bold",hjust=0.5),
-        axis.title=element_text(size=7,face="bold"),
-        strip.text=element_text(size=7,face="bold"),
-        legend.title=element_text(size=7,face="bold"),
-        legend.text=element_text(size=7),
-        aspect.ratio=1, 
+  theme(axis.text = element_text(size = 5), 
+        plot.title=element_text(size=5,face="bold",hjust=0.5),
+        axis.title=element_text(size=5,face="bold"),
+        strip.text=element_text(size=5,face="bold"),
+        legend.title=element_text(size=5,face="bold"),
+        legend.text=element_text(size=5),
+        aspect.ratio=1,
         legend.key.size = unit(0.5, 'cm'),
         legend.margin=margin(0,0,0,0),
         legend.box.margin=margin(-5,-5,-5,-5),
@@ -108,10 +86,10 @@ rock_roi_theme<-function(){
 }
 
 rock_roi_theme_multiple_panels<-function(){
-    theme(axis.text = element_text(size=7), 
-        plot.title=element_text(size=7,face="bold",hjust=0.5),
-        axis.title=element_text(size=7,face="bold"),
-        strip.text=element_text(size=7,face="bold"),
+    theme(axis.text = element_text(size = 5), 
+        plot.title=element_text(size=5,face="bold",hjust=0.5),
+        axis.title=element_text(size=5,face="bold"),
+        strip.text=element_text(size=5,face="bold"),
         aspect.ratio=1,
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
@@ -127,54 +105,22 @@ rock_roi_theme_multiple_panels<-function(){
 
 ```
 
-### Filtering dataset
+### Defining colors
 
 ```{r}
 
-rd <- rowData(sce)
-sce <- addPerCellQCMetrics(sce, assay.type = "wta",
-                           subsets=list(capture=rd$gene_type=="capture",
-                                        mouse_gene=rd$gene_type=="mouse_gene",
-                                        mouse_mito=rd$gene_type=="mouse_mito"))
+myscale<-c(color("muted")(9), gray="darkgrey", 
+             black = "black", darkorange = "darkorange",
+             yellowgreen = "yellowgreen")
 
-cd <- colData(sce) %>% as.data.frame
+# defining colors for samples and for species
 
-ggplot(cd, aes(x = total, y = subsets_mouse_mito_percent)) +
-  geom_point() + scale_x_log10() + scale_y_sqrt() +
-  facet_wrap(~sample_id) + 
-  geom_hline(yintercept=c(1,75), colour="orange") +
-  geom_vline(xintercept=c(2000), colour="orange") +
-  geom_density2d()
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtom_cds","no_detection","doublets","unmod_n1","high")
 
-# crude filter
-
-mito <- sce$subsets_mouse_mito_percent
-sces <- sce[,sce$total>2000 & mito>1 & mito<75]
-sces <- sces[rowSums(assay(sces,1))>2 | rowData(sces)$gene_type=="capture" ,] 
+#plot(1:13, col=myscale, pch=19, cex=4)
 
 ```
 
-### Doublet removal
-
-```{r}
-
-sces_adj <- sces
-counts(sces_adj) <- assay(sces, 1)
-colnames(sces_adj) <- sces_adj$sample_id.barcode
-
-sces_nd <- scDblFinder(sces_adj, samples = "sample_id")
-
-sces_nd <- sces_nd[,sces_nd$scDblFinder.class=="singlet"]
-
-saveRDS(sces, file.path(datadir, "uni_multi_filtered_doublet_removed.rds")) # commented out so always use same object 
-
-rm(sces,sces_nd,sce)
-
-sce<-readRDS(file.path(datadir, "uni_multi_filtered_doublet_removed.rds"))
-
-table(sce$sample_id)
-
-```
 
 ### Calculating HVGs and logcpms
 
@@ -258,21 +204,27 @@ cor(pdgfra_dataframe$unimodal,pdgfra_dataframe$multimodal,method="spearman")
 df_dge_unimodal_logcpm<-as.data.frame(dge_unimodal_logcpm)
 df_dge_multimodal_logcpm<-as.data.frame(dge_multimodal_logcpm)
 
-test<-cor(df_dge_unimodal_logcpm,df_dge_multimodal_logcpm,method="spearman")
+test<-cor(df_dge_unimodal_logcpm,df_dge_multimodal_logcpm,method="pearson")
 
 diagonal<-diag(test) # use the diagonal because they will be the same cells 
 
 df_diagonal<-as.data.frame(diagonal)
 
-ggplot(df_diagonal,aes(x=diagonal))+
-  geom_density()+
-  rock_roi_theme()+
+plot1<-ggplot(df_diagonal,aes(x=diagonal))+
+  geom_density(bw=0.05)+
   theme_bw()+
   rock_roi_theme()+
-  xlab("spearman corr")
+  xlab("pearson corr")
+
+
+plot1<-rasterize(plot1, layers='Point', dpi=1000)
+
+plot1
+
+ggsave(file=file.path(datadir,"single_corr.svg"), plot=plot1, width=1.6, height=1.6)
+
 
 ```
-
 ### Based on cell type annotation 
 
 ```{r}
@@ -317,25 +269,26 @@ for (i in unique(combined$annotation)){
   for (k in unique(gsub('[[:digit:]]+', '', rownames(sub)))){
     x<-cor(sub[grep(k,rownames(sub)),]$unimodal,
           sub[grep(k,rownames(sub)),]$multimodal,
-          method="spearman")
+          method="pearson")
     corrs<-c(corrs,x)
   }
   
   all_cors[[i]]<-corrs
 }
 
+
 # separate correlations for all cell types
 
-for (i in 1:length(all_cors)){
-  p<-ggplot(data.frame(x=all_cors[[i]]),aes(x=x))+
-  geom_density()+
-  theme_bw()+
-  xlab("spearman corr")+
-  ggtitle(names(all_cors)[i])+
-  xlim(0,1)
-  
-  print(p)
-}
+# for (i in 1:length(all_cors)){
+#   p<-ggplot(data.frame(x=all_cors[[i]]),aes(x=x))+
+#   geom_density()+
+#   rock_roi_theme()
+#   theme_bw()+
+#   xlab("spearman corr")+
+#   ggtitle(names(all_cors)[i])
+#   
+#   print(p)
+# }
 
 # plotting all correlations overlayed
 
@@ -347,13 +300,21 @@ for (i in 1:length(all_cors)){
 
 p_all_cors_list<-bind_rows(all_cors_list)
 
+names(myscale)<-unique(sce_labelled$annotation)
+
 p<-ggplot(p_all_cors_list,aes(x=values,color=name,fill=name))+
-geom_density(alpha=0.1)+
-theme_bw()+
-xlab("spearman corr")+
-xlim(0,1)
+  geom_density(alpha=0.1)+
+  theme_bw()+
+  rock_roi_theme()+
+  xlab("pearson corr")+
+  scale_color_manual(values=myscale)
   
-print(p)
+p<-rasterize(p, layers='Point', dpi=1000)
+
+p
+
+ggsave(file=file.path(datadir,"all_corrs.svg"), plot=p, width=5.4, height=5.4)
+
 
 ```
 

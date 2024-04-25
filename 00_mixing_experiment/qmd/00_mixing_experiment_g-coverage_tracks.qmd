@@ -45,8 +45,8 @@ library(here)
 
 library(knitr)
 
-knitr::opts_chunk$set(fig.width = 6,
-               fig.height = 6,
+knitr::opts_chunk$set(fig.width = 4,
+               fig.height = 2.4,
                fig.align = "center",
                include = TRUE,
                dev = c("png","svg"),
@@ -106,7 +106,7 @@ combined_gtf<-rtracklayer::import(gtf)
 # read annotation info from GS
 anno_url <- "https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=978414281"
 anno_df <- read_sheet(anno_url, "transcript-regions-mark") %>%
-  filter(Experiment=="Mixing")
+  dplyr::filter(Experiment=="Mixing")
 regs <- split(anno_df$Name_in_gtf_file, anno_df$region_name)
 names(regs)<-c("egfp_cds","egfp_roi","egfp_tx","tdtomato_cds","tdtomato_roi1","tdtomato_roi2","tdtomato_tx")
 
@@ -141,6 +141,12 @@ for (x in chr){
                            background.title=myscale[[paste0(x,"_cds")]])
   gms[[x]]<-gm
 }
+
+min(start(ranges(gms$egfp@range)))
+max(end(ranges(gms$egfp@range)))
+
+min(start(ranges(gms$tdtomato@range)))
+max(end(ranges(gms$tdtomato@range)))
 
 ```
 
@@ -262,7 +268,7 @@ for (x in chr){
     bam_coverages[[x]]<-covs
     bam_coverages_overlayed[[x]]<-overlays_bam
 }
-packageVersion("GenomicAlignments")
+
 ```
 
 ### Separating mouse vs human based on barcodes
@@ -364,6 +370,7 @@ for (x in chr){
            type="histogram",
            from=start(gms[[x]]@range)[1]-500,
            to=gms[[x]]@end,
+           cex=0.1,
            cex.axis = 0.5,
            cex.title=0.5,
            col.axis="white",
@@ -474,7 +481,7 @@ for (x in chr){
 
 ### zoom into polyA tail 
 
-```{r}
+```{r,fig.width = 4,fig.height = 2.7}
 
 chr<-c("egfp")
 
@@ -560,7 +567,7 @@ for (x in chr){
 
 ### zoom in polyA for tdTomato 
 
-```{r}
+```{r,fig.width = 4,fig.height = 2.7}
 
 chr<-c("tdtomato")
 

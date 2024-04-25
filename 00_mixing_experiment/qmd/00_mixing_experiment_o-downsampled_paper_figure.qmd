@@ -1,5 +1,5 @@
 ---
-title: "00_mixing_experiment_f-paper_figures"
+title: "00_mixing_experiment_o-downsampled_paper_figure"
 author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
 format: 
   html:
@@ -7,6 +7,7 @@ format:
     embed-resources: true
     keep_md: true
 ---
+
 
 ### Load packages, load data 
 
@@ -54,35 +55,26 @@ datadir <- dirname(rdss)[1] # folder where the .rds files are
 
 # unfiltered object 
 
-sces <- mapply(function(u,v)  {
-  rds <- readRDS(u)
-  rds$sample_id <- v
-  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
-  # colnames(rowData(rds)) <- c("name", "type", "value","captured")
-  g <- grepl("^ENS", rownames(rds))
-  rownames(rds)[g] <- paste0(rownames(rds)[g], 
-                             "__", rowData(rds)$name[g])
-  rowData(rds)$type <- "capture"
-  k <- grepl("^ENSG", rownames(rds))
-  rowData(rds)$type[k] <- "human_gene"
-  k <- grepl("^ENSMUS", rownames(rds))
-  rowData(rds)$type[k] <- "mouse_gene"
-  k <- grepl("^mt", rowData(rds)$name)
-  rowData(rds)$type[k] <- "mouse_mito"
-  k <- grepl("^MT", rowData(rds)$name)
-  rowData(rds)$type[k] <- "human_mito"
-  rds
-}, rdss, names(rdss))
+sce<-readRDS(file.path(datadir,"downsampled_no_filt.rds"))
+
+mixing_rock<-sce[,sce$sample_id=="mixing_rock"]
+downsampled_rockroi<-sce[,sce$sample_id=="downsampled_rockroi"]
+downsampled_unmod_roi<-sce[,sce$sample_id=="downsampled_unmod_roi"]
+downsampled_unmod<-sce[,sce$sample_id=="downsampled_unmod"]
+
+sces<-list(mixing_rock=mixing_rock,downsampled_rockroi=downsampled_rockroi,downsampled_unmod_roi=downsampled_unmod_roi,downsampled_unmod=downsampled_unmod)
 
 sce <- Reduce(cbind, sces)
 
+rm(sces)
+
 # filtered object
 
-sce_filt<-readRDS(file.path(datadir, "sce_filt.rds"))
+sce_filt<-readRDS(file.path(datadir, "downsampled_sce_filt.rds"))
 
 # filtered after doublet removal 
 
-sce_nd<-readRDS(file.path(datadir, "sce_nd.rds"))
+sce_nd<-readRDS(file.path(datadir, "downsampled_sce_nd.rds"))
 
 ```
 
@@ -179,9 +171,9 @@ sce$species[which(sce$subsets_human_gene_percent>50)]<-"human"
 cd <- colData(sce) %>% as.data.frame %>% 
   mutate(total_mito_percent = subsets_mouse_mito_percent+subsets_human_mito_percent)
 
-table(sce$species) # not removing the unknown species yet
+table(sce$species,sce$sample_id) # not removing the unknown species yet
 
-plot1<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=detected)) +
+plot1<-ggplot(cd, aes(x=factor(sample_id,levels=c("downsampled_unmod","downsampled_unmod_roi","mixing_rock","dowsampled_rockroi")), y=detected)) +
         geom_violin()+  
   theme_bw()+
   xlab("")+
@@ -198,10 +190,10 @@ plot1<-rasterize(plot1, layers='Point', dpi=1000)
 
 plot1
 
-ggsave(file=file.path(datadir,"genes.svg"), plot=plot1, width=2.7, height=2.7)
+ggsave(file=file.path(datadir,"downsampled_genes.svg"), plot=plot1, width=2.7, height=2.7)
 
 
-plot2<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=total)) +
+plot2<-ggplot(cd, aes(x=factor(sample_id,levels=c("downsampled_unmod","downsampled_unmod_roi","mixing_rock","downsampled_rockroi")), y=total)) +
         geom_violin()+  
   theme_bw()+
   xlab("")+
@@ -218,9 +210,9 @@ plot2<-rasterize(plot2, layers='Point', dpi=1000)
 
 plot2
 
-ggsave(file=file.path(datadir,"transcripts.svg"), plot=plot2, width=2.75, height=2.75)
+ggsave(file=file.path(datadir,"downsampled_transcripts.svg"), plot=plot2, width=2.75, height=2.75)
 
-plot3<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_roi","rock","rockroi")), y=total_mito_percent)) +
+plot3<-ggplot(cd, aes(x=factor(sample_id,levels=c("downsampled_unmod","downsampled_unmod_roi","mixing_rock","downsampled_rockroi")), y=total_mito_percent)) +
         geom_violin()+  
   theme_bw()+
   xlab("")+
@@ -235,7 +227,7 @@ plot3<-rasterize(plot3, layers='Point', dpi=1000)
 
 plot3
 
-ggsave(file=file.path(datadir,"mitochondria.svg"), plot=plot3, width=2.7, height=2.7)
+ggsave(file=file.path(datadir,"downsampled_mitochondria.svg"), plot=plot3, width=2.7, height=2.7)
 
 ```
 
@@ -244,17 +236,17 @@ ggsave(file=file.path(datadir,"mitochondria.svg"), plot=plot3, width=2.7, height
 ```{r,height=2.7,width=5.4}
 
 cd$filt<-NA
-cd[cd$sample_id=="unmod",]$filt<-3500
-cd[cd$sample_id=="unmod_roi",]$filt<-3500
-cd[cd$sample_id=="rock",]$filt<-2750
-cd[cd$sample_id=="rockroi",]$filt<-3700
+cd[cd$sample_id=="downsampled_unmod",]$filt<-2750
+cd[cd$sample_id=="downsampled_unmod_roi",]$filt<-2750
+cd[cd$sample_id=="mixing_rock",]$filt<-2550
+cd[cd$sample_id=="downsampled_rockroi",]$filt<-2750
 
 plot1<-ggplot(cd, aes(x = total, y = total_mito_percent)) +
   geom_point(aes(color=sce$species),size=0.5,alpha=0.5,stroke=NA) + 
   scale_x_log10() + 
   scale_y_sqrt() +
-  facet_wrap(~factor(sample_id,levels=c("unmod","unmod_roi",
-                                        "rock","rockroi")),nrow=1) + 
+  facet_wrap(~factor(sample_id,levels=c("downsampled_unmod","downsampled_unmod_roi",
+                                        "mixing_rock","downsampled_rockroi")),nrow=1) + 
   theme_bw()+
   xlab("mitochondrial transcripts WTA (%)")+
   ylab("# transcripts WTA")+
@@ -393,8 +385,6 @@ ae$tdtom_detection_score[ae$tdtom_roi1>0] <- 3
 ae$tdtom_detection_score[ae$tdtom_roi2>0] <- 3
 ae$tdtom_detection_score[ae$tdtom_roi2>0 & ae$tdtom_roi1>0] <- 4
 
-table(ae$detection_score)
-
 altExp(sce_filt,"combined_wta_tso") <- ae
 
 ```
@@ -422,6 +412,7 @@ table(sce_filt$species,
 ```{r}
 
 sce_filt$sample_id<-gsub("mixing_", "", sce_filt$sample_id)
+sce_filt$sample_id<-gsub("downsampled_", "", sce_filt$sample_id)
 
 cd<-colData(sce_filt) %>% as.data.frame
 
@@ -453,7 +444,6 @@ ggsave(file=file.path(datadir,"humanmouse.svg"), plot=plot2, width=5.4, height=2
 sce_filt <- sce_filt[, !sce_filt$species== "unknown"]
 
 ```
-
 
 ### Barnyard plot with CDS detection for TSO data only 
 
@@ -571,6 +561,8 @@ ggsave(file=file.path(datadir,"barnyardqc_total.svg"), plot=plot3, width=5.7, he
 ```{r}
 
 sce_nd$sample_id<-gsub("mixing_", "", sce_nd$sample_id)
+sce_nd$sample_id<-gsub("downsampled_", "", sce_nd$sample_id)
+
 
 rds <- rowData(sce_nd)
 
@@ -675,7 +667,6 @@ plot6
 ggsave(file=file.path(datadir,"barnyard.svg"), plot=plot6, width=2.3, height=2.3)
 
 ```
-
 
 ### Same for genes
 
@@ -1019,4 +1010,6 @@ ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=samples))
 sessionInfo()
 
 ```
+
+
 

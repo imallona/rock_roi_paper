@@ -1,0 +1,148 @@
+---
+title: "00_mixing_experiment-m_downsampling_count_tables"
+author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+
+### Load packages
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(plotROC)
+library(here)
+library(RColorBrewer)
+library(ggnewscale)
+library(scales)
+library(rmarkdown)
+library(irlba)
+library(viridis)
+library(gridExtra)
+library(quarto)
+library(googlesheets4)
+
+```
+
+### Load data
+
+```{r}
+
+rdss <- dir(here("00_mixing_experiment"), "^mixing.*rds", 
+            recursive = TRUE, full.names = TRUE)
+names(rdss) <- gsub("_sce.rds", "", basename(rdss))
+rdss
+
+datadir <- dirname(rdss)[1]
+
+sces <- mapply(function(u,v)  {
+  rds <- readRDS(u)
+  rds$sample_id <- v
+  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
+  colnames(rowData(rds)) <- c("name", "type", "value","captured")
+  g <- grepl("^ENS", rownames(rds))
+  rownames(rds)[g] <- paste0(rownames(rds)[g], 
+                             "__", rowData(rds)$name[g])
+  rowData(rds)$type <- "capture"
+  k <- grepl("^ENSG", rownames(rds))
+  rowData(rds)$type[k] <- "human_gene"
+  k <- grepl("^ENSMUS", rownames(rds))
+  rowData(rds)$type[k] <- "mouse_gene"
+  k <- grepl("^mt", rowData(rds)$name)
+  rowData(rds)$type[k] <- "mouse_mito"
+  k <- grepl("^MT", rowData(rds)$name)
+  rowData(rds)$type[k] <- "human_mito"
+  rds
+}, rdss, names(rdss))
+
+for (i in sces){
+  print(paste0(mainExpName(i),"_",sum(assay(i,"wta")))) # lowest is mixing_unmod_roi with mixing_unmod_roi_40190501
+}
+
+
+
+```
+
+### Using downsample Matrix
+
+```{r}
+
+mean(colSums(assay(sces[["mixing_unmod"]],"wta"))) 
+mean(colSums(assay(sces[["mixing_unmod_roi"]],"wta"))) 
+mean(colSums(assay(sces[["mixing_rock"]],"wta"))) # lowest is 5181.20
+mean(colSums(assay(sces[["mixing_rockroi"]],"wta"))) 
+
+# proportions
+
+proportion_unmod<-mean(colSums(assay(sces[["mixing_rock"]],"wta")))/mean(colSums(assay(sces[["mixing_unmod"]],"wta")))
+proportion_unmod_roi<-mean(colSums(assay(sces[["mixing_rock"]],"wta")))/mean(colSums(assay(sces[["mixing_unmod_roi"]],"wta")))
+proportion_rockroi<-mean(colSums(assay(sces[["mixing_rock"]],"wta")))/mean(colSums(assay(sces[["mixing_rockroi"]],"wta")))
+
+test_unmod<-downsampleMatrix(x=assay(sces[["mixing_unmod"]],"wta"), prop=proportion_unmod, bycol = TRUE, sink = NULL)
+test_unmod_roi<-downsampleMatrix(x=assay(sces[["mixing_unmod_roi"]],"wta"), prop=proportion_unmod_roi, bycol = TRUE, sink = NULL)
+test_rockroi<-downsampleMatrix(x=assay(sces[["mixing_rockroi"]],"wta"), prop=proportion_rockroi, bycol = TRUE, sink = NULL)
+
+mean(colSums(assay(sces[["mixing_rock"]],"wta")))
+mean(colSums(test_unmod))
+mean(colSums(test_unmod_roi))
+mean(colSums(test_rockroi))
+
+sum(assay(sces[["mixing_unmod"]],"wta"))
+sum(test_unmod)
+
+sum(assay(sces[["mixing_rockroi"]],"wta"))
+sum(test_unmod_roi)
+
+sum(assay(sces[["mixing_rock"]],"wta"))
+
+sum(assay(sces[["mixing_unmod_roi"]],"wta"))
+sum(test_rockroi)
+
+downsampled_unmod<-sces[["mixing_unmod"]]
+downsampled_unmod_roi<-sces[["mixing_unmod_roi"]]
+downsampled_rockroi<-sces[["mixing_rockroi"]]
+
+assay(downsampled_unmod,"wta")<-test_unmod
+assay(downsampled_unmod_roi,"wta")<-test_unmod_roi
+assay(downsampled_rockroi,"wta")<-test_rockroi
+
+sces$downsampled_unmod<-downsampled_unmod
+sces$downsampled_unmod_roi<-downsampled_unmod_roi
+sces$downsampled_rockroi<-downsampled_rockroi
+
+sces$downsampled_unmod$sample_id<-"downsampled_unmod"
+sces$downsampled_unmod_roi$sample_id<-"downsampled_unmod_roi"
+sces$downsampled_rockroi$sample_id<-"downsampled_rockroi"
+
+sce <- Reduce(cbind, sces)
+
+table(sce$sample_id)
+
+#saveRDS(sce,file.path(datadir, "downsampled_no_filt.rds"))
+
+```
+
+### SessionInfo
+
+```{r}
+
+sessionInfo()
+
+```
+

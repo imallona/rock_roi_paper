@@ -51,6 +51,7 @@ library(irlba)
 library(viridis)
 library(gridExtra)
 library(quarto)
+library(googlesheets4)
 
 ```
 
@@ -60,7 +61,7 @@ library(quarto)
 
 getwd() # after opening the .Rproj file, getwd() should be "/Users/gimoro/figure_making_paper/rock_roi_paper"
 
-rdss <- dir(here("03_first_mixing_experiment"), "^mixing.*rds", 
+rdss <- dir(here("03_first_mixing_experiment"), ".*rds", 
             recursive = TRUE, full.names = TRUE)
 
 names(rdss) <- gsub("_sce.rds", "", basename(rdss))
@@ -108,11 +109,26 @@ sce <- addPerCellQCMetrics(sce, assay.type = "wta",
 cd <- colData(sce) %>% as.data.frame %>% 
   mutate(total_mito_percent = subsets_mouse_mito_percent+subsets_human_mito_percent)
 
-ggplot(cd, aes(x = total, y = total_mito_percent)) +
-  geom_point() + scale_x_log10() + scale_y_sqrt() +
-  facet_wrap(~factor(sample_id,levels=c("mixing_unmod","mixing_unmod_n1"))) + 
+# separate filtering for the two 
+
+ggplot(cd[cd$sample_id=="unmod",], aes(x = total, y = total_mito_percent)) +
+  geom_point(size=0.5) + scale_x_log10() + scale_y_sqrt() +
   geom_hline(yintercept=c(2,28), colour="orange") +
-  geom_vline(xintercept=c(1400), colour="orange") +
+  geom_vline(xintercept=c(3000), colour="orange") +
+  geom_density2d()+
+  theme_bw()+
+  xlab("total number of transcripts")+
+  ylab("percent mitochondrial reads")+
+  labs(title="Total number of transcripts vs percent mitochondrial reads")+
+  theme(axis.text = element_text(size = 15), 
+        plot.title=element_text(size=15,face="bold"),
+        axis.title=element_text(size=15,face="bold"),
+        strip.text=element_text(size=15,face="bold"))
+
+ggplot(cd[cd$sample_id=="unmod_n1",], aes(x = total, y = total_mito_percent)) +
+  geom_point(size=0.5) + scale_x_log10() + scale_y_sqrt() +
+  geom_hline(yintercept=c(2,28), colour="orange") +
+  geom_vline(xintercept=c(3700), colour="orange") +
   geom_density2d()+
   theme_bw()+
   xlab("total number of transcripts")+
@@ -150,14 +166,27 @@ ggplot(cd, aes(x = total,
 
 ```{r}
 
+# unmod n1 3700, unmod 3000
+
 mito <- sce$subsets_mouse_mito_percent+sce$subsets_human_mito_percent
-sce_filt <- sce[,sce$total>1400 & mito>2 & mito<28]
+
+s_unmod<-sce[,sce$sample_id=="unmod"]
+s_n1<-sce[,sce$sample_id=="unmod_n1"]
+
+mito_unmod <- s_unmod$subsets_mouse_mito_percent+s_unmod$subsets_human_mito_percent
+mito_unmod_n1 <- s_n1$subsets_mouse_mito_percent+s_n1$subsets_human_mito_percent
+
+s_unmod<-s_unmod[,s_unmod$total>3000 & mito_unmod >2 & mito_unmod<28]
+s_n1<-s_n1[,s_n1$total>3700 & mito_unmod_n1 >2 & mito_unmod_n1<28]
+
+sce_filt<-cbind(s_unmod,s_n1)
+
 sce_filt <- sce_filt[rowSums(assay(sce_filt,1))>2 | rowData(sce_filt)$type=="capture" ,] 
 
-#saveRDS(sce_filt, file.path(datadir, "sce_filt.rds"))
+saveRDS(sce_filt, file.path(datadir, "sce_filt.rds"))
 sce_filt<-readRDS(file.path(datadir, "sce_filt.rds"))
 
-rm(sce,sces)
+rm(sce,sces,s_unmod,s_n1)
 
 ```
 
@@ -167,7 +196,7 @@ rm(sce,sces)
 
 anno_url <- "https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=978414281"
 anno_df <- read_sheet(anno_url, "transcript-regions-mark") %>%
-  filter(Experiment=="Mixing")
+  dplyr::filter(Experiment=="Mixing")
 
 regs <- split(anno_df$Name_in_gtf_file, anno_df$region_name)
 
@@ -227,8 +256,6 @@ rm(sce_filt)
 
 ```
 
-
-
 ### TSO vs WTA information 
 
 ```{r}
@@ -275,8 +302,8 @@ ggplot(df, aes(x = tso_total, y = wta_total, color = log_1p_tso_ontarget_multi))
     axis.text = element_text(size = 15),
     axis.title = element_text(size = 20, face = "bold"),
     strip.text = element_text(size = 15, face = "bold"))+
-  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", 
-                                           "mixing_unmod_n1")))+
+  facet_wrap(~factor(sample_id, levels = c("unmod", 
+                                           "unmod_n1")))+
   labs(title="total WTA UMIs vs total TSO UMIs")+
   scale_color_viridis()
 
@@ -291,8 +318,8 @@ df$wta_capture_sum_cds<-colSums(assay(ae_wta,1)[regs$egfp_cds,,drop=FALSE])+colS
 
 ggplot(df, aes(x = tso_capture_sum_cds, y = wta_capture_sum_cds, color=wta_total))+
   geom_jitter(height = .2,alpha=0.3,size=0.5)+
-  facet_wrap(~factor(sample_id, levels = c("mixing_unmod", 
-                                           "mixing_unmod_n1"))) +
+  facet_wrap(~factor(sample_id, levels = c("unmod", 
+                                           "unmod_n1"))) +
   theme_bw()+
   xlab("on target TSO UMIs")+
   ylab("on target WTA UMIs")+
@@ -331,8 +358,8 @@ plottable<-melt(positive_cells_cds)
 
 plottable$sample<-rep(rownames(positive_cells_cds),2)
 
-ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing_unmod",
-                                                                         "mixing_unmod_n1")))) +
+ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("unmod",
+                                                                         "unmod_n1")))) +
   geom_bar(stat="identity",
            width = 0.8, 
            position = position_dodge(width = 0.9))+
@@ -357,7 +384,7 @@ ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing
 ```{r}
 
 ggplot(data=plottable,
-       aes(y=value,x=variable,color=factor(sample,levels=c("mixing_unmod","mixing_unmod_n1")))) +
+       aes(y=value,x=variable,color=factor(sample,levels=c("unmod","unmod_n1")))) +
   geom_point()+
   xlab(" ")+
   ylab("percent positive cells")+
@@ -381,7 +408,7 @@ ggplot(data=plottable,
 
 ```{r}
 
-ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("mixing_unmod","mixing_unmod_n1")),color=variable)) +
+ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("unmod","unmod_n1")),color=variable)) +
   geom_point()+
   xlab(" ")+
   ylab("percent positive cells")+
@@ -428,7 +455,7 @@ plottable<-melt(positive_cells_tx)
 
 plottable$sample<-rep(rownames(positive_cells_tx),2)
 
-ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing_unmod","mixing_unmod_n1")))) +
+ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("unmod","unmod_n1")))) +
   geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9))+
   xlab(" ")+
   ylab("percent positive cells")+
@@ -450,7 +477,7 @@ ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing
 
 ```{r}
 
-ggplot(data=plottable,aes(y=value,x=variable,color=factor(sample,levels=c("mixing_unmod","mixing_unmod_n1")))) +
+ggplot(data=plottable,aes(y=value,x=variable,color=factor(sample,levels=c("unmod","unmod_n1")))) +
   geom_point()+
   xlab(" ")+
   ylab("percent positive cells")+
@@ -474,7 +501,7 @@ ggplot(data=plottable,aes(y=value,x=variable,color=factor(sample,levels=c("mixin
 
 ```{r}
 
-ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("mixing_unmod","mixing_unmod_n1")),color=variable)) +
+ggplot(data=plottable,aes(y=value,x=factor(sample,levels=c("unmod","unmod_n1")),color=variable)) +
   geom_point()+
   xlab(" ")+
   ylab("percent positive cells")+
@@ -506,7 +533,7 @@ plottable<-melt(positive_cells)
 
 plottable$sample<-rep(rownames(positive_cells_tx),2)
 
-ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("mixing_unmod","mixing_unmod_n1")))) +
+ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=c("unmod","unmod_n1")))) +
   geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9))+
   xlab(" ")+
   ylab("percent positive cells")+

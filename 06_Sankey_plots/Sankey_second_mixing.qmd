@@ -1,0 +1,220 @@
+---
+title: "Sankey_stats_second_mixing"
+author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+
+### Load packages, load data 
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(plotROC)
+library(ggpubr)
+library(here)
+library(RColorBrewer)
+library(ggnewscale)
+library(scales)
+library(rmarkdown)
+library(irlba)
+library(viridis)
+library(gridExtra)
+library(googlesheets4)
+library(tools)
+library(khroma)
+library(ggrastr)
+
+packageVersion("Matrix")
+
+rdss <- dir(here("00_mixing_experiment"), "^mixing.*rds$", 
+            recursive = TRUE, full.names = TRUE)
+
+names(rdss) <- gsub("_sce.rds", "", basename(rdss))
+names(rdss) <- gsub("mixing_", "", names(rdss))
+
+datadir <- dirname(rdss)[1] # folder where the .rds files are 
+
+### objects generated in report 00_mixing_experiment_c-figures
+
+# unfiltered object 
+
+sces <- mapply(function(u,v)  {
+  rds <- readRDS(u)
+  rds$sample_id <- v
+  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
+  # colnames(rowData(rds)) <- c("name", "type", "value","captured")
+  g <- grepl("^ENS", rownames(rds))
+  rownames(rds)[g] <- paste0(rownames(rds)[g], 
+                             "__", rowData(rds)$name[g])
+  rowData(rds)$type <- "capture"
+  k <- grepl("^ENSG", rownames(rds))
+  rowData(rds)$type[k] <- "human_gene"
+  k <- grepl("^ENSMUS", rownames(rds))
+  rowData(rds)$type[k] <- "mouse_gene"
+  k <- grepl("^mt", rowData(rds)$name)
+  rowData(rds)$type[k] <- "mouse_mito"
+  k <- grepl("^MT", rowData(rds)$name)
+  rowData(rds)$type[k] <- "human_mito"
+  rds
+}, rdss, names(rdss))
+
+sce <- Reduce(cbind, sces)
+
+# filtered object
+
+sce_filt<-readRDS(file.path(datadir, "sce_filt.rds"))
+
+# filtered after doublet removal 
+
+sce_nd<-readRDS(file.path(datadir, "sce_nd.rds"))
+
+```
+
+### Setting up knitr 
+
+```{r}
+
+knitr::opts_chunk$set(fig.width = 2.7,
+               fig.height = 2.7,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache=TRUE,
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+### Themes
+
+```{r}
+
+rock_roi_theme<-function(){
+  theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        aspect.ratio=1,
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+}
+
+rock_roi_theme_multiple_panels<-function(){
+    theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        aspect.ratio=1,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=7),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.border = element_rect(colour = "black", fill = NA))
+}
+
+```
+
+### Importing annotation file
+
+```{r}
+
+# read annotation info from GS
+anno_url <- "https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=978414281"
+anno_df <- read_sheet(anno_url, "transcript-regions-mark") 
+anno_df <- anno_df[anno_df$Experiment=="Mixing",]
+regs <- split(anno_df$Name_in_gtf_file, anno_df$region_name)
+
+# compute aggregates for egfp/tdtomato for TSO
+ae <- altExp(sce_filt,"tso_ontarget_multi")
+cd <- colData(ae)
+
+for(i in 1:length(regs))
+  cd[[ names(regs)[i] ]] <- colSums(assay(ae,1)[regs[[i]],,drop=FALSE])
+
+colData(altExp(sce_filt,"tso_ontarget_multi")) <- cd
+# ---------------
+
+# compute aggregates for egfp/tdtomato for WTA
+ae <- altExp(sce_filt,"wta_ontarget_multi")
+cd <- colData(ae)
+
+for(i in 1:length(regs))
+  cd[[ names(regs)[i] ]] <- colSums(assay(ae,1)[regs[[i]],,drop=FALSE])
+
+colData(altExp(sce_filt,"wta_ontarget_multi")) <- cd
+# ---------------
+
+```
+
+### Total
+
+```{r}
+
+sum(assay(sce[,sce$sample_id=="rockroi"],1))
+
+sum(assay(sce[,sce$sample_id=="rockroi"],2))
+
+
+```
+
+### On target unique
+
+```{r}
+
+on_target_wta<-sum(assay(sce[,sce$sample_id=="rockroi"],1)[regs$egfp_cds,,drop=FALSE])+
+  sum(assay(sce[,sce$sample_id=="rockroi"],1)[regs$tdtom_cds,,drop=FALSE])
+
+on_target_tso<-sum(assay(sce[,sce$sample_id=="rockroi"],2)[regs$egfp_cds,,drop=FALSE])+
+  sum(assay(sce[,sce$sample_id=="rockroi"],2)[regs$tdtom_cds,,drop=FALSE])
+
+```
+
+### On target multimapped
+
+```{r}
+
+on_target_wta<-sum(assay(altExp(sce[,sce$sample_id=="rockroi"],1))[regs$egfp_cds,,drop=FALSE])+
+  sum(assay(altExp(sce[,sce$sample_id=="rockroi"],1))[regs$tdtom_cds,,drop=FALSE])
+
+on_target_tso<-sum(assay(altExp(sce[,sce$sample_id=="rockroi"],2))[regs$egfp_cds,,drop=FALSE])+
+  sum(assay(altExp(sce[,sce$sample_id=="rockroi"],2))[regs$tdtom_cds,,drop=FALSE])
+
+```
+
+### Session Info
+
+```{r}
+
+sessionInfo()
+
+```
+

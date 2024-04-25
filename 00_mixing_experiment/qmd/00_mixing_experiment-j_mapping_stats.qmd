@@ -298,7 +298,8 @@ selected_merged <- merged[c("n_mapped_reads",
                             "Reads Mapped to Gene: Unique Gene",
                             "Reads Mapped to Genome: Unique",
                             "noUnmapped",
-                            "noNoFeature"),]
+                            "noNoFeature",
+                            "mapping_quality (%)"),]
 
 selected_merged$unmod_wta<-as.numeric(selected_merged$unmod_wta)
 selected_merged$unmod_roi_wta<-as.numeric(selected_merged$unmod_roi_wta)
@@ -331,7 +332,8 @@ for (i in unique(plottable$name)){
   rock_roi_theme()+
   theme(legend.position = "none")+
  scale_fill_manual(labels=c("unmod_wta","unmod_roi_wta","unmod_roi_tso","rock_wta","rock_tso","rockroi_wta","rockroi_tso"),
-                     values=alpha(c(myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rock"]],myscale[["rockroi"]],myscale[["rockroi"]]),c(1,1,0.5,1,0.5,1,0.5)))
+                     values=alpha(c(myscale[["unmod"]],myscale[["unmod_roi"]],myscale[["unmod_roi"]],myscale[["rock"]],myscale[["rock"]],myscale[["rockroi"]],myscale[["rockroi"]]),c(1,1,0.5,1,0.5,1,0.5)))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
   print(p)
 }
@@ -359,7 +361,8 @@ ggplot(plottable,aes(x=variable,y=value,fill=name))+
   theme_bw()+
   rock_roi_theme()+
   scale_fill_manual(labels=c("% exonic","% intergenic","% intronic"),
-                    values=alpha(c(myscale[["high"]],myscale[["high"]],myscale[["high"]]),c(1,0.5,0.2)))
+                    values=alpha(c(myscale[["high"]],myscale[["high"]],myscale[["high"]]),c(1,0.5,0.2)))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 ```
 

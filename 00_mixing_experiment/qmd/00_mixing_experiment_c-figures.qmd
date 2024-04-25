@@ -75,14 +75,16 @@ sces <- mapply(function(u,v)  {
 
 sce <- Reduce(cbind, sces)
 
+sce
+
 ```
 
 ### setting up knitr 
 
 ```{r}
 
-knitr::opts_chunk$set(fig.width = 1,
-               fig.height = 1,
+knitr::opts_chunk$set(fig.width = 2.7,
+               fig.height = 2.7,
                fig.align = "center",
                include = TRUE,
                dev = c("png","svg"),
@@ -110,12 +112,18 @@ sce <- addPerCellQCMetrics(sce, assay.type = "wta",
 cd <- colData(sce) %>% as.data.frame %>% 
   mutate(total_mito_percent = subsets_mouse_mito_percent+subsets_human_mito_percent)
 
+cd$filt<-NA
+cd[cd$sample_id=="mixing_unmod",]$filt<-3500
+cd[cd$sample_id=="mixing_unmod_roi",]$filt<-3500
+cd[cd$sample_id=="mixing_rock",]$filt<-2750
+cd[cd$sample_id=="mixing_rockroi",]$filt<-3700
+
 ggplot(cd, aes(x = total, y = total_mito_percent)) +
-  geom_point() + scale_x_log10() + scale_y_sqrt() +
+  geom_point(size=1) + scale_x_log10() + scale_y_sqrt() +
   facet_wrap(~factor(sample_id,levels=c("mixing_unmod","mixing_unmod_roi",
                                         "mixing_rock","mixing_rockroi"))) + 
-  geom_hline(yintercept=c(3,25), colour="orange") +
-  geom_vline(xintercept=c(2750), colour="orange") +
+  geom_hline(yintercept=c(2,28), colour="orange") +
+  geom_vline(data=cd,aes(xintercept=cd$filt), colour="orange") +
   geom_density2d()+
   theme_bw()+
   xlab("total number of transcripts")+
@@ -132,13 +140,30 @@ ggplot(cd, aes(x = total, y = total_mito_percent)) +
 ```{r}
 
 mito <- sce$subsets_mouse_mito_percent+sce$subsets_human_mito_percent
-sce_filt <- sce[,sce$total>2750 & mito>3 & mito<25]
+
+s_unmod<-sce[,sce$sample_id=="mixing_unmod"]
+s_roi<-sce[,sce$sample_id=="mixing_unmod_roi"]
+s_rock<-sce[,sce$sample_id=="mixing_rock"]
+s_rockroi<-sce[,sce$sample_id=="mixing_rockroi"]
+
+mito_unmod <- s_unmod$subsets_mouse_mito_percent+s_unmod$subsets_human_mito_percent
+mito_roi <- s_roi$subsets_mouse_mito_percent+s_roi$subsets_human_mito_percent
+mito_rock <- s_rock$subsets_mouse_mito_percent+s_rock$subsets_human_mito_percent
+mito_rockroi <- s_rockroi$subsets_mouse_mito_percent+s_rockroi$subsets_human_mito_percent
+
+s_unmod<-s_unmod[,s_unmod$total>3500 & mito_unmod >2 & mito_unmod<28]
+s_roi<-s_roi[,s_roi$total>3500 & mito_roi >2 & mito_roi<28]
+s_rock<-s_rock[,s_rock$total>2750 & mito_rock >2 & mito_rock<28]
+s_rockroi<-s_rockroi[,s_rockroi$total>3700 & mito_rockroi >2 & mito_rockroi<28]
+
+sce_filt<-cbind(s_unmod,s_roi,s_rock,s_rockroi)
+
+rm(sce,sces,s_unmod,s_roi,s_rock,s_rockroi)
+
 sce_filt <- sce_filt[rowSums(assay(sce_filt,1))>2 | rowData(sce_filt)$type=="capture" ,] 
 
 #saveRDS(sce_filt, file.path(datadir, "sce_filt.rds"))
 sce_filt<-readRDS(file.path(datadir, "sce_filt.rds"))
-
-rm(sce,sces)
 
 ```
 
@@ -149,7 +174,7 @@ rm(sce,sces)
 # read annotation info from GS
 anno_url <- "https://docs.google.com/spreadsheets/d/1cvldF_VFA7FYuChoR9a4SIpYcZ1aS80yThNT3iP4T00/edit#gid=978414281"
 anno_df <- read_sheet(anno_url, "transcript-regions-mark") %>%
-  filter(Experiment=="Mixing")
+  dplyr::filter(Experiment=="Mixing")
 regs <- split(anno_df$Name_in_gtf_file, anno_df$region_name)
 
 # compute aggregates for egfp/tdtomato for TSO

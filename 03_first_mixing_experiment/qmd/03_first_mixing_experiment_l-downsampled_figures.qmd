@@ -1,5 +1,5 @@
 ---
-title: "03_first_mixing_experiment_d-paper_figures"
+title: "03_first_mixing_experiment_l_figures"
 author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
 format: 
   html:
@@ -108,9 +108,7 @@ myscale<-c(color("muted")(9), gray="darkgrey",
 
 # defining colors for samples and for species
 
-names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtom_cds","no_detection","doublets","unmod_n1","high")
-
-plot(1:13, col=myscale, pch=19, cex=4)
+names(myscale) <- c("unmod","downsampled_unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtom_cds","no_detection","doublets","unmod_n1","high")
 
 ```
 
@@ -130,31 +128,32 @@ rdss # prints the .rds files in the 00_mixing_experiment folder
 
 datadir <- dirname(rdss)[1] # folder where the .rds files are 
 
-sces <- mapply(function(u,v)  {
-  rds <- readRDS(u)
-  rds$sample_id <- v
-  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
-  colnames(rowData(rds)) <- c("name", "type", "value","captured")
-  g <- grepl("^ENS", rownames(rds))
-  rownames(rds)[g] <- paste0(rownames(rds)[g], 
-                             "__", rowData(rds)$name[g])
-  rowData(rds)$type <- "capture"
-  k <- grepl("^ENSG", rownames(rds))
-  rowData(rds)$type[k] <- "human_gene"
-  k <- grepl("^ENSMUS", rownames(rds))
-  rowData(rds)$type[k] <- "mouse_gene"
-  k <- grepl("^mt", rowData(rds)$name)
-  rowData(rds)$type[k] <- "mouse_mito"
-  k <- grepl("^MT", rowData(rds)$name)
-  rowData(rds)$type[k] <- "human_mito"
-  rds
-}, rdss, names(rdss))
+sce_<-readRDS(file.path(datadir,"downsampled_no_filt.rds"))
 
-sce<-Reduce(cbind, sces)
+sce_unmod<-sce_[,sce_$sample_id=="unmod"]
+sce_downsampled_unmod_n1<-sce_[,sce_$sample_id=="downsampled_unmod_n1"]
 
-sce_filt<-readRDS(file.path(datadir, "sce_filt.rds"))
+sce<-cbind(sce_unmod,sce_downsampled_unmod_n1)
 
-sce_nd<-readRDS(file.path(datadir, "sce_nd.rds"))
+rm(sce_,sce_unmod,sce_downsampled_unmod_n1)
+
+sce_filt_<-readRDS(file.path(datadir, "downsampled_sce_filt.rds"))
+
+sce_filt_unmod<-sce_filt_[,sce_filt_$sample_id=="unmod"]
+sce_filt_downsampled_unmod_n1<-sce_filt_[,sce_filt_$sample_id=="downsampled_unmod_n1"]
+
+sce_filt<-cbind(sce_filt_unmod,sce_filt_downsampled_unmod_n1)
+
+rm(sce_filt_,sce_filt_unmod,sce_filt_downsampled_unmod_n1)
+
+sce_nd_<-readRDS(file.path(datadir, "downsampled_sce_nd.rds"))
+
+sce_nd_unmod<-sce_nd_[,sce_nd_$sample_id=="unmod"]
+sce_nd_downsampled_unmod_n1<-sce_nd_[,sce_nd_$sample_id=="downsampled_unmod_n1"]
+
+sce_nd<-cbind(sce_nd_unmod,sce_nd_downsampled_unmod_n1)
+
+rm(sce_nd_,sce_nd_unmod,sce_nd_downsampled_unmod_n1)
 
 ```
 
@@ -212,7 +211,7 @@ cd <- colData(sce) %>% as.data.frame %>%
 
 table(sce$species) # not removing the unknown species yet
 
-plot1<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=detected)) +
+plot1<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","downsampled_unmod_n1")), y=detected)) +
         geom_violin()+  
   theme_bw()+
   xlab("")+
@@ -229,9 +228,9 @@ plot1<-rasterize(plot1, layers='Point', dpi=1000)
 
 plot1
 
-ggsave(file=file.path(datadir,"genes.svg"), plot=plot1, width=2.705, height=2.7)
+ggsave(file=file.path(datadir,"downsampled_genes.svg"), plot=plot1, width=2.705, height=2.7)
 
-plot2<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=total)) +
+plot2<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","downsampled_unmod_n1")), y=total)) +
         geom_violin()+  
   theme_bw()+
   xlab("")+
@@ -248,9 +247,9 @@ plot2<-rasterize(plot2, layers='Point', dpi=1000)
 
 plot2
 
-ggsave(file=file.path(datadir,"transcripts.svg"), plot=plot2, width=2.7, height=2.7)
+ggsave(file=file.path(datadir,"downsampled_transcripts.svg"), plot=plot2, width=2.7, height=2.7)
 
-plot3<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")),y=total_mito_percent)) +
+plot3<-ggplot(cd, aes(x=factor(sample_id,levels=c("unmod","downsampled_unmod_n1")),y=total_mito_percent)) +
         geom_violin()+  
   theme_bw()+
   xlab("")+
@@ -265,7 +264,7 @@ plot3<-rasterize(plot3, layers='Point', dpi=1000)
 
 plot3
 
-ggsave(file=file.path(datadir,"mito.svg"), plot=plot3, width=2.6, height=2.7)
+ggsave(file=file.path(datadir,"downsampled_mito.svg"), plot=plot3, width=2.6, height=2.7)
 
 ```
 
@@ -280,13 +279,13 @@ ggsave(file=file.path(datadir,"mito.svg"), plot=plot3, width=2.6, height=2.7)
 
 cd$filt<-NA
 cd[cd$sample_id=="unmod",]$filt<-3000
-cd[cd$sample_id=="unmod_n1",]$filt<-3700
+cd[cd$sample_id=="downsampled_unmod_n1",]$filt<-3700
 
 plot4<-ggplot(cd, aes(x = total, y = total_mito_percent)) +
   geom_point(aes(color=sce$species),size=0.5,alpha=0.5,stroke=NA) + 
   scale_x_log10() + 
   scale_y_sqrt() +
-  facet_wrap(~factor(sample_id,levels=c("unmod","unmod_n1"))) + 
+  facet_wrap(~factor(sample_id,levels=c("unmod","downsampled_unmod_n1"))) + 
   theme_bw()+
   geom_hline(yintercept=c(3,28), colour="orange") +
   geom_vline(data=cd,aes(xintercept=cd$filt), colour="orange") +
@@ -306,7 +305,7 @@ plot4
 
 plot4<-rasterize(plot4, layers='Point', dpi=1000)
 
-ggsave(file=file.path(datadir,"qc.svg"), plot=plot4, width=5.5, height=3.2)
+ggsave(file=file.path(datadir,"downsampled_qc.svg"), plot=plot4, width=5.5, height=3.2)
 
 ```
 
@@ -390,7 +389,7 @@ cd<-colData(sce_filt) %>% as.data.frame
 plot5<-ggplot(cd, aes(x = subsets_mouse_gene_sum,y = subsets_human_gene_sum,color=sce_filt$species))+
   geom_point(alpha = 0.2,size=0.8,stroke=NA) +
   scale_x_log10() + scale_y_log10() +
-  facet_wrap(~factor(sample_id, levels = c("unmod", "unmod_n1"))) +
+  facet_wrap(~factor(sample_id, levels = c("unmod", "downsampled_unmod_n1"))) +
   theme_bw() +
   xlab("mouse gene sum") +
   ylab("human gene sum")+
@@ -449,7 +448,7 @@ plot6<-ggplot(combined, aes(
   color = color)) +
   geom_point(alpha = 0.4,size=0.5) +
   scale_x_log10() + scale_y_log10() +
-  facet_wrap(~factor(sample_id, levels = c("unmod", "unmod_n1"))) +
+  facet_wrap(~factor(sample_id, levels = c("unmod", "downsampled_unmod_n1"))) +
   theme_bw() +
   xlab("mouse gene sum") +
   ylab("human gene sum") +
@@ -470,6 +469,8 @@ plot6
 ### TSO vs WTA plot, colored by on target tso_ontarget_multi
 
 ```{r,fig.width=5.4,fig.height=2.7}
+
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtom_cds","no_detection","doublets","downsampled_unmod_n1","high")
 
 sce_nd$sample_id<-gsub("mixing_", "", sce_nd$sample_id)
 
@@ -505,7 +506,7 @@ df$log_1p_tso_ontarget_multi <- log1p(df$tso_capture_sum)
 
 p <- list()
 
-for (i in  c("unmod", "unmod_n1")){
+for (i in  c("unmod", "downsampled_unmod_n1")){
      p[[i]]<-ggplot(df[df$sample_id==i,], aes(x = tso_total, y = wta_total, color = log_1p_tso_ontarget_multi)) +
           geom_point(alpha=0.2,size=0.5) +
           scale_x_log10(limit=c(1,30000)) + 
@@ -534,6 +535,8 @@ grid.arrange(grobs=p,ncol=2)
 
 ```{r}
 
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtom_cds","no_detection","doublets","unmod_n1","high")
+
 plot7<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=tso_total,fill=sample_id)) +
   geom_violin()+  
   theme_bw()+
@@ -553,7 +556,7 @@ plot7<-rasterize(plot7, layers='Point', dpi=1000)
 plot7
 
 mean(df[which(df$sample_id=="unmod"),]$tso_total)
-mean(df[which(df$sample_id=="unmod_n1"),]$tso_total)
+mean(df[which(df$sample_id=="downsampled_unmod_n1"),]$tso_total)
 
 
 plot10<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=tso_detected,fill=sample_id)) +
@@ -573,8 +576,7 @@ plot10<-ggplot(df, aes(x=factor(sample_id,levels=c("unmod","unmod_n1")), y=tso_d
 plot10<-rasterize(plot10, layers='Point', dpi=1000)
 
 mean(df[which(df$sample_id=="unmod"),]$tso_detected)
-mean(df[which(df$sample_id=="unmod_n1"),]$tso_detected)
-
+mean(df[which(df$sample_id=="downsampled_unmod_n1"),]$tso_detected)
 
 plot10
 
@@ -611,6 +613,8 @@ ggsave(file=file.path(datadir,"mitot.svg"), plot=plot11, width=2.3, height=2.3)
 
 ```{r,fig.width=5.4,fig.height=2.7}
 
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtom_cds","no_detection","doublets","downsampled_unmod_n1","high")
+
 rds <- rowData(sce_nd)
 
 tso_qc <- perCellQCMetrics(sce_nd, assay.type = "tso_off_and_ontarget_unique",
@@ -636,7 +640,7 @@ ae_wta <- altExp(sce_nd,"wta_ontarget_multi")
 df$tso_capture_sum<-colSums(assay(ae_tso,1)[regs$egfp_tx,,drop=FALSE])+colSums(assay(ae_tso,1)[regs$tdtom_tx,,drop=FALSE])
 df$wta_capture_sum<-colSums(assay(ae_wta,1)[regs$egfp_tx,,drop=FALSE])+colSums(assay(ae_wta,1)[regs$tdtom_tx,,drop=FALSE])
 
-samples<-c("unmod","unmod_n1")
+samples<-c("unmod","downsampled_unmod_n1")
 
 p <- list()
 
@@ -674,6 +678,8 @@ grid.arrange(grobs=p,ncol=2)
 
 ```{r}
 
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtom_cds","no_detection","doublets","unmod_n1","high")
+
 df$tso_capture_sum_cds<-colSums(assay(ae_tso,1)[regs$egfp_cds,,drop=FALSE])+colSums(assay(ae_tso,1)[regs$tdtom_cds,,drop=FALSE])
 df$wta_capture_sum_cds<-colSums(assay(ae_wta,1)[regs$egfp_cds,,drop=FALSE])+colSums(assay(ae_wta,1)[regs$tdtom_cds,,drop=FALSE])
 
@@ -710,7 +716,7 @@ plottable<-melt(positive_cells)
 
 plottable$sample<-rep(rownames(positive_cells),2)
 
-samples<-c("unmod_CDS","unmod_tx","unmod_n1_CDS","unmod_n1_tx")
+samples<-c("unmod_CDS","unmod_tx","downsampled_unmod_n1_CDS","downsampled_unmod_n1_tx")
 
 plottable$hjs<-rep(c(-0.5,2,-0.5,2),2)
 
@@ -743,5 +749,6 @@ plot8
 sessionInfo()
 
 ```
+
 
 

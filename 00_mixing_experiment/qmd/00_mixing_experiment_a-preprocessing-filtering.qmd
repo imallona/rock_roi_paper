@@ -11,6 +11,7 @@ editor_options:
 ## Load packages, load data
 
 ```{r, warning=FALSE, message=FALSE}
+
 library(SingleCellExperiment)
 library(scran)
 library(ggplot2)
@@ -53,6 +54,7 @@ sces <- mapply(function(u,v)  {
 }, rdss, names(rdss))
 
 sce <- Reduce(cbind, sces)
+
 ```
 
 ## Do some QC things (on WTA)

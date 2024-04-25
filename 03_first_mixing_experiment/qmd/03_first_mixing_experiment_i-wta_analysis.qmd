@@ -97,8 +97,8 @@ rock_roi_theme_multiple_panels<-function(){
         panel.grid.minor = element_blank(),
         strip.background = element_blank(),
         legend.key.size = unit(0.5, 'cm'),
-        legend.title=element_text(size=5,face="bold"),
-        legend.text=element_text(size=5),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=7),
         legend.margin=margin(0,0,0,0),
         legend.box.margin=margin(-5,-5,-5,-5),
         legend.title.align=0.5,
@@ -129,7 +129,7 @@ names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unk
 
 getwd() # after opening the .Rproj file, getwd() should be "/Users/gimoro/figure_making_paper/rock_roi_paper"
 
-rdss <- dir(here("03_first_mixing_experiment"), "^mixing.*rds", 
+rdss <- dir(here("03_first_mixing_experiment"), "*sce.rds", 
             recursive = TRUE, full.names = TRUE)
 
 names(rdss) <- gsub("_sce.rds", "", basename(rdss))
@@ -198,6 +198,12 @@ plotReducedDim(mouse, "UMAP", colour_by="label")
 summed <- aggregateAcrossCells(mouse, 
     ids=colData(mouse)[,c("sample_id")],use.assay.type="wta")
 
+# remove gene with 0 counts 
+
+summed<-summed[-which(rowSums(assay(summed,"wta"))==0),]
+
+length(rownames(summed))
+
 assay(summed,"wta")
 
 # DEG plots
@@ -219,12 +225,17 @@ mouse_logcpm<-as.data.frame(cpm(summed,log=TRUE,prior.count=1))
 
 # Pearson corr 
 
-pearson_corr<-cor(mouse_logcpm$mixing_unmod,mouse_logcpm$mixing_unmod_n1,method="pearson")
+pearson_corr<-cor(mouse_logcpm$unmod,mouse_logcpm$unmod_n1,method="pearson")
 pearson_corr
+
+# Kendall corr
+
+kendall_corr<-cor(mouse_logcpm$unmod,mouse_logcpm$unmod_n1,method="kendall")
+kendall_corr
 
 # Dots with highest difference logcpms 
 
-delta_mouse_logcpm<-data.frame(value=abs(mouse_logcpm$mixing_unmod-mouse_logcpm$mixing_unmod_n1))
+delta_mouse_logcpm<-data.frame(value=abs(mouse_logcpm$unmod-mouse_logcpm$unmod_n1))
 rownames(delta_mouse_logcpm)<-rownames(mouse_logcpm)
 delta_mouse_logcpm$genes<-rownames(delta_mouse_logcpm)
 delta_mouse_logcpm<-delta_mouse_logcpm[order(delta_mouse_logcpm$value,decreasing = TRUE),]
@@ -237,8 +248,8 @@ mouse_logcpm$label[1:10]<-mouse_logcpm$genes[1:10]
 
 # ggplot
 
-ggplot(mouse_logcpm,aes(x=mixing_unmod,y=mixing_unmod_n1,label=label))+
-  geom_point(alpha=0.2,size=0.5)+
+plot1<-ggplot(mouse_logcpm,aes(x=unmod,y=unmod_n1,label=label))+
+  geom_point(alpha=0.2,size=0.5,stroke=NA)+
   xlab("pseudobulk expression (logcpm) unmod")+
   ylab("pseudobulk expression (logcpm) unmod_n1")+
   theme_bw()+
@@ -246,10 +257,34 @@ ggplot(mouse_logcpm,aes(x=mixing_unmod,y=mixing_unmod_n1,label=label))+
   ggtitle("Mouse")+
   theme(axis.title.x=element_text(colour=myscale[["unmod"]]))+
   theme(axis.title.y=element_text(colour=myscale[["unmod_n1"]]))+
-  geom_text(x=5, y=13, label=format(round(pearson_corr,3)),size=3)
+  geom_text(x=5, y=13, label=paste0("r=",format(round(pearson_corr,3))),size=3)
 
+plot1<-rasterize(plot1, layers='Point', dpi=1000)
+
+plot1
   
+ggsave(file=file.path(datadir,"mouse.tiff"), plot=plot1, width=2.7, height=2.7,device="tiff")
+
 ```
+
+### Corrplot for mouse
+
+```{r}
+
+mouse_logcpm<-mouse_logcpm[,1:4]
+
+colnames(mouse_logcpm)<-gsub("mixing_","",colnames(mouse_logcpm))
+mouse_logcpm<-mouse_logcpm[,c("unmod","unmod_n1")]
+
+corrplot.mixed(cor(mouse_logcpm,method="pearson"),
+               number.digits = 3,
+               number.cex = 0.5,
+               tl.cex = 0.5,
+               cex.col = 0.5,
+               cl.cex = 0.5)
+
+```
+
 ### Same for human
 
 ```{r}
@@ -307,6 +342,12 @@ plotReducedDim(human, "UMAP", colour_by="label")
 summed <- aggregateAcrossCells(human, 
     ids=colData(human)[,c("sample_id")],use.assay.type="wta")
 
+# remove gene with 0 counts 
+
+summed<-summed[-which(rowSums(assay(summed,"wta"))==0),]
+
+length(rownames(summed))
+
 assay(summed,"wta")
 
 # DEG plots
@@ -328,12 +369,17 @@ human_logcpm<-as.data.frame(cpm(summed,log=TRUE,prior.count=1))
 
 # Pearson corr 
 
-pearson_corr<-cor(human_logcpm$mixing_unmod,human_logcpm$mixing_unmod_n1,method="pearson")
+pearson_corr<-cor(human_logcpm$unmod,human_logcpm$unmod_n1,method="pearson")
 pearson_corr
+
+# Kendall corr
+
+kendall_corr<-cor(human_logcpm$unmod,human_logcpm$unmod_n1,method="kendall")
+kendall_corr
 
 # Dots with highest difference logcpms 
 
-delta_human_logcpm<-data.frame(value=abs(human_logcpm$mixing_unmod-human_logcpm$mixing_unmod_n1))
+delta_human_logcpm<-data.frame(value=abs(human_logcpm$unmod-human_logcpm$unmod_n1))
 rownames(delta_human_logcpm)<-rownames(human_logcpm)
 delta_human_logcpm$genes<-rownames(delta_human_logcpm)
 delta_human_logcpm<-delta_human_logcpm[order(delta_human_logcpm$value,decreasing = TRUE),]
@@ -346,8 +392,8 @@ human_logcpm$label[1:10]<-human_logcpm$genes[1:10]
 
 # ggplot
 
-ggplot(human_logcpm,aes(x=mixing_unmod,y=mixing_unmod_n1,label=label))+
-  geom_point(alpha=0.2,size=0.5)+
+plot2<-ggplot(human_logcpm,aes(x=unmod,y=unmod_n1,label=label))+
+  geom_point(alpha=0.2,size=0.5,stroke=NA)+
   xlab("pseudobulk expression (logcpm) unmod")+
   ylab("pseudobulk expression (logcpm) unmod_n1")+
   theme_bw()+
@@ -355,8 +401,32 @@ ggplot(human_logcpm,aes(x=mixing_unmod,y=mixing_unmod_n1,label=label))+
   ggtitle("Human")+
   theme(axis.title.x=element_text(colour=myscale[["unmod"]]))+
   theme(axis.title.y=element_text(colour=myscale[["unmod_n1"]]))+
-  geom_text(x=5, y=13, label=format(round(pearson_corr,3)),size=3)
+  geom_text(x=5, y=13, label=paste0("r=",format(round(pearson_corr,3))),size=3)
 
+
+plot2<-rasterize(plot2, layers='Point', dpi=1000)
+
+plot2
+
+ggsave(file=file.path(datadir,"human.tiff"), plot=plot2, width=2.7, height=2.7,device="tiff")
+
+```
+
+### Corrplot
+
+```{r}
+
+human_logcpm<-human_logcpm[,1:4]
+
+colnames(human_logcpm)<-gsub("mixing_","",colnames(human_logcpm))
+human_logcpm<-human_logcpm[,c("unmod","unmod_n1")]
+
+corrplot.mixed(cor(human_logcpm,method="pearson"),
+               number.digits = 3,
+               number.cex = 0.5,
+               tl.cex = 0.5,
+               cex.col = 0.5,
+               cl.cex = 0.5)
 
 ```
 
