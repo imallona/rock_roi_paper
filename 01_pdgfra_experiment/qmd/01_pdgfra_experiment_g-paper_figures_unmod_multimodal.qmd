@@ -351,6 +351,25 @@ un<-un[,c("broad_annotation","annotation")]
 write.csv(rr,"rockroi_multimodal_annotation.csv")
 write.csv(un,"unmod_multimodal_annotation.csv")
 
+sce<-readRDS(file.path(datadir, "uni_multi_filtered_doublet_removed.rds"))
+
+rr_uni<-as.data.frame(colData(sce[,sce$sample_id=="pdgfra_rockroi_unimodal"]))
+rr_uni$barcode<-gsub("pdgfra_rockroi_unimodal.","",rr_uni$sample_id.barcode)
+rr_uni<-rr_uni[intersect(rr_uni$barcode,rr$barcode),]
+
+rr<-as.data.frame(colData(sces[,sces$sample_id=="rockroi"]))
+rr$barcode<-gsub("pdgfra_rockroi_multimodal.","",rr$sample_id.barcode)
+rr$broad_annotation<-"Mesenchymal"
+rr$broad_annotation[!grepl("Crypt",rr$annotation)]<-"Epithelial"
+rownames(rr)<-rr$barcode
+
+rr<-rr[intersect(rr$barcode,rr_uni$barcode),]
+
+rr_uni$annotation<-rr$annotation
+rr_uni$broad_annotation<-rr$broad_annotation
+
+write.csv(rr_uni,"rockroi_unimodal_annotation.csv")
+
 ```
 
 ### Clusters for sample id 
