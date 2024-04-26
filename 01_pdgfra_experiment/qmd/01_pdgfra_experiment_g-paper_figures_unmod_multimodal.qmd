@@ -326,6 +326,33 @@ ggsave(file=file.path(datadir,"tsogenes.svg"), plot=plot6, width=2.7, height=2.7
 
 ```
 
+### Dataset for GEO
+
+```{r}
+
+rr<-as.data.frame(colData(sces[,sces$sample_id=="rockroi"]))
+un<-as.data.frame(colData(sces[,sces$sample_id=="unmod"]))
+
+rr$barcode<-gsub("pdgfra_rockroi_multimodal.","",rr$sample_id.barcode)
+un$barcode<-gsub("pdgfra_unmod_unimodal.","",un$sample_id.barcode)
+
+rr$broad_annotation<-"Mesenchymal"
+rr$broad_annotation[!grepl("Crypt",rr$annotation)]<-"Epithelial"
+
+rownames(rr)<-rr$barcode
+rownames(un)<-un$barcode
+
+un$broad_annotation<-"Mesenchymal"
+un$broad_annotation[!grepl("Crypt",un$annotation)]<-"Epithelial"
+
+rr<-rr[,c("broad_annotation","annotation")]
+un<-un[,c("broad_annotation","annotation")]
+
+write.csv(rr,"rockroi_multimodal_annotation.csv")
+write.csv(un,"unmod_multimodal_annotation.csv")
+
+```
+
 ### Clusters for sample id 
 
 ```{r,fig.width=5.4,fig.height=2.7}
