@@ -379,6 +379,27 @@ table(sce_filt$species,
 
 ```
 
+### GEO file with species 
+
+```{r}
+
+un<-as.data.frame(colData(sce_filt[,sce_filt$sample_id=="unmod"]))
+un_n1<-as.data.frame(colData(sce_filt[,sce_filt$sample_id=="unmod_n1"]))
+
+un<-un[,c("sample_id.barcode","species")]
+un_n1<-un_n1[,c("sample_id.barcode","species")]
+
+un$sample_id.barcode<-gsub("unmod.","",un$sample_id.barcode)
+un_n1$sample_id.barcode<-gsub("unmod_n1.","",un_n1$sample_id.barcode)
+
+rownames(un)<-un$sample_id.barcode
+rownames(un_n1)<-un_n1$sample_id.barcode
+
+write.csv(un,"first_mixing_experiment_species_unmod.csv")
+write.csv(un_n1,"first_mixing_experiment_species_unmod_n1.csv")
+
+```
+
 ### Barnyard plot mouse vs human (unknow removed and filtered dataset)
 
 ```{r,fig.width=5.4,fig.height=2.7}
