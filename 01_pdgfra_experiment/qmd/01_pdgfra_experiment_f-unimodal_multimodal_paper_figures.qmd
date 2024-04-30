@@ -47,6 +47,8 @@ datadir <- dirname(rdss)[1]
 
 sce<-readRDS(file.path(datadir, "uni_multi_filtered_doublet_removed.rds"))
 
+table(sce$sample_id)
+
 ```
 
 ### Setting up knitr

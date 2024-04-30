@@ -147,7 +147,7 @@ df <- data.frame(gene = names(ents),
                  entropy=ents, Fstat=tt$F,
                  cluster.max = apply(agg_counts, 1, which.max)) %>%
   mutate(order_by = Fstat / entropy) %>%
-  filter(Fstat > 50, entropy < 1.5) %>%
+  dplyr::filter(Fstat > 50, entropy < 1.5) %>%
   arrange(desc(order_by)) %>%
   group_by(cluster.max) %>% slice_max(order_by = order_by, n = 20)
 
@@ -164,7 +164,7 @@ genes <- split(df$gene, df$cluster.max) %>% unlist
 
 
 rowanno <- data.frame(Marker = genes) %>% 
-  left_join(markers %>% select(Marker, Broad_cell_type, Cell_type)) %>%
+  left_join(markers %>% dplyr::select(Marker, Broad_cell_type, Cell_type)) %>%
   transmute(Marker = Marker,
             broad_ct = replace_na(Broad_cell_type, ""),
             celltype = replace_na(Cell_type, "")) %>%
@@ -192,11 +192,11 @@ save_pheatmap_pdf(ph, "tuft_clustering.pdf", width = 12, height = 8)
 gene_df <- data.frame(gene = names(ents), 
                  entropy=ents, Fstat=tt$F,
                  cluster.max = apply(agg_counts, 1, which.max)) %>%
-  left_join(markers %>% select(Marker, Broad_cell_type, Cell_type),
+  left_join(markers %>% dplyr::select(Marker, Broad_cell_type, Cell_type),
             by = c("gene" = "Marker")) %>%
   mutate(broad_ct = replace_na(Broad_cell_type, ""),
          celltype = replace_na(Cell_type, "")) %>%
-  select(-Broad_cell_type,-Cell_type)
+  dplyr::select(-Broad_cell_type,-Cell_type)
 
 agg_counts %>% as.data.frame %>% round(3) %>%
   rownames_to_column("gene") %>%

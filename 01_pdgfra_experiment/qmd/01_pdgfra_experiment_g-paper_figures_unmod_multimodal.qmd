@@ -80,6 +80,8 @@ sces <- mapply(function(u,v)  {
 
 sce <- Reduce(cbind, sces)
 
+table(sce$sample_id)
+
 ```
 
 ### Setting up knitr 
@@ -251,6 +253,8 @@ mean(cd[which(cd$sample_id=="rockroi"),]$detected)
 ```{r,fig.height=2.7,fig.width=2.7}
 
 sces<-readRDS(file.path(datadir,"sce_qc-filtered-nodoublets-clustered-annotated.rds"))
+
+table(sces$sample_id)
 
 rds <- rowData(sces)
 tso_qc <- perCellQCMetrics(sces, assay.type = "tso_off_and_ontarget_unique",
