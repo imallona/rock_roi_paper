@@ -84,6 +84,8 @@ sce_filt<-readRDS(file.path(datadir, "sce_filt.rds"))
 
 sce_nd<-readRDS(file.path(datadir, "sce_nd.rds"))
 
+table(sce_nd$sample_id)
+
 ```
 
 ### Setting up knitr 
