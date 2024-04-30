@@ -61,7 +61,7 @@ library(googlesheets4)
 
 getwd() # after opening the .Rproj file, getwd() should be "/Users/gimoro/figure_making_paper/rock_roi_paper"
 
-rdss <- dir(here("03_first_mixing_experiment"), ".*rds", 
+rdss <- dir(here("03_first_mixing_experiment"), "_sce.rds", 
             recursive = TRUE, full.names = TRUE)
 
 names(rdss) <- gsub("_sce.rds", "", basename(rdss))
@@ -183,7 +183,7 @@ sce_filt<-cbind(s_unmod,s_n1)
 
 sce_filt <- sce_filt[rowSums(assay(sce_filt,1))>2 | rowData(sce_filt)$type=="capture" ,] 
 
-saveRDS(sce_filt, file.path(datadir, "sce_filt.rds"))
+#saveRDS(sce_filt, file.path(datadir, "sce_filt.rds"))
 sce_filt<-readRDS(file.path(datadir, "sce_filt.rds"))
 
 rm(sce,sces,s_unmod,s_n1)
@@ -251,6 +251,8 @@ sce_nd <- sce_filt[,!sce_filt$doublet]
 
 #saveRDS(sce_nd, file.path(datadir, "sce_nd.rds"))
 sce_nd<-readRDS(file.path(datadir, "sce_nd.rds"))
+
+sce_nd<-sce_nd[,!sce_nd$sample_id=="downsampled_unmod_n1"]
 
 rm(sce_filt)
 

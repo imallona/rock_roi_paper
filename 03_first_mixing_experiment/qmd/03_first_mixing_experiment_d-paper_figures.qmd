@@ -156,6 +156,8 @@ sce_filt<-readRDS(file.path(datadir, "sce_filt.rds"))
 
 sce_nd<-readRDS(file.path(datadir, "sce_nd.rds"))
 
+table(sce_nd$sample_id)
+
 ```
 
 ### Defining regions in filt dataset for tso_ontarget_multi and wta_ontarget_multi
@@ -493,6 +495,8 @@ plot6
 ```{r,fig.width=5.4,fig.height=2.7}
 
 sce_nd$sample_id<-gsub("mixing_", "", sce_nd$sample_id)
+
+sce_nd<-sce_nd[,!sce_nd$sample_id=="downsampled_unmod_n1"]
 
 rds <- rowData(sce_nd)
 
