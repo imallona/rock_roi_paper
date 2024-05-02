@@ -9,4 +9,6 @@ Generation of Sankey plots representing read flows for the two mixing experiment
 **unmod_n1.sh:** code to calculate values based on BAM files for hte unmod_n1 condition in the first mixing experiment
 **unmod_roi_second_mixing_sankey.sh:** code to calculate values based on BAM files for the unmod_roi condition in the second mixing experiment
 **unmod_second_mixing_sankey.sh:** code to calculate values based on BAM files for the unmod condition in the second mixing experiment
- 
+**tso_....sh:** code to calculate number of reads from raw .fastq files with TSO linkers and matching whitelist
+**wta_....sh:** code to calculate number of reads from raw .fastq files with WTA linkers and matching whitelist 
+**simulation:** simulation of calculation of number of reads from raw .fastq files with WTA/TSO linkers and matching whitelist on simulated reads 
