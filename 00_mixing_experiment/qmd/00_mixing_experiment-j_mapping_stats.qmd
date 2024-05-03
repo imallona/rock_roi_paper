@@ -129,7 +129,7 @@ names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unk
 
 qc_stats<-data.frame(matrix(nrow=9,ncol=7))
 rownames(qc_stats)<-c("n_mapped_reads",
-                      "n_alignments",
+                      "n_alignments", 
                       "n_aligned_genes",
                       "% exonic",
                       "% intronic",
@@ -189,6 +189,20 @@ for (i in samples){
 
 ```
 
+### Changing the number of reads based on values calculated in .bam file (see 06_Sankey)
+
+```{r}
+
+summary_stats$unmod_wta$values[1]<-94059281
+summary_stats$unmod_roi_wta$values[1]<-85634078
+summary_stats$unmod_roi_tso$values[1]<-56135273
+summary_stats$rock_wta$values[1]<-91188562
+summary_stats$rock_tso$values[1]<-74995703
+summary_stats$rockroi_wta$values[1]<-82495178 
+summary_stats$rockroi_tso$values[1]<-64382489   
+  
+```
+
 ### Stats plot
 
 ```{r}
@@ -224,7 +238,6 @@ plottable<-melt(df_summary,id="name")
 # }
 
 ```
-
 
 ### Loading data for Features.stats
 
