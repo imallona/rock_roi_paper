@@ -193,13 +193,13 @@ for (i in samples){
 
 ```{r}
 
-summary_stats$unmod_wta$values[1]<-94059281
-summary_stats$unmod_roi_wta$values[1]<-85634078
-summary_stats$unmod_roi_tso$values[1]<-56135273
-summary_stats$rock_wta$values[1]<-91188562
-summary_stats$rock_tso$values[1]<-74995703
-summary_stats$rockroi_wta$values[1]<-82495178 
-summary_stats$rockroi_tso$values[1]<-64382489   
+summary_stats$unmod_wta$values[1]<-105154707
+summary_stats$unmod_roi_wta$values[1]<-94405059
+summary_stats$unmod_roi_tso$values[1]<-62804285
+summary_stats$rock_wta$values[1]<-100426253
+summary_stats$rock_tso$values[1]<-83334432
+summary_stats$rockroi_wta$values[1]<-91170527
+summary_stats$rockroi_tso$values[1]<-71646657
   
 ```
 
