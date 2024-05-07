@@ -11,3 +11,12 @@
 - https://github.com/imallona/rock_roi_method
 - (deprecated) https://gitlab.uzh.ch/izaskun.mallona/ebrunner_spectral
 
+# License
+
+MIT
+
+# Contact
+
+giulia.moro2 ta uzh.ch
+mark.robinson at mls.uzh.ch
+izaskun.mallona aa mls.uzh.ch
