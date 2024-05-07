@@ -258,6 +258,35 @@ ggplot(plottable,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","unmod","desa
   
 ```
 
+### Same for violin plots
+
+```{r}
+
+ggplot(plottable,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","unmod","desalt_gfp","desalt_dt","desalt_tso","hplc_gfp","hplc_dt","hplc_tso")),y=value))+
+  geom_violin(aes(fill=L1,alpha=0.5),width=0.8,size = 0.1)+
+  scale_y_flowjo_biexp()+
+  theme_bw()+
+  xlab("sample")+
+  rock_roi_theme()+
+  theme(legend.position = "none")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+
+      stat_summary(fun=mean, 
+               geom="crossbar", 
+               width=0.3)+
+  ylab("APC-A Atto647N")+
+  scale_fill_manual(values=c(pos_dt="#882155",
+                             pos_TSO="#CC6677",
+                             neg="#C0C0C0",
+                             unmod="black",
+                             "desalt_gfp"="#12783D",
+                             "desalt_dt"="#AA4499",
+                             "desalt_tso"="#CB7CBD",
+                             "hplc_gfp"="#12783D",
+                             "hplc_dt"="#AA4499",
+                             "hplc_tso"="#CB7CBD"))
+
+```
+
 ### Session info
 
 ```{r}

@@ -84,6 +84,8 @@ sce_filt<-readRDS(file.path(datadir, "sce_filt.rds"))
 
 sce_nd<-readRDS(file.path(datadir, "sce_nd.rds"))
 
+table(sce_nd$sample_id)
+
 ```
 
 ### Setting up knitr 
@@ -414,6 +416,37 @@ table(sce_filt$species,
       altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$tso_egfp_detection_score)
 table(sce_filt$species,
       altExp(sce_filt,"tso_ontarget_multi",withColData=TRUE)$tso_tdtom_detection_score)
+
+```
+
+### GEO file with species 
+
+```{r}
+
+un<-as.data.frame(colData(sce_filt[,sce_filt$sample_id=="mixing_unmod"]))
+un_roi<-as.data.frame(colData(sce_filt[,sce_filt$sample_id=="mixing_unmod_roi"]))
+rock<-as.data.frame(colData(sce_filt[,sce_filt$sample_id=="mixing_rock"]))
+rockroi<-as.data.frame(colData(sce_filt[,sce_filt$sample_id=="mixing_rockroi"]))
+
+un<-un[,c("sample_id.barcode","species")]
+un_roi<-un_roi[,c("sample_id.barcode","species")]
+rock<-rock[,c("sample_id.barcode","species")]
+rockroi<-rockroi[,c("sample_id.barcode","species")]
+
+un$sample_id.barcode<-gsub("mixing_unmod.","",un$sample_id.barcode)
+un_roi$sample_id.barcode<-gsub("mixing_unmod_roi.","",un_roi$sample_id.barcode)
+rock$sample_id.barcode<-gsub("mixing_rock.","",rock$sample_id.barcode)
+rockroi$sample_id.barcode<-gsub("mixing_rockroi.","",rockroi$sample_id.barcode)
+
+rownames(un)<-un$sample_id.barcode
+rownames(un_roi)<-un_roi$sample_id.barcode
+rownames(rock)<-rock$sample_id.barcode
+rownames(rockroi)<-rockroi$sample_id.barcode
+
+write.csv(un,"species_unmod.csv")
+write.csv(un_roi,"species_unmod_roi.csv")
+write.csv(rock,"species_rock.csv")
+write.csv(rockroi,"species_rockroi.csv")
 
 ```
 

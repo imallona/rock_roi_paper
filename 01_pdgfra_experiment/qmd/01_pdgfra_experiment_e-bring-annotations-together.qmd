@@ -65,19 +65,19 @@ epi_df <- data.frame(key = rownames(colData(sce_epi)),
 mes_df <- data.frame(key = rownames(colData(sce_mes)),
                      cluster = sce_mes$cluster) %>%
   mutate(cluster = as.integer(cluster)) %>%
-  left_join(anno %>% filter(Broad_cell_type=="mesenchymal")) %>%
+  left_join(anno %>% dplyr::filter(Broad_cell_type=="mesenchymal")) %>%
   dplyr::select(key, annotation)
 
 tuft_df <- data.frame(key = rownames(colData(sce_tuft)),
                      cluster = sce_tuft$cluster) %>%
   mutate(cluster = as.integer(cluster)) %>%
-  left_join(anno %>% filter(Broad_cell_type=="tuft")) %>%
+  left_join(anno %>% dplyr::filter(Broad_cell_type=="tuft")) %>%
   dplyr::select(key, annotation)
 
 # verify that tuft cells are a specific cluster in the epithelials
-epi_df %>% filter((key %in% tuft_df$key)) %>% pull(annotation) %>% table
+epi_df %>% dplyr::filter((key %in% tuft_df$key)) %>% pull(annotation) %>% table
 
-epi_df <- epi_df %>% filter(!(key %in% tuft_df$key))
+epi_df <- epi_df %>% dplyr::filter(!(key %in% tuft_df$key))
 
 df <- data.frame(key = rownames(colData(sce))) %>%
   left_join(rbind(epi_df, mes_df, tuft_df)) %>%
@@ -211,7 +211,7 @@ sorted <- dfm %>% group_by(variable) %>%
   arrange(desc(mv)) %>% 
   pull(variable)
 
-(p <- ggplot(dfm %>% filter(variable %in% sorted[1:16]),
+(p <- ggplot(dfm %>% dplyr::filter(variable %in% sorted[1:16]),
             aes(x = annotation, y = value, group = sample_id,
                 colour = annotation, shape=sample_id)) +
     geom_point(size = 2, 

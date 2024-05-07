@@ -267,6 +267,38 @@ ggplot(plottable,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","s_gfp_1","s_
   
 ```
 
+### Same for Violin plots
+
+```{r}
+
+ggplot(plottable,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","s_gfp_1","s_dt_1","s_tso_1","s_gfp_2","s_dt_2","s_tso_2","b_gfp","b_dt","b_tso")),y=value))+
+  geom_violin(aes(fill=L1,alpha=0.5),width=0.8,size = 0.1)+
+  scale_y_flowjo_biexp()+
+  theme_bw()+
+  xlab("sample")+
+  rock_roi_theme()+
+  theme(legend.position = "none")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+
+   stat_summary(fun=mean, 
+               geom="crossbar", 
+               width=0.3)+
+  ylab("APC-A Atto647N")+
+  scale_fill_manual(values=c(pos_dt="#882155",
+                             pos_TSO="#CC6677",
+                             neg="#C0C0C0",
+                             unmod="black",
+                             "s_gfp_1"="#12783D",
+                             "s_dt_1"="#AA4599",
+                             "s_tso_1"="#C87CB4",
+                             "s_gfp_2"="#12783D",
+                             "s_dt_2"="#AA4599",
+                             "s_tso_2"="#C87CB4",
+                             "b_gfp"="#12783D",
+                             "b_dt"="#AA4599",
+                             "b_tso"="#C87CB4"))
+
+```
+
 ### Session info
 
 ```{r}

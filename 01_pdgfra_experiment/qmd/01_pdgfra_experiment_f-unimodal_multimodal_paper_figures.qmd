@@ -38,7 +38,7 @@ library(corrplot)
 library(RColorBrewer)
 library(ggrastr)
 
-rdss <- dir(here("01_pdgfra_experiment"), "^pd.*rds$", 
+rdss <- dir(here("01_pdgfra_experiment"), "_sce.rds", 
             recursive = TRUE, full.names = TRUE)
 
 names(rdss) <- gsub("_sce.rds", "", basename(rdss))
@@ -46,6 +46,8 @@ names(rdss) <- gsub("_sce.rds", "", basename(rdss))
 datadir <- dirname(rdss)[1]
 
 sce<-readRDS(file.path(datadir, "uni_multi_filtered_doublet_removed.rds"))
+
+table(sce$sample_id)
 
 ```
 
@@ -121,7 +123,6 @@ names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unk
 
 ```
 
-
 ### Calculating HVGs and logcpms
 
 ```{r}
@@ -154,7 +155,9 @@ colnames(pdgfra_multimodal)<-gsub("pdgfra_rockroi_multimodal.","",colnames(pdgfr
 common<-intersect(colnames(pdgfra_unimodal),colnames(pdgfra_multimodal))
 
 length(colnames(pdgfra_unimodal))
+
 length(colnames(pdgfra_multimodal))
+
 length(common)
 
 # subsetting with common barcodes --> the order of the barcodes will be the same
@@ -193,14 +196,14 @@ colnames(pdgfra_dataframe)<-c("unimodal","multimodal")
 # calculating correlations for whole dataset
 
 cor(pdgfra_dataframe$unimodal,pdgfra_dataframe$multimodal,method="pearson")
+
 cor(pdgfra_dataframe$unimodal,pdgfra_dataframe$multimodal,method="spearman")
 
 ```
 
-### Density plots of Spearman correlation of logCPMs between all cells 
+### Density plots of Pearson correlation of logCPMs between all cells 
 
 ```{r}
-
 df_dge_unimodal_logcpm<-as.data.frame(dge_unimodal_logcpm)
 df_dge_multimodal_logcpm<-as.data.frame(dge_multimodal_logcpm)
 
@@ -216,15 +219,12 @@ plot1<-ggplot(df_diagonal,aes(x=diagonal))+
   rock_roi_theme()+
   xlab("pearson corr")
 
-
 plot1<-rasterize(plot1, layers='Point', dpi=1000)
 
 plot1
 
-ggsave(file=file.path(datadir,"single_corr.svg"), plot=plot1, width=1.6, height=1.6)
-
-
 ```
+
 ### Based on cell type annotation 
 
 ```{r}

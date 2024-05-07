@@ -80,6 +80,8 @@ sces <- mapply(function(u,v)  {
 
 sce <- Reduce(cbind, sces)
 
+table(sce$sample_id)
+
 ```
 
 ### Setting up knitr 
@@ -252,6 +254,8 @@ mean(cd[which(cd$sample_id=="rockroi"),]$detected)
 
 sces<-readRDS(file.path(datadir,"sce_qc-filtered-nodoublets-clustered-annotated.rds"))
 
+table(sces$sample_id)
+
 rds <- rowData(sces)
 tso_qc <- perCellQCMetrics(sces, assay.type = "tso_off_and_ontarget_unique",
                            subsets=list(capture=rds$gene_type=="capture",
@@ -323,6 +327,48 @@ plot6<-ggrastr::rasterize(plot6, layers='Point', dpi=1000)
 plot6
 
 ggsave(file=file.path(datadir,"tsogenes.svg"), plot=plot6, width=2.7, height=2.7)
+
+```
+
+### Dataset for GEO
+
+```{r}
+
+sce<-readRDS(file.path(datadir, "uni_multi_filtered_doublet_removed.rds"))
+
+rr<-as.data.frame(colData(sces[,sces$sample_id=="rockroi"]))
+un<-as.data.frame(colData(sces[,sces$sample_id=="unmod"]))
+
+rr$barcode<-gsub("pdgfra_rockroi_multimodal.","",rr$sample_id.barcode)
+un$barcode<-gsub("pdgfra_unmod_unimodal.","",un$sample_id.barcode)
+
+rr$broad_annotation<-"Mesenchymal"
+rr$broad_annotation[!grepl("Crypt",rr$annotation)]<-"Epithelial"
+
+rownames(rr)<-rr$barcode
+rownames(un)<-un$barcode
+
+un$broad_annotation<-"Mesenchymal"
+un$broad_annotation[!grepl("Crypt",un$annotation)]<-"Epithelial"
+
+rr_uni<-as.data.frame(colData(sce[,sce$sample_id=="pdgfra_rockroi_unimodal"]))
+rr_uni$barcode<-gsub("pdgfra_rockroi_unimodal.","",rr_uni$sample_id.barcode)
+rr_uni<-rr_uni[intersect(rr_uni$barcode,rr$barcode),]
+
+rr_small<-rr[intersect(rr$barcode,rr_uni$barcode),]
+
+rr_uni$annotation<-rr_small$annotation
+rr_uni$broad_annotation<-rr_small$broad_annotation
+
+rr_uni<-rr_uni[,c("broad_annotation","annotation")]
+
+write.csv(rr_uni,"rockroi_unimodal_annotation.csv")
+
+rr<-rr[,c("broad_annotation","annotation")]
+un<-un[,c("broad_annotation","annotation")]
+
+write.csv(rr,"rockroi_multimodal_annotation.csv")
+write.csv(un,"unmod_multimodal_annotation.csv")
 
 ```
 

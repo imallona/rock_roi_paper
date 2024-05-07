@@ -28,7 +28,7 @@ library(readr)
 library(plotROC)
 library(here)
 
-rdss <- dir(here("01_pdgfra_experiment"), "^pd.*rds$", 
+rdss <- dir(here("01_pdgfra_experiment"), "_sce.rds", 
             recursive = TRUE, full.names = TRUE)
 names(rdss) <- gsub("_sce.rds", "", basename(rdss))
 rdss
@@ -56,6 +56,7 @@ sces <- mapply(function(u,v)  {
 }, rdss, names(rdss))
 
 sce <- Reduce(cbind, sces)
+
 ```
 
 
