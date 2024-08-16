@@ -1,0 +1,10 @@
+chr22	captured	transcript	23182222	23182239	.	+	.	gene_id "ENSG00000186716.21"; transcript_id "bcr_fusion_minor";
+chr22	captured	exon	23182222	23182239	.	+	.	gene_id "ENSG00000186716.21"; transcript_id "bcr_fusion_minor"; exon_id "bcr_fusion_minor";
+chr22	captured	transcript	23289606	23290413	.	+	.	gene_id "ENSG00000186716.21"; transcript_id "bcr_fusion_major";
+chr22	captured	exon	23289606	23289621	.	+	.	gene_id "ENSG00000186716.21"; transcript_id "bcr_fusion_major"; exon_id "bcr_fusion_major_e14";
+chr22	captured	exon	23290339	23290413	.	+	.	gene_id "ENSG00000186716.21"; transcript_id "bcr_fusion_major"; exon_id "bcr_fusion_major_e13";
+chr9	captured	transcript	130854064	130854225	.	+	.	gene_id "ENSG00000097007.19"; transcript_id "abl_fusion_minor";
+chr9	captured	exon	130854064	130854225	.	+	.	gene_id "ENSG00000097007.19"; transcript_id "abl_fusion_minor";
+chr9	captured	transcript	130854064	130854152	.	+	.	gene_id "ENSG00000097007.19"; transcript_id "abl_fusion_major";	
+chr9	captured	exon	130854064	130854152	.	+	.	gene_id "ENSG00000097007.19"; transcript_id "abl_fusion_major"; exon_id "abl_fusion_major";
+

@@ -1,0 +1,49 @@
+## simulate: True generates fake data and runs the pipeline
+simulate: False
+
+## software stack, will work out of the box if within the supplied docker container
+Rbin: R
+STAR: STAR
+# bamCoverage: bamCoverage ## not used anymore
+featureCounts: featureCounts
+bedtools: bedtools
+bedGraphToBigWig: bedGraphToBigWig
+faSize: faSize
+
+## run limits
+nthreads: 5
+max_mem_mb: 350000 ## these are megabytes
+
+## full or relative path to the `root` of the rock_roi_method cloned repository
+rock_method_path: "."
+
+## full or relative path where outputs will be generated at
+working_dir: ~/kiel_leukemia_data/mapping_patient_data
+
+## fill below these line if `simulate : False` -----------------------------------------
+## if `simulate: True` then all config below this line will be replaced by
+##   hardcoded values (within the Snakefile)
+
+gtf: ~/mapping_leukemia_data/genome/combined.gtf
+genome: ~/mapping_leukemia_data/genome/combined.fa
+
+# i.e. cDNA read length minus 1
+sjdbOverhang: 179
+
+## run mode, one of these (please see the README / docs):
+##   'tso off- and ontarget unique'
+##   'tso ontarget multi'
+##   'all'
+run_mode: 'tso off- and ontarget unique'
+
+## GTF `source` field identifying on-target rock- or roi- features
+capture_gtf_column_2_pattern : 'captured'
+featurecounts_t: 'exon' ## feature counting unit for featurecounts
+featurecounts_g: 'gene_id' ## feature grouping unit for featurecounts
+
+samples:
+  - name: leukemia_patient
+    uses:
+      cb_umi_fq: ~/kiel_leukemia_data/kiel_data_longer_R2/331131_2-Patient_S2_R1_001.fastq.gz
+      cdna_fq: ~/kiel_leukemia_data/kiel_data_longer_R2/331131_2-Patient_S2_R2_001.fastq.gz
+      whitelist: 96x3
