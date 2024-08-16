@@ -1,3 +1,4 @@
+# 16.08.2024 Giulia Moro
 chr22	captured	transcript	23182222	23182239	.	+	.	gene_id "ENSG00000186716.21"; transcript_id "bcr_fusion_minor";
 chr22	captured	exon	23182222	23182239	.	+	.	gene_id "ENSG00000186716.21"; transcript_id "bcr_fusion_minor"; exon_id "bcr_fusion_minor";
 chr22	captured	transcript	23289606	23290413	.	+	.	gene_id "ENSG00000186716.21"; transcript_id "bcr_fusion_major";
