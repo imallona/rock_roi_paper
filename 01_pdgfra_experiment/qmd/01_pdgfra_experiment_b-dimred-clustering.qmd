@@ -91,7 +91,7 @@ hvg <- mgv$bio > .01 & mgv$p.value < .01 & mgv$mean > .2 & mgv$gene_type=="mouse
 rn <- rownames(mgv)[hvg]
 length(rn)
 
-ggplot(mgv %>% data.frame %>% filter(gene_type != "capture"),
+ggplot(mgv %>% data.frame %>% dplyr::filter(gene_type != "capture"),
        aes(x=mean, y=bio, colour=p.value<.05, shape = gene_type)) +
   geom_point() + facet_wrap(~gene_type)
 
@@ -190,7 +190,7 @@ df <- data.frame(gene = names(ents),
                  entropy=ents, Fstat=tt$F,
                  cluster.max = apply(agg_counts, 1, which.max)) %>%
   mutate(order_by = Fstat / entropy) %>%
-  filter(Fstat > 400, entropy < 1.25) %>%
+  dplyr::filter(Fstat > 400, entropy < 1.25) %>%
   arrange(desc(order_by)) %>%
   group_by(cluster.max) %>% slice_max(order_by = order_by, n = 10)
 
@@ -200,7 +200,7 @@ genes <- split(df$gene, df$cluster.max) %>% unlist
 
 # make row annotation
 rowanno <- data.frame(Marker = genes) %>% 
-  left_join(markers %>% select(Marker, Broad_cell_type, Cell_type)) %>%
+  left_join(markers %>% dplyr::select(Marker, Broad_cell_type, Cell_type)) %>%
   transmute(Marker = Marker,
             broad_ct = replace_na(Broad_cell_type, ""),
             celltype = replace_na(Cell_type, "")) %>%

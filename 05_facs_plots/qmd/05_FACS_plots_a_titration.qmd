@@ -274,6 +274,37 @@ ggplot(plottable,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","unmod","100_
   
 ```
 
+### Violin plot
+
+```{r}
+
+ggplot(plottable,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","unmod","100_gfp","50_gfp","50_dt","25_gfp","25_dt","10_gfp","10_dt")),y=value))+
+  geom_violin(aes(fill=L1,alpha=0.5),width=0.8,size = 0.1)+
+  scale_y_flowjo_biexp()+
+  theme_bw()+
+  xlab("sample")+
+  ylab("APC-A Atto647N")+
+  rock_roi_theme()+
+  theme(legend.position = "none")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+
+  stat_summary(fun=mean, 
+               geom="crossbar", 
+               width=0.3)+
+  scale_fill_manual(values=c(pos_dt="#882155",
+                             pos_TSO="#CC6677",
+                             neg="#C0C0C0",
+                             unmod="black",
+                             "100_gfp"="#12783D",
+                             "50_gfp"="#99CA3C",
+                             "50_dt"="#AA4599",
+                             "25_gfp"="#99CA3C",
+                             "25_dt"="#AA4599",
+                             "10_gfp"="#99CA3C",
+                             "10_dt"="#AA4599"))
+
+
+```
+
 
 ### Show same forward and side scatter
 
@@ -308,7 +339,9 @@ ggplot(plottable,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","unmod","100_
                              "25_gfp"="#99CA3C",
                              "25_dt"="#AA4599",
                              "10_gfp"="#99CA3C",
-                             "10_dt"="#AA4599"))
+                             "10_dt"="#AA4599"))+
+  scale_y_continuous(limits = c(50000, 100000), breaks = seq(50000, 100000, 10000))
+
 
 
 list_filt_titration<-list()
@@ -340,7 +373,8 @@ ggplot(plottable,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","unmod","100_
                              "25_gfp"="#99CA3C",
                              "25_dt"="#AA4599",
                              "10_gfp"="#99CA3C",
-                             "10_dt"="#AA4599"))
+                             "10_dt"="#AA4599"))+
+  scale_y_continuous(limits = c(30000, 90000), breaks = seq(30000, 90000, 20000))
 
 ```
 

@@ -335,7 +335,6 @@ ggplot(plottable2,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","100_gfp","1
   
 ```
 
-
 ### combining the two 
 
 ```{r,fig.width=8.1,fig.height=2.7}
@@ -361,7 +360,31 @@ ggplot(combined,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","100_gfp","10_
 
 ```
 
+### Same for Violin plot
 
+```{r}
+
+ggplot(combined,aes(x=factor(L1,levels=c("pos_dt","pos_TSO","neg","100_gfp","10_gfp","19_100_gfp","19_10_gfp")),y=value))+
+  geom_violin(aes(fill=L1,alpha=0.5),width=0.8,size = 0.1)+
+  scale_y_flowjo_biexp()+
+  theme_bw()+
+  xlab("sample")+
+  rock_roi_theme()+
+  theme(legend.position = "none")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.5))+
+    stat_summary(fun=mean, 
+               geom="crossbar", 
+               width=0.3)+
+  ylab("APC-A Atto647N")+
+  scale_fill_manual(values=c(pos_dt="#882155",
+                             pos_TSO="#CC6677",
+                             neg="#C0C0C0",
+                             "100_gfp"="#12783D",
+                             "10_gfp"="#99CA3E",
+                             "19_100_gfp"="#12783D",
+                             "19_10_gfp"="#99CA3E"))
+
+```
 
 ### Session info
 
