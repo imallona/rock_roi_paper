@@ -127,14 +127,16 @@ echo "STAR_fusion finished"
 
 # adding the CB and UB tag to the bwa mem2 bam file and generating count table
 
-# only want the mapped reads --> they will have non zero XS field
-
 cd $WD/bwa_mem2/output
 
-samtools view -H bwa_mem2.sorted.bam > header.txt
-samtools view bwa_mem2.sorted.bam | grep -v "XS:i:0" | awk 'BEGIN {OFS="\t"} {split($1, a, /[;,]/); print a[1], $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, a[2], a[3]}' | cat header.txt - | samtools view -Sbh > annotated_bwa_mem2.sorted.bam
+samtools view -b -F 4 bwa_mem2.sorted.bam > mapped.bam
 
-rm header.txt
+# removed unmapped reads
+
+samtools view -H mapped.bam > header.txt
+samtools view mapped.bam | awk 'BEGIN {OFS="\t"} {split($1, a, /[;,]/); print a[1], $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, a[2], a[3]}' | cat header.txt - | samtools view -Sbh > annotated_bwa_mem2.sorted.bam
+
+rm header.txt mapped.bam
 
 # UMI deduplication based on CB and UMI and gene name field
 
@@ -168,6 +170,8 @@ samtools view $WD/bwa_mem2/output/deduplicated_annotated_bwa_mem2.sorted.bam | c
 # we are also reporting things other than BCR:ABL if we don't filter for the chromosomes --> only take chr22 and chr9
 
 cd $WD/star_fusion/output
+
+# don't want the truncated reads
 
 # just want the ones from chr9 and chr22 
 
