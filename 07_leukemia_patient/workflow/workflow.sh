@@ -8,18 +8,16 @@
 ## this script is to be run after the rock_roi_method workflow: https://github.com/imallona/rock_roi_method/tree/main
 # only on TSO data, since the fusions are expected to be there 
 
-export PATH=/home/imallona/soft/star/STAR-2.7.10b/source:$PATH
-
 # for STARsolo
 
 COMBINED_FA_GENOME=~/mapping_leukemia_data/genome/combined.fa
 COMBINED_GTF_GENOME=~/mapping_leukemia_data/genome/combined.gtf
-WD=~/test_leukemia_simulated_reads
+WD=~/test_leukemia_downsampled_cell_line_experiment
 COMBINED_INDEXED_GENOME=~/mapping_leukemia/data/index
-STARSOLO_BAM=$WD/starsolo/Aligned.sortedByCoord.out.bam
-r1=~/simulated_leukemia_data/combined_r1.fastq.gz
-r2=~/simulated_leukemia_data/combined_r2.fastq.gz
-r2_no_gz=~/simulated_leukemia_data/combined_r2.fastq
+STARSOLO_BAM=$WD/align_tso/downsampled_cell_line/Aligned.sortedByCoord.out.bam
+r1=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R1_5M.fastq.gz
+r2=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R2_5M.fastq.gz
+r2_no_gz=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R2_5M.fastq
 
 # for bwa mem2
 
@@ -33,35 +31,6 @@ CUSTOM_GTF=~/leukemia_bwamem2/genome/BCR_ABL.gtf
 STAR_FUSION_GENOME=~/test_starfusion/genome/ctat_genome_lib_build_dir
 PATH_STAR_FUSION=~/STAR-Fusion/ctat-genome-lib-builder
 PATH_SIMG_FILE=~/star-fusion.v1.13.0.simg
-
-# threads
-
-NTHREADS=10
-
-mkdir -p $WD/starsolo
-cd $WD/starsolo
-
-STAR --runThreadN $NTHREADS \
-     --genomeDir $COMBINED_INDEXED_GENOME \
-     --readFilesCommand zcat \
-     --readFilesIn  $r2 $r1  \
-     --soloType CB_UMI_Complex \
-     --soloAdapterSequence AATGNNNNNNNNNCCAC \
-     --soloCBwhitelist ~/test_leukemia_simulated_reads/rock_roi_method/data/whitelist_96x3/BD_CLS1.txt ~/test_leukemia_simulated_reads/rock_roi_method/data/whitelist_96x3/BD_CLS2.txt ~/test_leukemia_simulated_reads/rock_roi_method/data/whitelist_96x3/BD_CLS3.txt \
-     --soloCBmatchWLtype 1MM \
-     --soloCBposition 2_-9_2_-1 2_4_2_12 2_17_2_25 \
-     --soloUMIposition 3_10_3_17 \
-     --soloUMIlen 8 \
-     --soloCellReadStats Standard \
-     --soloCellFilter None \
-     --outSAMattributes NH HI AS nM NM MD jM jI MC ch CB UB gx gn sS CR CY UR UY\
-     --outSAMtype BAM SortedByCoordinate \
-     --quantMode GeneCounts \
-     --sjdbGTFfile $COMBINED_GTF_GENOME \
-     --sjdbOverhang 179 \
-     --outSAMunmapped Within
-
-samtools index -@ $NTHREADS Aligned.sortedByCoord.out.bam
 
 # get unmapped reads and reads that mapped to BCR and to ABL and append their name to the readname
 
@@ -140,7 +109,7 @@ echo "BWAMEM2 finished"
 mkdir -p $WD/bwa_mem2/output
 cd $WD/bwa_mem2/output
 
-~/leukemia_bwamem2/bwa-mem2-2.2.1_x64-linux/bwa-mem2 mem $WD/bwa_mem2/genome/indexed $WD/sorted_duplicate_r2.fastq.gz -t 20 -k 80 -w 12 | samtools view -bS | samtools sort -o bwa_mem2.sorted.bam
+~/leukemia_bwamem2/bwa-mem2-2.2.1_x64-linux/bwa-mem2 mem $WD/bwa_mem2/genome/indexed $WD/sorted_duplicate_r2.fastq.gz -t 20 -k 80 -w 12 | samtools view -bS | samtools sort -o bwa_mem2.sorted.bam 
 
 # run STAR fusion --> the genome takes too long to generate (3 days), use premade genome
 
@@ -211,20 +180,20 @@ awk '$2 >23179704  || $2 <23318037 || $4 > 130713016 || $4 < 130887675' Chimeric
 
 # UMI deduplication based on CB UB and start / end position
 
-less sub_Chimeric.out.junction | grep "+" | grep "chr9" | grep "chr22" | awk 'BEGIN {OFS="\t"} {split($10, a, /[;,]/); print $1""$4"_"$1"_"$2"__"$4"_"$5, a[1],a[2], a[3]}' > annotated_sub_Chimeric.out.junction
+less sub_Chimeric.out.junction | grep "+" | grep "chr9" | grep "chr22" | awk 'BEGIN {OFS="\t"} {split($10, a, /[;,]/); print a[1],$1""$4"_"$1"_"$2"__"$4"_"$5,a[2],a[3]}' > annotated_sub_Chimeric.out.junction
 
 echo "# non deduplicated reads starfusion"
-wc -l annotated_sub_Chimeric.out.junction
+wc -l annotated_sub_Chimeric.out.junction 
 
-less annotated_sub_Chimeric.out.junction | sort | uniq -f 3 | cut -f2 > dedup_read_names.txt
+less annotated_sub_Chimeric.out.junction | sort | uniq -f 3 | cut -f1 > dedup_read_names.txt
 less annotated_sub_Chimeric.out.junction | grep -Ff dedup_read_names.txt > deduplicated_annotated_sub_Chimeric.out.junction
 
-less deduplicated_annotated_sub_Chimeric.out.junction | cut -f1,3 | sort | uniq -c >> p_counts_star_fusion.txt
+less deduplicated_annotated_sub_Chimeric.out.junction | cut -f2,3 | sort | uniq -c >> p_counts_star_fusion.txt
 
 echo "# deduplicated reads starfusion"
 wc -l deduplicated_annotated_sub_Chimeric.out.junction
 
-#rm dedup_read_names.txt annotated_sub_Chimeric.out.junction sub_Chimeric.out.junction
+rm dedup_read_names.txt annotated_sub_Chimeric.out.junction sub_Chimeric.out.junction
 
 # counts
 
