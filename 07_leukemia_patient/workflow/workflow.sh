@@ -38,34 +38,47 @@ cd $WD
 
 # for mapped reads: they will have the gx tag, unmapped won't so will have different column number
 
-# getting reads in BCR and ABL region
+# getting reads in BCR and ABL region and adding 1000 bp on each side of the region
 
-samtools view $STARSOLO_BAM "chr22:23179704-23318037" | grep -v "CB:Z:-" | grep -v "UB:Z:-" | grep -v "NH:i:0" | awk 'BEGIN{OFS="\t"}{print $1";"$27";"$28}' >> R2_names.txt
-samtools view $STARSOLO_BAM "chr9:130713016-130887675" | grep -v "CB:Z:-" | grep -v "UB:Z:-" | grep -v "NH:i:0" | awk 'BEGIN{OFS="\t"}{print $1";"$27";"$28}' >> R2_names.txt
+echo "getting read names"
+
+touch r2.fastq
+
+samtools view -H $STARSOLO_BAM > header.txt
+
+samtools view $STARSOLO_BAM "chr22:22179704-24318037" | cat header.txt - | samtools sort -n | samtools view | grep -v "CB:Z:-" | grep -v "UB:Z:-" | awk -v seen='empty' -v current="another" 'BEGIN{OFS="\t"} {
+ current = $1; # $1 is the read id
+ if (current != seen) {
+  {print "@" current ";"$27";"$28"\n"$10"\n+\n"$11};
+ } seen=current
+}' >> r2.fastq
+
+samtools view $STARSOLO_BAM "chr9:131713016-131887675" | cat header.txt - | samtools sort -n | samtools view | grep -v "CB:Z:-" | grep -v "UB:Z:-" | awk -v seen='empty' -v current="another" 'BEGIN{OFS="\t"} {
+ current = $1; # $1 is the read id
+ if (current != seen) {
+  {print "@" current ";"$27";"$28"\n"$10"\n+\n"$11};
+ } seen=current
+}' >> r2.fastq
 
 # for unmapped reads: they don't have the gx tag, so the CB and UB will be different
 
-samtools view $STARSOLO_BAM | grep "NH:i:0" | grep -v "CB:Z:-" | grep -v "UB:Z:-" | awk 'BEGIN{OFS="\t"}{print $1";"$22";"$23}' >> R2_names.txt
+samtools view -f 4 $STARSOLO_BAM | samtools sort -n | samtools view | grep -v "CB:Z:-" | grep -v "UB:Z:-" | awk -v seen='empty' -v current="another" 'BEGIN{OFS="\t"} {
+ current = $1; # $1 is the read id
+ if (current != seen) {
+  {print "@" current ";"$22";"$23"\n"$10"\n+\n"$11};
+ } seen=current
+}' >> r2.fastq
 
-# get the start of the readname and export the fastq record into new file
+echo "finished getting read names"
 
-gunzip $r2
+rm header.txt
 
-while read -r line; do
-    x=$(echo "$line" | awk '{split($0,a,/[;,]/); print a[1]}')
-    echo "@$line" >> r2.fastq
-    grep -A 3 "$x" "$r2_no_gz" | tail -n +2 >> r2.fastq
-done < R2_names.txt
-
-gzip $r2_no_gz
-
-rm R2_names.txt
-
-# deduplicate .fastq based on read name
+# deduplicate .fastqs
 
 cat r2.fastq | paste - - - - | sort -k1,1 -t " " | uniq | tr "\t" "\n" > sorted_duplicate_r2.fastq
 
-gzip sorted_duplicate_r2.fastq
+pigz sorted_duplicate_r2.fastq
+
 rm r2.fastq
 
 echo "R2 file generated"
@@ -144,7 +157,9 @@ echo "# non deduplicated reads bwa mem2"
 
 samtools view annotated_bwa_mem2.sorted.bam | cut -f 1 | wc -l
 
-samtools view annotated_bwa_mem2.sorted.bam | awk 'BEGIN{OFS="\t"}{print $1,$3,$16,$17}' | sort | uniq -f 3 | cut -f1 > dedup_read_names.txt
+# bwa mem2 does not require deduplication as the reads are already primary alignments but running anyway
+
+samtools view annotated_bwa_mem2.sorted.bam | awk 'BEGIN{OFS="\t"}{print $1,$3,$16,$17}' | sort -k3,4 | uniq | cut -f1 > dedup_read_names.txt
 samtools view -H annotated_bwa_mem2.sorted.bam > header.txt
 samtools view annotated_bwa_mem2.sorted.bam | grep -Ff dedup_read_names.txt | cat header.txt - | samtools view -Sbh > deduplicated_annotated_bwa_mem2.sorted.bam
 
@@ -189,7 +204,7 @@ less sub_Chimeric.out.junction | grep "+" | grep "chr9" | grep "chr22" | awk 'BE
 echo "# non deduplicated reads starfusion"
 wc -l annotated_sub_Chimeric.out.junction 
 
-less annotated_sub_Chimeric.out.junction | sort | uniq -f 3 | cut -f1 > dedup_read_names.txt
+less annotated_sub_Chimeric.out.junction | sort -k3,4 | uniq -f 2 | cut -f1 > dedup_read_names.txt # uniq based on cb and ub --> all are already uniq
 less annotated_sub_Chimeric.out.junction | grep -Ff dedup_read_names.txt > deduplicated_annotated_sub_Chimeric.out.junction
 
 less deduplicated_annotated_sub_Chimeric.out.junction | cut -f2,3 | sort | uniq -c >> p_counts_star_fusion.txt
