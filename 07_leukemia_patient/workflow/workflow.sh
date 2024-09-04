@@ -12,12 +12,12 @@
 
 COMBINED_FA_GENOME=~/mapping_leukemia_data/genome/combined.fa
 COMBINED_GTF_GENOME=~/mapping_leukemia_data/genome/combined.gtf
-WD=~/test_leukemia_simulated_reads
+WD=~/test_leukemia_downsampled_cell_line_experiment
 COMBINED_INDEXED_GENOME=~/mapping_leukemia/data/index
-STARSOLO_BAM=$WD/starsolo/Aligned.sortedByCoord.out.bam
-r1=~/simulated_leukemia_data/combined_r1.fastq.gz
-r2=~/simulated_leukemia_data/combined_r2.fastq.gz
-r2_no_gz=~/simulated_leukemia_data/combined_r2.fastq
+STARSOLO_BAM=$WD/align_tso/downsampled_cell_line/Aligned.sortedByCoord.out.bam
+r1=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R1_5M.fastq.gz
+r2=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R2_5M.fastq.gz
+r2_no_gz=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R2_5M.fastq
 
 # for bwa mem2
 
@@ -46,8 +46,6 @@ abl_start=130713016
 abl_end=130887675
 
 echo "getting read names"
-
-touch r2.fastq
 
 samtools view -H $STARSOLO_BAM > header.txt
 
@@ -78,15 +76,22 @@ echo "finished getting read names"
 
 rm header.txt
 
-# deduplicate .fastqs
+# deduplicateing 
 
-cat r2.fastq | paste - - - - | sort -k1,1 -t " " | uniq | tr "\t" "\n" > sorted_duplicate_r2.fastq
+echo "non-deduplicated .fastq lines"
+wc -l r2.fastq
+
+grep '@' r2.fastq | awk '{split($1, a, /[;,]/); print a[2]";"a[3]}' | sort | uniq -d > duplicated_CB_UMI.txt
+for pat in $(cat duplicated_CB_UMI.txt); do grep -m 1 -A 3 $pat r2.fastq; done > sorted_duplicate_r2.fastq
+
+echo "deduplicated .fastq lines"
+wc -l sorted_duplicate_r2.fastq
 
 pigz sorted_duplicate_r2.fastq
 
-rm r2.fastq
-
 echo "R2 file generated"
+
+rm r2.fastq duplicated_CB_UMI.txt
 
 # run bwa_mem2
 
@@ -99,17 +104,14 @@ wget http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_38/"$TRANS
 
 pigz --decompress *gz
 
-grep "ABL1" "$TRANSCRIPTOME"| sed 's/>//g' > ABL1_human.gtf
-grep "BCR" "$TRANSCRIPTOME"| sed 's/>//g' >  BCR_human.gtf
-
-touch ABL1_human.fa
-touch BCR_human.fa
+grep "ENSG00000097007" "$TRANSCRIPTOME"| sed 's/>//g' > ABL1_human.gtf
+grep "ENSG00000186716" "$TRANSCRIPTOME"| sed 's/>//g' >  BCR_human.gtf
 
 for i in $(cat ABL1_human.gtf); do
     samtools faidx $TRANSCRIPTOME "$i" >> ABL1_human.fa
 done
 
-for i in $(cat BCR_human.gtf) ; do
+ for i in $(cat BCR_human.gtf) ; do
     samtools faidx $TRANSCRIPTOME "$i"  >> BCR_human.fa
 done
 
@@ -127,9 +129,7 @@ echo "BWAMEM2 finished"
 mkdir -p $WD/bwa_mem2/output
 cd $WD/bwa_mem2/output
 
-~/leukemia_bwamem2/bwa-mem2-2.2.1_x64-linux/bwa-mem2 mem $WD/bwa_mem2/genome/indexed $WD/sorted_duplicate_r2.fastq.gz -t 20 -k 80 -w 12 | samtools view -bS | samtools sort -o bwa_mem2.sorted.bam 
-
-# run STAR fusion --> the genome takes too long to generate (3 days), use premade genome
+~/leukemia_bwamem2/bwa-mem2-2.2.1_x64-linux/bwa-mem2 mem $WD/bwa_mem2/genome/indexed $WD/sorted_duplicate_r2.fastq.gz -t 20 -k 80 -w 12 | samtools view -bS | samtools sort -o bwa_mem2.sorted.bam &> log.txt
 
 mkdir -p $WD/star_fusion/output
 cd $WD/star_fusion/output
@@ -139,7 +139,7 @@ singularity exec -e -B `pwd` -B $PATH_STAR_FUSION \
        STAR-Fusion \
        --left_fq $WD/sorted_duplicate_r2.fastq.gz \
        --genome_lib_dir $STAR_FUSION_GENOME \
-       --output_dir $WD/star_fusion/output > log.txt
+       --output_dir $WD/star_fusion/output &> log.txt
 
 echo "STAR_fusion finished"
 
@@ -204,10 +204,12 @@ awk '$2 >23179704  || $2 <23318037 || $4 > 130713016 || $4 < 130887675' Chimeric
 
 # UMI deduplication based on CB UB and start / end position
 
-less sub_Chimeric.out.junction | grep -v "-" | grep "chr9" | grep "chr22" | awk 'BEGIN {OFS="\t"} {split($10, a, /[;,]/); print a[1],$1""$4"_"$1"_"$2"__"$4"_"$5,a[2],a[3]}' > annotated_sub_Chimeric.out.junction
+grep -v "-" sub_Chimeric.out.junction | grep "chr9" | grep "chr22" | awk 'BEGIN {OFS="\t"} {split($10, a, /[;,]/); print a[1],$1""$4"_"$1"_"$2"__"$4"_"$5,a[2],a[3]}' > annotated_sub_Chimeric.out.junction
 
 echo "# non deduplicated reads starfusion"
-wc -l annotated_sub_Chimeric.out.junction 
+wc -l annotated_sub_Chimeric.out.junction
+
+# pos1: read identifier, pos2: position of fusion, pos3: CB, pos4: UB
 
 less annotated_sub_Chimeric.out.junction | sort -k3,4 | uniq -f 2 | cut -f1 > dedup_read_names.txt # uniq based on cb and ub --> all are already uniq
 less annotated_sub_Chimeric.out.junction | grep -Ff dedup_read_names.txt > deduplicated_annotated_sub_Chimeric.out.junction
@@ -230,3 +232,4 @@ grep -v "chr9chr22" $WD/star_fusion/output/p_counts_star_fusion.txt > counts_sta
 # problem --> STARSolo will most likely have counted the unique reads in the .bam file as WT BCR or ABL, so they are being counted twice. How to deal with this?
 # not an issue --> for bwa mem2 we are counting the wt separately, so remove the wt BCR and wt ABL counts from the matrix and use the ones detected from bwa mem2
 # not an issue --> for STARfusion they won't be detected 
+
