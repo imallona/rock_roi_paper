@@ -1,4 +1,0 @@
-seqname	source	feature	start	end	score	strand	frame	gene_id	transcript_id
-BCRABL1e2a2	alien	exon	1	799	.	+	.	BCRABL1e2a2
-BCRABL1e13a2	alien	exon	1	847	.	+	.	BCRABL1e13a2
-BCRABL1e14a2	alien	exon	1	922	.	+	.	BCRABL1e14a2
