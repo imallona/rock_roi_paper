@@ -12,12 +12,12 @@
 
 COMBINED_FA_GENOME=~/mapping_leukemia_data/genome/combined.fa
 COMBINED_GTF_GENOME=~/mapping_leukemia_data/genome/combined.gtf
-WD=~/test_leukemia_downsampled_cell_line_experiment
+WD=~/test_leukemia_simulated_reads
 COMBINED_INDEXED_GENOME=~/mapping_leukemia/data/index
-STARSOLO_BAM=$WD/align_tso/downsampled_cell_line/Aligned.sortedByCoord.out.bam
-r1=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R1_5M.fastq.gz
-r2=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R2_5M.fastq.gz
-r2_no_gz=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R2_5M.fastq
+STARSOLO_BAM=$WD/starsolo/Aligned.sortedByCoord.out.bam
+r1=~/simulated_leukemia_data/combined_r1.fastq.gz
+r2=~/simulated_leukemia_data/combined_r2.fastq.gz
+r2_no_gz=~/simulated_leukemia_data/combined_r2.fastq
 
 # for bwa mem2
 
@@ -40,6 +40,11 @@ cd $WD
 
 # getting reads in BCR and ABL region and adding 1000 bp on each side of the region
 
+bcr_start=23179704
+bcr_end=23318037
+abl_start=130713016
+abl_end=130887675
+
 echo "getting read names"
 
 touch r2.fastq
@@ -53,7 +58,7 @@ samtools view $STARSOLO_BAM "chr22:22179704-24318037" | cat header.txt - | samto
  } seen=current
 }' >> r2.fastq
 
-samtools view $STARSOLO_BAM "chr9:131713016-131887675" | cat header.txt - | samtools sort -n | samtools view | grep -v "CB:Z:-" | grep -v "UB:Z:-" | awk -v seen='empty' -v current="another" 'BEGIN{OFS="\t"} {
+samtools view $STARSOLO_BAM "chr9:129713016-131887675" | cat header.txt - | samtools sort -n | samtools view | grep -v "CB:Z:-" | grep -v "UB:Z:-" | awk -v seen='empty' -v current="another" 'BEGIN{OFS="\t"} {
  current = $1; # $1 is the read id
  if (current != seen) {
   {print "@" current ";"$27";"$28"\n"$10"\n+\n"$11};
@@ -166,7 +171,7 @@ samtools view annotated_bwa_mem2.sorted.bam | grep -Ff dedup_read_names.txt | ca
 echo "# deduplicated reads bwa mem2"
 wc -l dedup_read_names.txt
 
-rm dedup_read_names.txt header.txt annotated_bwa_mem2.sorted.bam
+#rm dedup_read_names.txt header.txt annotated_bwa_mem2.sorted.bam
 
 # count table for bwa_mem2 --> based on counting the occurences for each gene, cell and count. The .fastqs are already deduplicated so don't need to repeat. 
 # column 1: gene id, column 2: barcode id, column 3: counts
@@ -199,7 +204,7 @@ awk '$2 >23179704  || $2 <23318037 || $4 > 130713016 || $4 < 130887675' Chimeric
 
 # UMI deduplication based on CB UB and start / end position
 
-less sub_Chimeric.out.junction | grep "+" | grep "chr9" | grep "chr22" | awk 'BEGIN {OFS="\t"} {split($10, a, /[;,]/); print a[1],$1""$4"_"$1"_"$2"__"$4"_"$5,a[2],a[3]}' > annotated_sub_Chimeric.out.junction
+less sub_Chimeric.out.junction | grep -v "-" | grep "chr9" | grep "chr22" | awk 'BEGIN {OFS="\t"} {split($10, a, /[;,]/); print a[1],$1""$4"_"$1"_"$2"__"$4"_"$5,a[2],a[3]}' > annotated_sub_Chimeric.out.junction
 
 echo "# non deduplicated reads starfusion"
 wc -l annotated_sub_Chimeric.out.junction 
@@ -212,7 +217,7 @@ less deduplicated_annotated_sub_Chimeric.out.junction | cut -f2,3 | sort | uniq 
 echo "# deduplicated reads starfusion"
 wc -l deduplicated_annotated_sub_Chimeric.out.junction
 
-rm dedup_read_names.txt annotated_sub_Chimeric.out.junction sub_Chimeric.out.junction
+#rm dedup_read_names.txt annotated_sub_Chimeric.out.junction sub_Chimeric.out.junction
 
 # counts
 
