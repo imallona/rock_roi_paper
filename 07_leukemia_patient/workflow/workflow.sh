@@ -94,9 +94,9 @@ grep "@" r2.fastq | awk '{split ($0, a, /[;]/); print a[2]";"a[3]}' | sort | uni
 
 grep -Ff duplicated.txt r2.fastq | awk 'NR % 2 == 1' > unmapped_reads.txt
 
-# remove the lines from that entry and generate new file
+# remove the lines from that entry and generate new file --> only works if the wc -l of the unmapped_reads.txt is larger than 0, so need to add that condition
 
-while read -r id; do sed -e "/$id/,+3d" r2.fastq; done < unmapped_reads.txt > deduplicated_r2.fastq
+awk 'NF {exit 1}' unmapped_reads.txt && mv r2.fastq deduplicated_r2.fastq || while read -r id; do sed -e "/$id/,+3d" r2.fastq > deduplicated_r2.fastq; done < unmapped_reads.txt
 
 rm r2.fastq duplicated.txt unmapped_reads.txt
 
