@@ -12,12 +12,12 @@
 
 COMBINED_FA_GENOME=~/mapping_leukemia_data/genome/combined.fa
 COMBINED_GTF_GENOME=~/mapping_leukemia_data/genome/combined.gtf
-WD=~/test_leukemia_downsampled_cell_line_experiment
+WD=/home/gmoro/test_leukemia_simulated_reads
 COMBINED_INDEXED_GENOME=~/mapping_leukemia/data/index
-STARSOLO_BAM=$WD/align_tso/downsampled_cell_line/Aligned.sortedByCoord.out.bam
-r1=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R1_5M.fastq.gz
-r2=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R2_5M.fastq.gz
-r2_no_gz=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R2_5M.fastq
+STARSOLO_BAM=$WD/starsolo/Aligned.sortedByCoord.out.bam
+r1=/home/gmoro/simulated_leukemia_data/combined_r1.fastq.gz
+r2=/home/gmoro/simulated_leukemia_data/combined_r2.fastq.gz
+r2_no_gz=/home/gmoro/simulated_leukemia_data/combined_r2.fastq
 
 # for bwa mem2
 
@@ -31,6 +31,36 @@ CUSTOM_GTF=~/leukemia_bwamem2/genome/BCR_ABL.gtf
 STAR_FUSION_GENOME=~/test_starfusion/genome/ctat_genome_lib_build_dir
 PATH_STAR_FUSION=~/STAR-Fusion/ctat-genome-lib-builder
 PATH_SIMG_FILE=~/star-fusion.v1.13.0.simg
+
+# threads
+
+NTHREADS=10
+
+# running starsolo
+
+#STAR --runThreadN $NTHREADS \
+#     --genomeDir ~/mapping_leukemia/data/index \
+#     --readFilesCommand zcat \
+#     --outFileNamePrefix $WD/starsolo/ \
+#     --readFilesIn $r2 $r1  \
+#     --soloType CB_UMI_Complex \
+#     --soloAdapterSequence AATGNNNNNNNNNCCAC \
+#     --soloCBposition 2_-9_2_-1 2_4_2_12 2_17_2_25 \
+#     --soloUMIposition 3_10_3_17 \
+#     --soloUMIlen 8 \
+#     --soloCellReadStats Standard \
+#     --soloCBwhitelist ~/whitelist_96x3/BD_CLS1.txt ~/whitelist_96x3/BD_CLS2.txt ~/whitelist_96x3/BD_CLS3.txt \
+#     --soloCBmatchWLtype 1MM \
+#     --soloCellFilter None \
+#     --outSAMattributes NH HI AS nM NM MD jM jI MC ch CB UB gx gn sS CR CY UR UY\
+#     --outSAMtype BAM SortedByCoordinate \
+#     --quantMode GeneCounts \
+#     --sjdbGTFfile $COMBINED_GTF_GENOME \
+#     --sjdbOverhang 179 \
+#     --limitBAMsortRAM 20000 * 1024 * 1024 \
+#     --outSAMunmapped Within
+
+samtools index $STARSOLO_BAM
 
 # get unmapped reads and reads that mapped to BCR and to ABL and append their name to the readname
 
@@ -48,22 +78,33 @@ abl_end=130887675
 echo "getting read names and deduplicating"
 
 # deduplication is done based on first sorting by UB (28), CB (27) and 1 (read id). If the combination of UB and CB is unique as well as the read name, then the read is appended. 
+# need to also check if read is already present in .fastq file or not
 
 samtools view -H $STARSOLO_BAM > header.txt
 
-samtools view $STARSOLO_BAM "chr22:22179704-24318037" | cat header.txt - | samtools view | grep -v "CB:Z:-" | grep -v "UB:Z:-" | sort -k23,23 -k22,22 -k1,1 | awk -v seen='sid' -v current="cid" -v current_ub_cb="cubcb" -v seen_ub_cb="subcb" -v current_ub="cub" -v seen_ub="sub" 'BEGIN{OFS="\t"} {
+samtools view $STARSOLO_BAM "chr22:22179704-24318037" | cat header.txt - | samtools view | grep -v "CB:Z:-" | grep -v "UB:Z:-" | sort -k28,28 -k27,27 -k1,1 | awk -v seen='sid' -v current="cid" -v current_ub_cb="cubcb" -v seen_ub_cb="subcb" -v current_ub="cub" -v seen_ub="sub" 'BEGIN{OFS="\t"} {
  current = $1;
  current_ub_cb = $28";"$27;
- current_ub = $23;
+ current_ub = $28;
+ cmd = "grep -q " current " r2.fastq";
+ exit_code = system(cmd);
+ if (exit_code == 0) {
+    next;  # Skip the current record if found in r2.fastq
+ }
  if (current_ub != seen_ub && current_ub_cb != seen_ub_cb && current != seen) {
   {print "@" current ";"$27";"$28"\n"$10"\n+\n"$11};
  } seen=current; seen_ub_cb=current_ub_cb; seen_ub=current_ub;
 }' >> r2.fastq
 
-samtools view $STARSOLO_BAM "chr9:129713016-131887675" | cat header.txt - | samtools view | grep -v "CB:Z:-" | grep -v "UB:Z:-" | sort -k23,23 -k22,22 -k1,1 | awk -v seen='sid' -v current="cid" -v current_ub_cb="cubcb" -v seen_ub_cb="subcb" -v current_ub="cub" -v seen_ub="sub" 'BEGIN{OFS="\t"} {
+samtools view $STARSOLO_BAM "chr9:129713016-131887675" | cat header.txt - | samtools view | grep -v "CB:Z:-" | grep -v "UB:Z:-" | sort -k28,28 -k27,27 -k1,1 | awk -v seen='sid' -v current="cid" -v current_ub_cb="cubcb" -v seen_ub_cb="subcb" -v current_ub="cub" -v seen_ub="sub" 'BEGIN{OFS="\t"} {
  current = $1;
  current_ub_cb = $28";"$27;
- current_ub = $23;
+ current_ub = $28;
+ cmd = "grep -q " current " r2.fastq"; 
+ exit_code = system(cmd);
+ if (exit_code == 0) {
+    next;  # Skip the current record if found in r2.fastq
+ }
  if (current_ub != seen_ub && current_ub_cb != seen_ub_cb && current != seen) {
   {print "@" current ";"$27";"$28"\n"$10"\n+\n"$11};
  } seen=current; seen_ub_cb=current_ub_cb; seen_ub=current_ub;
@@ -71,20 +112,40 @@ samtools view $STARSOLO_BAM "chr9:129713016-131887675" | cat header.txt - | samt
 
 # for unmapped reads: they don't have the gx tag, so the CB and UB will be at a different position (UB (23), CB (22) and 1 (read id)
 
-samtools view -f 4 $STARSOLO_BAM | samtools view | grep -v "CB:Z:-" | grep -v "UB:Z:-" | sort -k23,23 -k22,22 -k1,1 | awk -v seen='sid' -v current="cid" -v current_ub_cb="cubcb" -v seen_ub_cb="subcb" -v current_ub="cub" -v seen_ub="sub" 'BEGIN{OFS="\t"} {
- current = $1; # $1 is the read id
+samtools view -b -f 4 $STARSOLO_BAM | samtools view | grep -v "CB:Z:-" | grep -v "UB:Z:-" | sort -k23,23 -k22,22 -k1,1 | awk -v seen='sid' -v current="cid" -v current_ub_cb="cubcb" -v seen_ub_cb="subcb" -v current_ub="cub" -v seen_ub="sub" 'BEGIN{OFS="\t"} {
+ current = $1;
  current_ub_cb = $23";"$22;
  current_ub = $23;
+ cmd = "grep -q " current " r2.fastq"; 
+ exit_code = system(cmd);
+ if (exit_code == 0) {
+    next;  # Skip the current record if found in r2.fastq
+ } 
  if (current_ub != seen_ub && current_ub_cb != seen_ub_cb && current != seen) {
   {print "@" current ";"$22";"$23"\n"$10"\n+\n"$11};
  } seen=current; seen_ub_cb=current_ub_cb; seen_ub=current_ub;
 }' >> r2.fastq
 
+# also need to get the reads which don't have a gx tag as the minor fusions seem to map to a genomic region where no gene is present. Only do this based on the mapped reads
+
+samtools view -b -F 4 $STARSOLO_BAM | samtools view | grep "gx:Z:-" | grep -v "CB:Z:-" | grep -v "UB:Z:-" | sort -k28,28 -k27,27 -k1,1 | awk -v seen='sid' -v current="cid" -v current_ub_cb="cubcb" -v seen_ub_cb="subcb" -v current_ub="cub" -v seen_ub="sub" 'BEGIN{OFS="\t"} {
+ current = $1;
+ current_ub_cb = $28";"$27;
+ current_ub = $28;
+ cmd = "grep -q " current " r2.fastq"; 
+ exit_code = system(cmd);
+ if (exit_code == 0) {
+    next;  # Skip the current record if found in r2.fastq
+ } 
+ if (current_ub != seen_ub && current_ub_cb != seen_ub_cb && current != seen) {
+  {print "@" current ";"$27";"$28"\n"$10"\n+\n"$11};
+ } seen=current; seen_ub_cb=current_ub_cb; seen_ub=current_ub;
+}' >> r2.fastq
+
+cp r2.fastq kept.fastq
 echo "finished getting read names and deduplicating"
 
 rm header.txt
-
-# problem -> read with different read name but same UB and CB can be unmapped but also in BCR / ABL region (happened with a read) --> need to check and remove the duplicate, unmapped one --> still to solve 
 
 # first obtain the duplicated CB and UB
 
@@ -96,9 +157,9 @@ grep -Ff duplicated.txt r2.fastq | awk 'NR % 2 == 1' > unmapped_reads.txt
 
 # remove the lines from that entry and generate new file --> only works if the wc -l of the unmapped_reads.txt is larger than 0, so need to add that condition
 
-awk 'NF {exit 1}' unmapped_reads.txt && mv r2.fastq deduplicated_r2.fastq || while read -r id; do sed -e "/$id/,+3d" r2.fastq > deduplicated_r2.fastq; done < unmapped_reads.txt
+awk 'NF {exit 1}' unmapped_reads.txt && mv r2.fastq deduplicated_r2.fastq || mv r2.fastq deduplicated_r2.fastq; while read -r id; do sed -i "/$id/,+3d" deduplicated_r2.fastq; done < unmapped_reads.txt
 
-rm r2.fastq duplicated.txt unmapped_reads.txt
+rm duplicated.txt unmapped_reads.txt
 
 # deduplicateing
 
@@ -213,7 +274,7 @@ samtools view $WD/bwa_mem2/output/no_xa_annotated_bwa_mem2.sorted.bam | cut -f3,
 
 samtools view $WD/bwa_mem2/output/xa_annotated_bwa_mem2.sorted.bam | awk 'BEGIN {OFS="\t"} {n=split($16, a, /[;]/); print n,$3,$17}' | sort -k3,3 -k2,2 | uniq -f 1 -c | awk '{print $1/$2,$3,$4}' >> counts_bwa_mem2.txt
 
-rm $WD/bwa_mem2/output/header.txt $WD/bwa_mem2/output/xa_annotated_bwa_mem2.sorted.bam $WD/bwa_mem2/output/no_xa_annotated_bwa_mem2.sorted.bam
+rm $WD/bwa_mem2/output/header.txt
 
 # it may happen that the multimapping counts have the same barcode and gene as the unique counts and thus must be summed
 
@@ -255,14 +316,9 @@ grep -v "-" sub_Chimeric.out.junction | grep "chr9" | grep "chr22" | awk 'BEGIN 
 echo "# chimeric alignments starfusion"
 wc -l annotated_sub_Chimeric.out.junction
 
-# pos1: read identifier, pos2: position of fusion, pos3: CB, pos4: UB
+less annotated_sub_Chimeric.out.junction | cut -f2,3 | sort | uniq -c >> p_counts_star_fusion.txt
 
-less annotated_sub_Chimeric.out.junction | sort -k3,4 | uniq -f 2 | cut -f1 > dedup_read_names.txt # uniq based on cb and ub --> all are already uniq
-less annotated_sub_Chimeric.out.junction | grep -Ff dedup_read_names.txt > deduplicated_annotated_sub_Chimeric.out.junction
-
-less deduplicated_annotated_sub_Chimeric.out.junction | cut -f2,3 | sort | uniq -c >> p_counts_star_fusion.txt
-
-rm dedup_read_names.txt annotated_sub_Chimeric.out.junction sub_Chimeric.out.junction
+rm sub_Chimeric.out.junction
 
 # counts
 
