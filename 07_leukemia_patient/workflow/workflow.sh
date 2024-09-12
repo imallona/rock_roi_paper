@@ -6,7 +6,7 @@
 ##
 
 ## this script is to be run after the rock_roi_method workflow: https://github.com/imallona/rock_roi_method/tree/main
-# only on TSO data, since the fusions are expected to be there 
+# only on TSO data, since the fusions are expected to be there
 
 # for STARsolo
 
@@ -64,11 +64,11 @@ samtools index $STARSOLO_BAM
 
 # get unmapped reads and reads that mapped to BCR and to ABL and append their name to the readname
 
+## Step 1: get unmapped reads, reads in the BCR ABL slice, reads with no gx tag from .bam file and output in new .fastq file. Append the CB and UB tag to their read id. Deduplicate CB and UB.  
+
 cd $WD
 
-# for mapped reads: they will have the gx tag, unmapped won't so will have different column number
-
-# getting reads in BCR and ABL region and adding 1000 bp on each side of the region
+# getting reads in BCR and ABL region and adding 1M bp to each side
 
 bcr_start=23179704
 bcr_end=23318037
@@ -78,7 +78,7 @@ abl_end=130887675
 echo "getting read names and deduplicating"
 
 # deduplication is done based on first sorting by UB (28), CB (27) and 1 (read id). If the combination of UB and CB is unique as well as the read name, then the read is appended. 
-# need to also check if read is already present in .fastq file or not
+# if first if loop check if read is already present in .fastq file or not, otherwise not added. 
 
 samtools view -H $STARSOLO_BAM > header.txt
 
@@ -119,8 +119,8 @@ samtools view -b -f 4 $STARSOLO_BAM | samtools view | grep -v "CB:Z:-" | grep -v
  cmd = "grep -q " current " r2.fastq"; 
  exit_code = system(cmd);
  if (exit_code == 0) {
-    next;  # Skip the current record if found in r2.fastq
- } 
+    next;
+ }
  if (current_ub != seen_ub && current_ub_cb != seen_ub_cb && current != seen) {
   {print "@" current ";"$22";"$23"\n"$10"\n+\n"$11};
  } seen=current; seen_ub_cb=current_ub_cb; seen_ub=current_ub;
@@ -135,7 +135,7 @@ samtools view -b -F 4 $STARSOLO_BAM | samtools view | grep "gx:Z:-" | grep -v "C
  cmd = "grep -q " current " r2.fastq"; 
  exit_code = system(cmd);
  if (exit_code == 0) {
-    next;  # Skip the current record if found in r2.fastq
+    next;
  } 
  if (current_ub != seen_ub && current_ub_cb != seen_ub_cb && current != seen) {
   {print "@" current ";"$27";"$28"\n"$10"\n+\n"$11};
@@ -147,9 +147,15 @@ echo "finished getting read names and deduplicating"
 
 rm header.txt
 
-# first obtain the duplicated CB and UB
+## Step 2: additonal CB / UB deduplication
+
+# Additional CB and UB deduplication if reads appended in different steps have duplication
 
 grep "@" r2.fastq | awk '{split ($0, a, /[;]/); print a[2]";"a[3]}' | sort | uniq -d > duplicated.txt
+
+echo 'remaining reads to deduplicate'
+
+wc -l duplicated.txt
 
 # obtain the entry in the .fastq file for the duplicated CB and UB. Only taking the second line as the unmapped will always be at that position
 
@@ -161,24 +167,25 @@ awk 'NF {exit 1}' unmapped_reads.txt && mv r2.fastq deduplicated_r2.fastq || mv 
 
 rm duplicated.txt unmapped_reads.txt
 
-# deduplicateing
-
 mv deduplicated_r2.fastq sorted_duplicate_r2.fastq
 
 pigz sorted_duplicate_r2.fastq
 
 echo "R2 file generated"
 
-# run bwa_mem2
+## Step 3: running bwa_mem2
 
 mkdir -p $WD/bwa_mem2/genome
 cd $WD/bwa_mem2/genome
 
-# genome generation
+# transcript reference generation for bwa_mem2
 
 wget http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_38/"$TRANSCRIPTOME".gz
 
 pigz --decompress *gz
+
+# ENSG00000097007: ABL1
+# ENSG00000186716: BCR
 
 grep "ENSG00000097007" "$TRANSCRIPTOME"| sed 's/>//g' > ABL1_human.gtf
 grep "ENSG00000186716" "$TRANSCRIPTOME"| sed 's/>//g' >  BCR_human.gtf
@@ -194,18 +201,18 @@ done
 cat "$CUSTOM_FA" ABL1_human.fa BCR_human.fa > combined.fa
 cat "$CUSTOM_GTF" ABL1_human.gtf BCR_human.gtf > combined.gtf
 
-# index
+# index reference
 
 ~/leukemia_bwamem2/bwa-mem2-2.2.1_x64-linux/bwa-mem2 index -p indexed combined.fa
-
-echo "BWAMEM2 finished"
-
-# run
 
 mkdir -p $WD/bwa_mem2/output
 cd $WD/bwa_mem2/output
 
 ~/leukemia_bwamem2/bwa-mem2-2.2.1_x64-linux/bwa-mem2 mem $WD/bwa_mem2/genome/indexed $WD/sorted_duplicate_r2.fastq.gz -t 20 -k 80 -w 12 | samtools view -bS | samtools sort -o bwa_mem2.sorted.bam
+
+## Step 4: run STAR fusion
+
+# genome was previously generated based on the .fa and .gtf files also used for STARsolo
 
 mkdir -p $WD/star_fusion/output
 cd $WD/star_fusion/output
@@ -219,17 +226,17 @@ singularity exec -e -B `pwd` -B $PATH_STAR_FUSION \
 
 echo "STAR_fusion finished"
 
-# adding the CB and UB tag to the bwa mem2 bam file and generating count table for bwa mem2
+## Step 5: count bwa mem2 data
+
+# adding the CB and UB tag to the bwa mem2 bam file and generating count table for bwa mem2 after extracting mapped reads
 
 cd $WD/bwa_mem2/output
 
 samtools view -b -F 4 bwa_mem2.sorted.bam > mapped.bam
 
-# removed unmapped reads
-
 samtools view -H mapped.bam > header.txt
 
-# only some reads will have the XA tag for secondary alignments, others will be empty so need to split between the two
+# only some reads will have the XA tag for secondary alignments (multialigners), others will be empty so need to split between the two (unique)
 
 # extracting the entries that don't have an XA tag
 
@@ -241,8 +248,6 @@ samtools view mapped.bam | awk 'BEGIN {FS="\t"} $16!="" {print}'| awk 'BEGIN {OF
 
 rm mapped.bam
 
-# UMI deduplication based on CB and UMI and gene name field
-
 echo '# bwa mem2 alignments with xa tag (multimapped)'
 
 samtools view xa_annotated_bwa_mem2.sorted.bam | cut -f 1 | wc -l
@@ -251,7 +256,7 @@ echo '# bwa mem2 alignments with no xa tag (unique)'
 
 samtools view no_xa_annotated_bwa_mem2.sorted.bam | cut -f 1 | wc -l
 
-# bwa mem2 does not require deduplication as we already deduplicated the .fastq files and bwa stores multimapped reads in the XA tag, which we are handling while counting. 
+# bwa mem2 does not require deduplication as we already deduplicated the .fastq files and bwa stores multialigned reads in the XA tag, which we are handling while counting. 
 
 # count table for bwa_mem2 --> based on counting the occurences for each gene, cell and count. 
 # column 1: gene id, column 2: barcode id, column 3: counts
@@ -291,16 +296,14 @@ less counts_bwa_mem2.txt | awk '{print $1,$2";"$3}' | sort -k2,2 | awk -v seen_g
 
 rm counts_bwa_mem2.txt
 
+## Step 6: count STAR fusion data
+
 # do the same for STAR fusion based on the Chimeric.out.junction
 # only count the ones on the + strand
 # here we are reporting multiple alignments for the same read --> depending if for the same read multiple possible fusions were detected
-# we are also reporting things other than BCR:ABL if we don't filter for the chromosomes --> only take chr22 and chr9
+# we are also reporting things other than BCR:ABL if we don't filter for the chromosomes --> only take chr22 and chr9 in the correct order
 
 cd $WD/star_fusion/output
-
-# don't want the truncated reads
-
-# just want the ones from chr9 and chr22 
 
 bcr_start=23179704
 bcr_end=23318037
@@ -309,9 +312,9 @@ abl_end=130887675
 
 awk '$2 >23179704  || $2 <23318037 || $4 > 130713016 || $4 < 130887675' Chimeric.out.junction > sub_Chimeric.out.junction
 
-# UMI deduplication based on CB UB and start / end position
+# $1: first chr, $4: second chr, $2: position in first chromosome, $5: position in second chromosome
 
-grep -v "-" sub_Chimeric.out.junction | grep "chr9" | grep "chr22" | awk 'BEGIN {OFS="\t"} {split($10, a, /[;,]/); print a[1],$1""$4"_"$1"_"$2"__"$4"_"$5,a[2],a[3]}' > annotated_sub_Chimeric.out.junction
+grep -v "-" sub_Chimeric.out.junction | grep "chr9" | grep "chr22" | awk 'BEGIN {OFS="\t"} {split($10, a, /[;,]/); print a[1],$1"_"$4"_"$2"__"$5",a[2],a[3]}' > annotated_sub_Chimeric.out.junction
 
 echo "# chimeric alignments starfusion"
 wc -l annotated_sub_Chimeric.out.junction
@@ -325,7 +328,10 @@ rm sub_Chimeric.out.junction
 mkdir -p $WD/count_tables/star_fusion
 cd $WD/count_tables/star_fusion
 
-echo -e "Counts\tfusion_position\tBarcode" > counts_star_fusion.txt
+echo -e "Counts\tfusion_position\tBarcode" > counts_star_fusion_complete.txt
+
+# remove chr9 and chr22 as this would be the inversion of the fusion
+
 grep -v "chr9chr22" $WD/star_fusion/output/p_counts_star_fusion.txt > counts_star_fusion.txt
 
 rm $WD/star_fusion/output/p_counts_star_fusion.txt
