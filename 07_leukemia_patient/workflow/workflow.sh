@@ -12,12 +12,12 @@
 
 COMBINED_FA_GENOME=~/mapping_leukemia_data/genome/combined.fa
 COMBINED_GTF_GENOME=~/mapping_leukemia_data/genome/combined.gtf
-WD=/home/gmoro/test_leukemia_simulated_reads
+WD=~/test_leukemia_downsampled_cell_line_experiment
 COMBINED_INDEXED_GENOME=~/mapping_leukemia/data/index
-STARSOLO_BAM=$WD/starsolo/Aligned.sortedByCoord.out.bam
-r1=/home/gmoro/simulated_leukemia_data/combined_r1.fastq.gz
-r2=/home/gmoro/simulated_leukemia_data/combined_r2.fastq.gz
-r2_no_gz=/home/gmoro/simulated_leukemia_data/combined_r2.fastq
+STARSOLO_BAM=$WD/align_tso/downsampled_cell_line/Aligned.sortedByCoord.out.bam
+r1=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R1_5M.fastq.gz
+r2=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R2_5M.fastq.gz
+r2_no_gz=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R2_5M.fastq
 
 # for bwa mem2
 
@@ -34,7 +34,7 @@ PATH_SIMG_FILE=~/star-fusion.v1.13.0.simg
 
 # threads
 
-NTHREADS=10
+NTHREADS=20
 
 # running starsolo
 
@@ -80,9 +80,9 @@ echo "getting read names and deduplicating"
 # deduplication is done based on first sorting by UB (28), CB (27) and 1 (read id). If the combination of UB and CB is unique as well as the read name, then the read is appended. 
 # if first if loop check if read is already present in .fastq file or not, otherwise not added. 
 
-samtools view -H $STARSOLO_BAM > header.txt
+samtools view -H $STARSOLO_BAM -@ $NTHREADS > header.txt
 
-samtools view $STARSOLO_BAM "chr22:22179704-24318037" | cat header.txt - | samtools view | grep -v "CB:Z:-" | grep -v "UB:Z:-" | sort -k28,28 -k27,27 -k1,1 | awk -v seen='sid' -v current="cid" -v current_ub_cb="cubcb" -v seen_ub_cb="subcb" -v current_ub="cub" -v seen_ub="sub" 'BEGIN{OFS="\t"} {
+samtools view $STARSOLO_BAM "chr22:22179704-24318037" -@ $NTHREADS | cat header.txt - | samtools view -@ $NTHREADS | grep -v "CB:Z:-" | grep -v "UB:Z:-" | sort -k28,28 -k27,27 -k1,1 | awk -v seen='sid' -v current="cid" -v current_ub_cb="cubcb" -v seen_ub_cb="subcb" -v current_ub="cub" -v seen_ub="sub" 'BEGIN{OFS="\t"} {
  current = $1;
  current_ub_cb = $28";"$27;
  current_ub = $28;
@@ -96,7 +96,7 @@ samtools view $STARSOLO_BAM "chr22:22179704-24318037" | cat header.txt - | samto
  } seen=current; seen_ub_cb=current_ub_cb; seen_ub=current_ub;
 }' >> r2.fastq
 
-samtools view $STARSOLO_BAM "chr9:129713016-131887675" | cat header.txt - | samtools view | grep -v "CB:Z:-" | grep -v "UB:Z:-" | sort -k28,28 -k27,27 -k1,1 | awk -v seen='sid' -v current="cid" -v current_ub_cb="cubcb" -v seen_ub_cb="subcb" -v current_ub="cub" -v seen_ub="sub" 'BEGIN{OFS="\t"} {
+samtools view $STARSOLO_BAM "chr9:129713016-131887675" -@ $NTHREADS | cat header.txt - | samtools view -@ $NTHREADS | grep -v "CB:Z:-" | grep -v "UB:Z:-" | sort -k28,28 -k27,27 -k1,1 | awk -v seen='sid' -v current="cid" -v current_ub_cb="cubcb" -v seen_ub_cb="subcb" -v current_ub="cub" -v seen_ub="sub" 'BEGIN{OFS="\t"} {
  current = $1;
  current_ub_cb = $28";"$27;
  current_ub = $28;
@@ -112,7 +112,7 @@ samtools view $STARSOLO_BAM "chr9:129713016-131887675" | cat header.txt - | samt
 
 # for unmapped reads: they don't have the gx tag, so the CB and UB will be at a different position (UB (23), CB (22) and 1 (read id)
 
-samtools view -b -f 4 $STARSOLO_BAM | samtools view | grep -v "CB:Z:-" | grep -v "UB:Z:-" | sort -k23,23 -k22,22 -k1,1 | awk -v seen='sid' -v current="cid" -v current_ub_cb="cubcb" -v seen_ub_cb="subcb" -v current_ub="cub" -v seen_ub="sub" 'BEGIN{OFS="\t"} {
+samtools view -b -f 4 $STARSOLO_BAM -@ $NTHREADS | samtools view -@ $NTHREADS | grep -v "CB:Z:-" | grep -v "UB:Z:-" | sort -k23,23 -k22,22 -k1,1 | awk -v seen='sid' -v current="cid" -v current_ub_cb="cubcb" -v seen_ub_cb="subcb" -v current_ub="cub" -v seen_ub="sub" 'BEGIN{OFS="\t"} {
  current = $1;
  current_ub_cb = $23";"$22;
  current_ub = $23;
@@ -128,7 +128,7 @@ samtools view -b -f 4 $STARSOLO_BAM | samtools view | grep -v "CB:Z:-" | grep -v
 
 # also need to get the reads which don't have a gx tag as the minor fusions seem to map to a genomic region where no gene is present. Only do this based on the mapped reads
 
-samtools view -b -F 4 $STARSOLO_BAM | samtools view | grep "gx:Z:-" | grep -v "CB:Z:-" | grep -v "UB:Z:-" | sort -k28,28 -k27,27 -k1,1 | awk -v seen='sid' -v current="cid" -v current_ub_cb="cubcb" -v seen_ub_cb="subcb" -v current_ub="cub" -v seen_ub="sub" 'BEGIN{OFS="\t"} {
+samtools view -b -F 4 $STARSOLO_BAM -@ $NTHREADS | samtools view -@ $NTHREADS | grep "gx:Z:-" | grep -v "CB:Z:-" | grep -v "UB:Z:-" | sort -k28,28 -k27,27 -k1,1 | awk -v seen='sid' -v current="cid" -v current_ub_cb="cubcb" -v seen_ub_cb="subcb" -v current_ub="cub" -v seen_ub="sub" 'BEGIN{OFS="\t"} {
  current = $1;
  current_ub_cb = $28";"$27;
  current_ub = $28;
