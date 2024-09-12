@@ -142,7 +142,6 @@ samtools view -b -F 4 $STARSOLO_BAM | samtools view | grep "gx:Z:-" | grep -v "C
  } seen=current; seen_ub_cb=current_ub_cb; seen_ub=current_ub;
 }' >> r2.fastq
 
-cp r2.fastq kept.fastq
 echo "finished getting read names and deduplicating"
 
 rm header.txt
@@ -314,7 +313,7 @@ awk '$2 >23179704  || $2 <23318037 || $4 > 130713016 || $4 < 130887675' Chimeric
 
 # $1: first chr, $4: second chr, $2: position in first chromosome, $5: position in second chromosome
 
-grep -v "-" sub_Chimeric.out.junction | grep "chr9" | grep "chr22" | awk 'BEGIN {OFS="\t"} {split($10, a, /[;,]/); print a[1],$1"_"$4"_"$2"__"$5",a[2],a[3]}' > annotated_sub_Chimeric.out.junction
+grep -v "-" sub_Chimeric.out.junction | grep "chr9" | grep "chr22" | awk 'BEGIN {OFS="\t"} {split($10, a, /[;,]/); print a[1],$1"_"$4"_"$2"__"$5,a[2],a[3]}' > annotated_sub_Chimeric.out.junction
 
 echo "# chimeric alignments starfusion"
 wc -l annotated_sub_Chimeric.out.junction
@@ -334,4 +333,4 @@ echo -e "Counts\tfusion_position\tBarcode" > counts_star_fusion_complete.txt
 
 grep -v "chr9chr22" $WD/star_fusion/output/p_counts_star_fusion.txt > counts_star_fusion.txt
 
-rm $WD/star_fusion/output/p_counts_star_fusion.txt
+rm $WD/star_fusion/output/p_counts_star_fusion.txt counts_star_fusion_complete.txt
