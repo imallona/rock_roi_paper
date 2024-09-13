@@ -8,6 +8,10 @@
 ## this script is to be run after the rock_roi_method workflow: https://github.com/imallona/rock_roi_method/tree/main
 # only on TSO data, since the fusions are expected to be there
 
+# STAR path 
+
+export PATH=/home/imallona/soft/star/STAR-2.7.10b/source:$PATH
+
 # for STARsolo
 
 COMBINED_FA_GENOME=~/mapping_leukemia_data/genome/combined.fa
@@ -255,12 +259,36 @@ cd $WD/bwa_mem2/output
 mkdir -p $WD/star_fusion/output
 cd $WD/star_fusion/output
 
-singularity exec -e -B `pwd` -B $PATH_STAR_FUSION \
-       $PATH_SIMG_FILE \
-       STAR-Fusion \
-       --left_fq $WD/sorted_duplicate_r2.fastq.gz \
-       --genome_lib_dir $STAR_FUSION_GENOME \
-       --output_dir $WD/star_fusion/output &> log.txt
+STAR --genomeDir "$COMBINED_INDEXED_GENOME" \
+--outReadsUnmapped None \
+--chimSegmentMin 12 \
+--chimJunctionOverhangMin 8 \
+--chimOutJunctionFormat 1 \
+--alignSJDBoverhangMin 10 \
+--alignMatesGapMax 100000 \
+--alignIntronMax 100000 \
+--alignSJstitchMismatchNmax 5 -1 5 5 \
+--runThreadN 4 \
+--outSAMstrandField intronMotif \
+--outSAMunmapped Within \
+--alignInsertionFlush Right \
+--alignSplicedMateMapLminOverLmate 0 \
+--alignSplicedMateMapLmin 30 \
+--outSAMtype BAM Unsorted \
+--readFilesIn /home/gmoro/simulated_leukemia_data/combined_r2.fastq.gz \
+--outSAMattrRGline ID:GRPundef \
+--chimMultimapScoreRange 3 \
+--chimScoreJunctionNonGTAG -4 \
+--chimMultimapNmax 20 \
+--chimOutType Junctions WithinBAM \
+--chimNonchimScoreDropMin 10 \
+--peOverlapNbasesMin 12 \
+--peOverlapMMp 0.1 \
+--genomeLoad NoSharedMemory \
+--twopassMode None \
+--readFilesCommand zcat \
+--quantMode GeneCounts \
+--outFilterMismatchNmax 1
 
 echo "STAR_fusion finished"
 
