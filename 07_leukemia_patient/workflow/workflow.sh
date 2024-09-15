@@ -250,7 +250,13 @@ cat "$CUSTOM_GTF" ABL1_human.gtf BCR_human.gtf > combined.gtf
 mkdir -p $WD/bwa_mem2/output
 cd $WD/bwa_mem2/output
 
-~/leukemia_bwamem2/bwa-mem2-2.2.1_x64-linux/bwa-mem2 mem $WD/bwa_mem2/genome/indexed $WD/sorted_duplicate_r2.fastq.gz -t 20 -k 80 -w 12 | samtools view -bS | samtools sort -o bwa_mem2.sorted.bam
+# -k 80: seed length
+# -h 1: if there are <INT hits with score >80% of the max score, output all in XA. Only outputting 1 extra to see if there are multialigners
+# -L: penalty for soft clipping
+# -A: matching score
+# -B: mismatch penalty
+
+~/leukemia_bwamem2/bwa-mem2-2.2.1_x64-linux/bwa-mem2 mem $WD/bwa_mem2/genome/indexed $WD/sorted_duplicate_r2.fastq.gz -t 30 -k 80 -w 12 -h 1 -L 1000 -A 100 -B 100 | samtools view -bS | samtools sort -o output.sorted.bam
 
 ## Step 4: run STAR fusion
 
@@ -275,7 +281,7 @@ STAR --genomeDir "$COMBINED_INDEXED_GENOME" \
 --alignSplicedMateMapLminOverLmate 0 \
 --alignSplicedMateMapLmin 30 \
 --outSAMtype BAM Unsorted \
---readFilesIn /home/gmoro/simulated_leukemia_data/combined_r2.fastq.gz \
+--readFilesIn $WD/sorted_duplicate_r2.fastq.gz \
 --outSAMattrRGline ID:GRPundef \
 --chimMultimapScoreRange 3 \
 --chimScoreJunctionNonGTAG -4 \
@@ -298,19 +304,20 @@ echo "STAR_fusion finished"
 
 cd $WD/bwa_mem2/output
 
-samtools view -b -F 4 bwa_mem2.sorted.bam > mapped.bam
+samtools view -b -F 4 output.sorted.bam > mapped.bam
 
 samtools view -H mapped.bam > header.txt
 
 # only some reads will have the XA tag for secondary alignments (multialigners), others will be empty so need to split between the two (unique)
+# also want to remove the reads that have an SA tag, which means that they are chimeric alignments which are split into two. In the simulated data this was the case for the ABL_BCR. 
 
 # extracting the entries that don't have an XA tag
 
-samtools view mapped.bam | awk 'BEGIN {FS="\t"} $16=="" {print}'| awk 'BEGIN {OFS="\t"} {split($1, a, /[;,]/); print a[1], $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, a[2], a[3]}' | cat header.txt - | samtools view -Sbh > no_xa_annotated_bwa_mem2.sorted.bam
+samtools view mapped.bam | grep -v "SA:" | awk 'BEGIN {FS="\t"} $16=="" {print}'| awk 'BEGIN {OFS="\t"} {split($1, a, /[;,]/); print a[1], $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, a[2], a[3]}' | cat header.txt - | samtools view -Sbh > no_xa_annotated_bwa_mem2.sorted.bam
 
 # extracting the entries with an XA tag
 
-samtools view mapped.bam | awk 'BEGIN {FS="\t"} $16!="" {print}'| awk 'BEGIN {OFS="\t"} {split($1, a, /[;,]/); print a[1], $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, a[2], a[3]}' | cat header.txt - | samtools view -Sbh > xa_annotated_bwa_mem2.sorted.bam
+samtools view mapped.bam | grep -v "SA:" |  awk 'BEGIN {FS="\t"} $16!="" {print}'| awk 'BEGIN {OFS="\t"} {split($1, a, /[;,]/); print a[1], $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, a[2], a[3]}' | cat header.txt - | samtools view -Sbh > xa_annotated_bwa_mem2.sorted.bam
 
 rm mapped.bam
 
@@ -343,11 +350,13 @@ samtools view $WD/bwa_mem2/output/no_xa_annotated_bwa_mem2.sorted.bam | cut -f3,
 # uniq -f -1 -c: don't take into account the number of reported alignments for uniq counting
 # sort based on CB field which here is k3 and then k2 for the gene id
 
+# IMPORTANT: the wt BCR will always multimap. There are two annotated transcripts and they have the same exact sequence at the fusion junction. We are summing the multimappers and recovering both, so the count will anyway sum up to 1. 
+
 samtools view $WD/bwa_mem2/output/xa_annotated_bwa_mem2.sorted.bam | awk 'BEGIN {OFS="\t"} {n=split($16, a, /[;]/); print n,$3,$17}' | sort -k3,3 -k2,2 | uniq -f 1 -c | awk '{print $1/$2,$3,$4}' >> counts_bwa_mem2.txt
 
 rm $WD/bwa_mem2/output/header.txt
 
-# it may happen that the multimapping counts have the same barcode and gene as the unique counts and thus must be summed
+# need to sum the multimappers
 
 less counts_bwa_mem2.txt | awk '{print $1,$2";"$3}' | sort -k2,2 | awk -v seen_gene_cb="sgc" -v current_gene_cb="cgc" -v counts_current="cc" -v counts_seen="cs" 'BEGIN{OFS="\t"} {
  counts_current = $1;
