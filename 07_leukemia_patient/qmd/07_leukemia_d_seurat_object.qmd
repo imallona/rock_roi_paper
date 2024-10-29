@@ -1,0 +1,202 @@
+---
+title: "07_leukemia_d_seurat_object"
+format:
+  html:
+    toc: true
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Load packages, load data
+
+```{r, warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(plotROC)
+library(here)
+library(rtracklayer)
+library(viridis)
+library(scDblFinder)
+library(bluster)
+library(singleCellTK)
+library(BUSpaRse)
+library(khroma)
+library(Matrix)
+
+wd<-"/Users/gimoro/figure_making_paper/rock_roi_paper/07_analysis_patient_data/data"
+
+rdss <- dir(here("07_analysis_patient_data"), "leukemia_patient.sce", 
+            recursive = TRUE, full.names = TRUE)
+names(rdss) <- gsub(".sce", "", basename(rdss))
+rdss
+
+datadir <- dirname(rdss)[1]
+
+sces <- mapply(function(u,v)  {
+  rds <- readRDS(u)
+  rds$sample_id <- v
+  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
+  colnames(rowData(rds)) <- c("name", "type", "value")
+  g <- grepl("^ENS", rownames(rds))
+  rownames(rds)[g] <- paste0(rownames(rds)[g], 
+                             "__", rowData(rds)$name[g])
+  rowData(rds)$gene_type <- "capture"
+  k <- grepl("^ENSG", rownames(rds))
+  rowData(rds)$gene_type[k] <- "human_gene"
+  k <- grepl("^ENSMUS", rownames(rds))
+  rowData(rds)$gene_type[k] <- "mouse_gene"
+  k <- grepl("^mt", rowData(rds)$name)
+  rowData(rds)$gene_type[k] <- "mouse_mito"
+  k <- grepl("^MT", rowData(rds)$name)
+  rowData(rds)$gene_type[k] <- "human_mito"
+  rds
+}, rdss, names(rdss))
+
+sces <- Reduce(cbind, sces)
+
+sces_nd<-readRDS(file.path(wd, "patient_sce_nd-filtered.rds")) # old object which was annotated, still contains the bwa_mem2 info so need to remove it 
+
+colData(sces_nd)<-colData(sces_nd)[,6:21]
+
+```
+
+## Seurat_object_generation
+
+```{r}
+
+#install.packages("~/Downloads/Matrix_1.6-4.tar.gz", repos = NULL, type = "source")
+library(Matrix)
+
+library(Seurat)
+library(SeuratObject)
+
+set.seed(1976)
+
+seurat_sces_nd <- CreateSeuratObject(counts = counts(sces_nd), meta.data = as.data.frame(colData(sces_nd)))
+
+seurat_sces_nd[["RNA"]][[]] <- as.data.frame(rowData(sces_nd))
+
+filtered.combined <- seurat_sces_nd
+filtered.combined@meta.data$sample_id
+
+filtered.combined.logNormalize <- NormalizeData(filtered.combined, normalization.method = "LogNormalize")
+hist(filtered.combined.logNormalize@assays$RNA$counts[,1])
+
+filtered.combined.logNormalize <- FindVariableFeatures(filtered.combined.logNormalize,
+                                                       selection.method = "vst",
+                                                       nfeatures = 2000, 
+                                                       verbose = T)
+
+filtered.combined.logNormalize <- ScaleData(filtered.combined.logNormalize)
+
+filtered.combined.logNormalize <- RunPCA(filtered.combined.logNormalize, features = VariableFeatures(object = filtered.combined.logNormalize))
+
+filtered.combined.logNormalize <- FindNeighbors(object = filtered.combined.logNormalize, dims = 1:15 ,reduction = "pca")
+filtered.combined.logNormalize <- FindClusters(object = filtered.combined.logNormalize, resolution = c(0.5,1,1.5,2))
+head(Idents(filtered.combined.logNormalize), 5)
+
+filtered.combined.logNormalize <- RunUMAP(filtered.combined.logNormalize, reduction = "pca", dims = 1:20)
+
+DimPlot(filtered.combined.logNormalize, reduction = "umap", group.by = "RNA_snn_res.1")
+
+# using markers 
+
+grep("LILRA4",rownames(filtered.combined.logNormalize))
+rownames(sces_nd)[16257]
+
+FeaturePlot(filtered.combined.logNormalize, c("ENSG00000177455.15--CD19",
+                                              "ENSG00000196549.13--MME",
+                                              "ENSG00000012124.17--CD22",
+                                              "ENSG00000010278.15--CD9",
+                                              "ENSG00000134460.18--IL2RA",
+                                              "ENSG00000198851.10--CD3E",
+                                              "ENSG00000010610.10--CD4",
+                                              "ENSG00000153563.16--CD8A",
+                                              "ENSG00000172116.23--CD8B",
+                                              "ENSG00000244734.4--HBB",
+                                              "ENSG00000005381.8--MPO",
+                                              "ENSG00000105383.15--CD33",
+                                              "ENSG00000170458.14--CD14",
+                                              "ENSG00000197561.7--ELANE",
+                                              "ENSG00000174059.17--CD34",
+                                              "ENSG00000173762.8--CD7",
+                                              "ENSG00000145649.8--GZMA")
+            , min.cutoff = 0, cols = c("grey95", "red"), raster = FALSE )
+
+FeaturePlot(filtered.combined.logNormalize, c("ENSG00000177455.15--CD19",
+                                              "ENSG00000196549.13--MME",
+                                              "ENSG00000012124.17--CD22",
+                                              "ENSG00000010278.15--CD9",
+                                              "ENSG00000134460.18--IL2RA",
+                                              "ENSG00000198851.10--CD3E",
+                                              "ENSG00000010610.10--CD4",
+                                              "ENSG00000153563.16--CD8A",
+                                              "ENSG00000172116.23--CD8B",
+                                              "ENSG00000244734.4--HBB",
+                                              "ENSG00000005381.8--MPO",
+                                              "ENSG00000105383.15--CD33",
+                                              "ENSG00000170458.14--CD14",
+                                              "ENSG00000197561.7--ELANE",
+                                              "ENSG00000174059.17--CD34",
+                                              "ENSG00000173762.8--CD7",
+                                              "ENSG00000145649.8--GZMA",
+                                              "ENSG00000197405.8--C5AR1")
+            , min.cutoff = 0, cols = c("grey95", "red"), raster = FALSE )
+
+
+
+
+
+filtered.combined.logNormalize <- SetIdent(filtered.combined.logNormalize, value = "RNA_snn_res.1")
+filtered.combined.logNormalize[["old.ident_V2"]] <- Idents(object = filtered.combined.logNormalize)
+new.cluster.ids2 <- c("patient leukemic cells",
+                      "patient leukemic cells",
+                      "patient leukemic cells",
+                      "patient leukemic cells",
+                      "monocytes",
+                      "patient leukemic cells",
+                      "patient leukemic cells",
+                      "dendritic cells",
+                      "monocytes",
+                      "dendritic cells",
+                      "patient leukemic cells",
+                      "myeloid precursors",
+                      "SUP-B15 cell line",
+                      "T cells",
+                      "patient leukemic cells",
+                      "precursor erythocytes",
+                      "monocytes"
+)
+
+names(new.cluster.ids2) <- levels(filtered.combined.logNormalize)
+filtered.combined.logNormalize <- RenameIdents(filtered.combined.logNormalize, new.cluster.ids2)
+
+DimPlot(filtered.combined.logNormalize, reduction = "umap", label = F, pt.size = 0.5)
+
+clustered_sces_nd<-as.SingleCellExperiment(filtered.combined.logNormalize)
+
+saveRDS(clustered_sces_nd,file=file.path(wd,"clustered_object.rds"))
+
+```
+
+# SessionInfo()
+
+```{r}
+
+sessionInfo()
+
+```
+
