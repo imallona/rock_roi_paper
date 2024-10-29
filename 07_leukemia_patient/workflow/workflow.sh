@@ -16,12 +16,9 @@ export PATH=/home/imallona/soft/star/STAR-2.7.10b/source:$PATH
 
 COMBINED_FA_GENOME=~/mapping_leukemia_data/genome/combined.fa
 COMBINED_GTF_GENOME=~/mapping_leukemia_data/genome/combined.gtf
-WD=~/test_leukemia_simulated_reads
+WD=~/data_mapping_leukemia_patient/workflow_aln
 COMBINED_INDEXED_GENOME=~/mapping_leukemia/data/index
-STARSOLO_BAM=$WD/starsolo/Aligned.sortedByCoord.out.bam
-r1=/home/gmoro/simulated_leukemia_data/combined_r1.fastq.gz
-r2=/home/gmoro/simulated_leukemia_data/combined_r2.fastq.gz
-r2_no_gz=/home/gmoro/simulated_leukemia_data/combined_r1.fastq
+STARSOLO_BAM=/home/gmoro/kiel_leukemia_data/mapping_patient_data/align_tso/leukemia_patient/Aligned.sortedByCoord.out.bam
 
 # for bwa mem2
 
@@ -38,33 +35,7 @@ PATH_SIMG_FILE=~/star-fusion.v1.13.0.simg
 
 # threads
 
-NTHREADS=20
-
-# running starsolo
-
-#STAR --runThreadN $NTHREADS \
-#     --genomeDir ~/mapping_leukemia/data/index \
-#     --readFilesCommand zcat \
-#     --outFileNamePrefix $WD/starsolo/ \
-#     --readFilesIn $r2 $r1  \
-#     --soloType CB_UMI_Complex \
-#     --soloAdapterSequence AATGNNNNNNNNNCCAC \
-#     --soloCBposition 2_-9_2_-1 2_4_2_12 2_17_2_25 \
-#     --soloUMIposition 3_10_3_17 \
-#     --soloUMIlen 8 \
-#     --soloCellReadStats Standard \
-#     --soloCBwhitelist ~/whitelist_96x3/BD_CLS1.txt ~/whitelist_96x3/BD_CLS2.txt ~/whitelist_96x3/BD_CLS3.txt \
-#     --soloCBmatchWLtype 1MM \
-#     --soloCellFilter None \
-#     --outSAMattributes NH HI AS nM NM MD jM jI MC ch CB UB gx gn sS CR CY UR UY\
-#     --outSAMtype BAM SortedByCoordinate \
-#     --quantMode GeneCounts \
-#     --sjdbGTFfile $COMBINED_GTF_GENOME \
-#     --sjdbOverhang 179 \
-#     --limitBAMsortRAM 20000 * 1024 * 1024 \
-#     --outSAMunmapped Within
-
-samtools index $STARSOLO_BAM
+NTHREADS=30
 
 # get unmapped reads and reads that mapped to BCR and to ABL and append their name to the readname
 
@@ -110,6 +81,8 @@ samtools view "$STARSOLO_BAM" "chr22:22179704-24318037" -@ "$NTHREADS" \
     seen_ub = current_ub; \
   }"' >> r2.fastq
 
+echo "BCR extracted"
+
 samtools view "$STARSOLO_BAM" "chr9:129713016-131887675" -@ "$NTHREADS" \
 | cat header.txt - \
 | samtools view -@ "$NTHREADS" \
@@ -133,6 +106,8 @@ samtools view "$STARSOLO_BAM" "chr9:129713016-131887675" -@ "$NTHREADS" \
     seen_ub_cb = current_ub_cb; \
     seen_ub = current_ub; \
   }"' >> r2.fastq
+
+echo "ABL extracted"
 
 # for unmapped reads: they don't have the gx tag, so the CB and UB will be at a different position (UB (23), CB (22) and 1 (read id)
 
@@ -159,39 +134,13 @@ samtools view -b -f 4 "$STARSOLO_BAM" -@ "$NTHREADS" \
    seen_ub = current_ub; \
   }"' >> r2.fastq
 
-# also need to get the reads which don't have a gx tag as the minor fusions seem to map to a genomic region where no gene is present. Only do this based on the mapped reads
-
-samtools view -b -F 4 "$STARSOLO_BAM" -@ "$NTHREADS" \
-| samtools view -@ $NTHREADS \
-| grep "gx:Z:-" \
-| grep -v "CB:Z:-" \
-| grep -v "UB:Z:-" \
-| sort -k28,28 -k27,27 -k1,1 \
-| parallel --pipe --block 10M -j "$NTHREADS" \
-'awk -v seen="" -v current="" -v current_ub_cb="" -v seen_ub_cb="" -v current_ub="" -v seen_ub="" \
-  "BEGIN { OFS=\"\t\" } \
-  { \
-    current = \$1; \
-    current_ub_cb = \$28 \";\" \$27; \
-    current_ub = \$28; \
-    cmd = \"grep -q \" current \" r2.fastq\"; \
-    exit_code = system(cmd); \
-    if (exit_code == 0) { next; } \
-    if (current_ub != seen_ub && current_ub_cb != seen_ub_cb && current != seen) { \
-      print \"@\" current \";\" \$27 \";\" \$28 \"\\n\" \$10 \"\\n+\\n\" \$11; \
-    } \
-    seen = current; \
-    seen_ub_cb = current_ub_cb; \
-    seen_ub = current_ub; \
-  }"' >> r2.fastq
-
-echo "finished getting read names and deduplicating"
+echo "unmapped extracted"
 
 rm header.txt
 
 ## Step 2: additonal CB / UB deduplication
 
-# Additional CB and UB deduplication if reads appended in different steps have duplication
+# Additional CB and UB deduplication if reads appended in different steps have same CB and UB
 
 grep "@" r2.fastq | awk '{split ($0, a, /[;]/); print a[2]";"a[3]}' | sort | uniq -d > duplicated.txt
 
@@ -217,8 +166,8 @@ echo "R2 file generated"
 
 ## Step 3: running bwa_mem2
 
-mkdir -p $WD/bwa_mem2/genome
-cd $WD/bwa_mem2/genome
+mkdir -p $WD/bwa_aln/genome
+cd $WD/bwa_aln/genome
 
 # transcript reference generation for bwa_mem2
 
@@ -245,18 +194,27 @@ cat "$CUSTOM_GTF" ABL1_human.gtf BCR_human.gtf > combined.gtf
 
 # index reference
 
-~/leukemia_bwamem2/bwa-mem2-2.2.1_x64-linux/bwa-mem2 index -p indexed combined.fa
+~/bwa/bwa index -p indexed ~/leukemia_bwamem2/indexed_genome/combined.fa
 
-mkdir -p $WD/bwa_mem2/output
-cd $WD/bwa_mem2/output
+mkdir -p $WD/bwa_aln/output
+cd $WD/bwa_aln/output
 
-# -k 80: seed length
-# -h 1: if there are <INT hits with score >80% of the max score, output all in XA. Only outputting 1 extra to see if there are multialigners
-# -L: penalty for soft clipping
-# -A: matching score
-# -B: mismatch penalty
+# -d: Disallow a long deletion within INT bp towards the 3’-end
+# -i: Disallow an indel within INT bp towards the ends
+# -k: Maximum edit distance in the seed
+# -O: gap open penalty
 
-~/leukemia_bwamem2/bwa-mem2-2.2.1_x64-linux/bwa-mem2 mem $WD/bwa_mem2/genome/indexed $WD/sorted_duplicate_r2.fastq.gz -t 30 -k 80 -w 12 -h 1 -L 1000 -A 100 -B 100 | samtools view -bS | samtools sort -o output.sorted.bam
+~/bwa/bwa aln $WD/bwa_aln/genome/indexed $WD/sorted_duplicate_r2.fastq.gz -0 -d 20 -i 20 -k 3 -O 1000 > bwa_aln_alignments.sai
+
+~/bwa/bwa samse -f bwa_aln_alignments.sam $WD/bwa_aln/genome/indexed bwa_aln_alignments.sai $WD/sorted_duplicate_r2.fastq.gz 
+
+samtools view -o out.bam bwa_aln_alignments.sam
+
+samtools view -H out.bam > header.txt
+
+samtools sort out.bam -o output.sorted.bam
+
+rm bwa_aln_alignments.sam bwa_aln_alignments.sai
 
 ## Step 4: run STAR fusion
 
@@ -302,7 +260,7 @@ echo "STAR_fusion finished"
 
 # adding the CB and UB tag to the bwa mem2 bam file and generating count table for bwa mem2 after extracting mapped reads
 
-cd $WD/bwa_mem2/output
+cd $WD/bwa_aln/output
 
 samtools view -b -F 4 output.sorted.bam > mapped.bam
 
@@ -313,21 +271,21 @@ samtools view -H mapped.bam > header.txt
 
 # extracting the entries that don't have an XA tag
 
-samtools view mapped.bam | grep -v "SA:" | awk 'BEGIN {FS="\t"} $16=="" {print}'| awk 'BEGIN {OFS="\t"} {split($1, a, /[;,]/); print a[1], $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, a[2], a[3]}' | cat header.txt - | samtools view -Sbh > no_xa_annotated_bwa_mem2.sorted.bam
+samtools view mapped.bam | grep -v "SA:" | grep -v "XA:" |  awk 'BEGIN {OFS="\t"} {split($1, a, /[;,]/); print a[1], $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, a[2], a[3]}' | cat header.txt - | samtools view -Sbh > no_xa_annotated_bwa_aln.sorted.bam
 
 # extracting the entries with an XA tag
 
-samtools view mapped.bam | grep -v "SA:" |  awk 'BEGIN {FS="\t"} $16!="" {print}'| awk 'BEGIN {OFS="\t"} {split($1, a, /[;,]/); print a[1], $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, a[2], a[3]}' | cat header.txt - | samtools view -Sbh > xa_annotated_bwa_mem2.sorted.bam
+samtools view mapped.bam | grep -v "SA:" | grep "XA:" | awk 'BEGIN {OFS="\t"} {split($1, a, /[;,]/); print a[1], $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, a[2], a[3]}' | cat header.txt - | samtools view -Sbh > xa_annotated_bwa_aln.sorted.bam
 
 rm mapped.bam
 
 echo '# bwa mem2 alignments with xa tag (multimapped)'
 
-samtools view xa_annotated_bwa_mem2.sorted.bam | cut -f 1 | wc -l
+samtools view xa_annotated_bwa_aln.sorted.bam | cut -f 1 | wc -l
 
 echo '# bwa mem2 alignments with no xa tag (unique)'
 
-samtools view no_xa_annotated_bwa_mem2.sorted.bam | cut -f 1 | wc -l
+samtools view no_xa_annotated_bwa_aln.sorted.bam | cut -f 1 | wc -l
 
 # bwa mem2 does not require deduplication as we already deduplicated the .fastq files and bwa stores multialigned reads in the XA tag, which we are handling while counting. 
 
@@ -335,14 +293,14 @@ samtools view no_xa_annotated_bwa_mem2.sorted.bam | cut -f 1 | wc -l
 # column 1: gene id, column 2: barcode id, column 3: counts
 # primary alignments are counted as one 
 
-mkdir -p $WD/count_tables/bwamem2
-cd $WD/count_tables/bwamem2
+mkdir -p $WD/count_tables/bwa_aln
+cd $WD/count_tables/bwa_aln
 
-echo -e "Counts\tGene_id\tBarcode" > counts_bwa_mem2.txt
+echo -e "Counts\tGene_id\tBarcode" > counts_bwa_aln.txt
 
 # sort based on k2 which is the CB field and then k1 which is the gene name and then count 
 
-samtools view $WD/bwa_mem2/output/no_xa_annotated_bwa_mem2.sorted.bam | cut -f3,16 | sort -k2,2 -k1,1 | uniq -c >> counts_bwa_mem2.txt
+samtools view $WD/bwa_aln/output/no_xa_annotated_bwa_aln.sorted.bam | cut -f3,16 | sort -k2,2 -k1,1 | uniq -c >> counts_bwa_aln.txt
 
 # secondary alignments are handled as fractonary counts
 
@@ -350,15 +308,15 @@ samtools view $WD/bwa_mem2/output/no_xa_annotated_bwa_mem2.sorted.bam | cut -f3,
 # uniq -f -1 -c: don't take into account the number of reported alignments for uniq counting
 # sort based on CB field which here is k3 and then k2 for the gene id
 
-# IMPORTANT: the wt BCR will always multimap. There are two annotated transcripts and they have the same exact sequence at the fusion junction. We are summing the multimappers and recovering both, so the count will anyway sum up to 1. 
+# IMPORTANT: the wt BCR will always multimap. There are two annotated transcripts and they have the same exact sequence at the fusion junction. We are summing the multimappers and recovering both, so the count will anyway sum up to 1. Currently not counting the multimappers.
 
-samtools view $WD/bwa_mem2/output/xa_annotated_bwa_mem2.sorted.bam | awk 'BEGIN {OFS="\t"} {n=split($16, a, /[;]/); print n,$3,$17}' | sort -k3,3 -k2,2 | uniq -f 1 -c | awk '{print $1/$2,$3,$4}' >> counts_bwa_mem2.txt
+#samtools view $WD/bwa_mem2/output/xa_annotated_bwa_mem2.sorted.bam | awk 'BEGIN {OFS="\t"} {n=split($16, a, /[;]/); print n,$3,$17}' | sort -k3,3 -k2,2 | uniq -f 1 -c | awk '{print $1/$2,$3,$4}' >> counts_bwa_mem2.txt
 
-rm $WD/bwa_mem2/output/header.txt
+rm $WD/bwa_aln/output/header.txt
 
 # need to sum the multimappers
 
-less counts_bwa_mem2.txt | awk '{print $1,$2";"$3}' | sort -k2,2 | awk -v seen_gene_cb="sgc" -v current_gene_cb="cgc" -v counts_current="cc" -v counts_seen="cs" 'BEGIN{OFS="\t"} {
+less counts_bwa_aln.txt | awk '{print $1,$2";"$3}' | sort -k2,2 | awk -v seen_gene_cb="sgc" -v current_gene_cb="cgc" -v counts_current="cc" -v counts_seen="cs" 'BEGIN{OFS="\t"} {
  counts_current = $1;
  current_gene_cb = $2";"$3;
   if (current_gene_cb==seen_gene_cb) {
@@ -367,9 +325,9 @@ less counts_bwa_mem2.txt | awk '{print $1,$2";"$3}' | sort -k2,2 | awk -v seen_g
  else {
  {print counts_current "\t"$2"\t"$3};
  } seen_gene_cb=current_gene_cb; counts_seen=counts_current;
-}' > combined_counts_bwa_mem2.txt
+}' > combined_counts_bwa_aln.txt
 
-rm counts_bwa_mem2.txt
+rm counts_bwa_aln.txt
 
 ## Step 6: count STAR fusion data
 
