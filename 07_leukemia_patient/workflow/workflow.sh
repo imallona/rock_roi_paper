@@ -142,7 +142,7 @@ rm header.txt
 
 # Additional CB and UB deduplication if reads appended in different steps have same CB and UB
 
-grep "@" r2.fastq | awk '{split ($0, a, /[;]/); print a[2]";"a[3]}' | sort | uniq -d > duplicated.txt
+awk 'NR%4==1{print}' r2.fastq | awk '{split ($0, a, /[;]/); print a[2]";"a[3]}' | sort | uniq -d > duplicated.txt
 
 echo 'remaining reads to deduplicate'
 
@@ -164,12 +164,12 @@ pigz sorted_duplicate_r2.fastq
 
 echo "R2 file generated"
 
-## Step 3: running bwa_mem2
+## Step 3: running bwa aln
 
 mkdir -p $WD/bwa_aln/genome
 cd $WD/bwa_aln/genome
 
-# transcript reference generation for bwa_mem2
+# transcript reference generation for bwa aln
 
 wget http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_38/"$TRANSCRIPTOME".gz
 
@@ -177,6 +177,8 @@ pigz --decompress *gz
 
 # ENSG00000097007: ABL1
 # ENSG00000186716: BCR
+
+# extracting all transcripts for ABL1 and BCR from the .fa transcriptome
 
 grep "ENSG00000097007" "$TRANSCRIPTOME"| sed 's/>//g' > ABL1_human.gtf
 grep "ENSG00000186716" "$TRANSCRIPTOME"| sed 's/>//g' >  BCR_human.gtf
@@ -193,6 +195,8 @@ cat "$CUSTOM_FA" ABL1_human.fa BCR_human.fa > combined.fa
 cat "$CUSTOM_GTF" ABL1_human.gtf BCR_human.gtf > combined.gtf
 
 # index reference
+
+# bwa version: bwa 0.7.18
 
 ~/bwa/bwa index -p indexed ~/leukemia_bwamem2/indexed_genome/combined.fa
 
@@ -219,6 +223,8 @@ rm bwa_aln_alignments.sam bwa_aln_alignments.sai
 ## Step 4: run STAR fusion
 
 # genome was previously generated based on the .fa and .gtf files also used for STARsolo
+
+# STAR fusion is run with default settings
 
 mkdir -p $WD/star_fusion/output
 cd $WD/star_fusion/output
@@ -256,7 +262,7 @@ STAR --genomeDir "$COMBINED_INDEXED_GENOME" \
 
 echo "STAR_fusion finished"
 
-## Step 5: count bwa mem2 data
+## Step 5: count bwa aln data
 
 # adding the CB and UB tag to the bwa mem2 bam file and generating count table for bwa mem2 after extracting mapped reads
 
@@ -279,17 +285,17 @@ samtools view mapped.bam | grep -v "SA:" | grep "XA:" | awk 'BEGIN {OFS="\t"} {s
 
 rm mapped.bam
 
-echo '# bwa mem2 alignments with xa tag (multimapped)'
+echo '# bwa aln alignments with xa tag (multimapped)'
 
 samtools view xa_annotated_bwa_aln.sorted.bam | cut -f 1 | wc -l
 
-echo '# bwa mem2 alignments with no xa tag (unique)'
+echo '# bwa aln alignments with no xa tag (unique)'
 
 samtools view no_xa_annotated_bwa_aln.sorted.bam | cut -f 1 | wc -l
 
-# bwa mem2 does not require deduplication as we already deduplicated the .fastq files and bwa stores multialigned reads in the XA tag, which we are handling while counting. 
+# bwa aln does not require deduplication as we already deduplicated the .fastq files and bwa stores multialigned reads in the XA tag, which we are handling while counting. 
 
-# count table for bwa_mem2 --> based on counting the occurences for each gene, cell and count. 
+# count table for bwa aln --> based on counting the occurences for each gene, cell and count. 
 # column 1: gene id, column 2: barcode id, column 3: counts
 # primary alignments are counted as one 
 
