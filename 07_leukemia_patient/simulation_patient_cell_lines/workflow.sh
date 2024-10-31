@@ -22,6 +22,10 @@ COMBINED_GTF_GENOME=~/mapping_leukemia_data/genome/combined.gtf # genome .gtf
 r1=/home/gmoro/simulated_leukemia_data/combined_r1.fastq.gz # simulated reads
 r2=/home/gmoro/simulated_leukemia_data/combined_r2.fastq.gz # simulated reads
 
+CL1=/home/gmoro/whitelist_96x3/BD_CLS1.txt # first whitelist for cell label 1
+CL2=/home/gmoro/whitelist_96x3/BD_CLS2.txt # second whitelist for cell label 2
+CL3=/home/gmoro/whitelist_96x3/BD_CLS3.txt # third whitelist for cell label 3
+
 # for bwa aln
 
 CUSTOM_FA=~/leukemia_bwamem2/genome/BCR_ABL.fa # file containing fusion cDNAs
@@ -50,7 +54,7 @@ STAR --runThreadN $NTHREADS \
      --soloUMIposition 3_10_3_17 \
      --soloUMIlen 8 \
      --soloCellReadStats Standard \
-     --soloCBwhitelist ~/whitelist_96x3/BD_CLS1.txt ~/whitelist_96x3/BD_CLS2.txt ~/whitelist_96x3/BD_CLS3.txt \
+     --soloCBwhitelist $CL1 $CL2 $CL3 \
      --soloCBmatchWLtype 1MM \
      --soloCellFilter None \
      --outSAMattributes NH HI AS nM NM MD jM jI MC ch CB UB gx gn sS CR CY UR UY\
