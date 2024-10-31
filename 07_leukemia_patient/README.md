@@ -15,7 +15,7 @@ Files needed to run the simulation_patient_cell_lines workflow:
 - simualted .fastq files: the files which are included in the folder contain barcodes for TSO data. Four cells are included - one with minor fusions (and variations), one for major fusions, one for non-fused BCR and ABL and one with reads which contain information which should not be mapped. Both an R1 and an R2 are needed
 - custom .fa file: contains the cDNAs covering the fusion region to be detected 
 - STAR indexed genome: used to align the simulated data using STARsolo and for running STAR fusion
-- genome .gtf: to run STARsolo 
+- genome .gtf: to run STARsolo <br />
 The parameters of interest need to be changed in the in the first lines of the script (# PARAMETERS TO SPECIFY)
 
 Installs neede to run the simulation_patient_cell_lines_workflow:
@@ -25,7 +25,7 @@ Installs neede to run the simulation_patient_cell_lines_workflow:
 Files needed to run the workflow (on real data): 
 - custom .fa file: contains the cDNAs covering the fusion region to be detected. The file is found in the simulation_patient_cell_lines folder. 
 - STAR indexed genome: used for running STAR fusion
-- TSO .bam file generated with the rock_roi_method
+- TSO .bam file generated with the rock_roi_method <br />
 The parameters of interest need to be changed in the in the first lines of the script (# PARAMETERS TO SPECIFY)
 
 Installs neede to run the simulation_patient_cell_lines_workflow:
