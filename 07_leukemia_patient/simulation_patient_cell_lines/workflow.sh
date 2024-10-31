@@ -5,40 +5,64 @@
 ## Fusion analysis for the leukemia dataset
 ##
 
-## this script is to be run after the rock_roi_method workflow: https://github.com/imallona/rock_roi_method/tree/main
+# the simulation script also contains a STARsolo run to generate a TSO .bam file
 # only on TSO data, since the fusions are expected to be there
+
+# PARAMETERS TO SPECIFY
 
 # STAR path 
 
-export PATH=/home/imallona/soft/star/STAR-2.7.10b/source:$PATH
+export PATH=/home/imallona/soft/star/STAR-2.7.10b/source:$PATH #path to STAR for STARsolo and STAR fusion
 
 # for STARsolo
 
-COMBINED_FA_GENOME=~/mapping_leukemia_data/genome/combined.fa
-COMBINED_GTF_GENOME=~/mapping_leukemia_data/genome/combined.gtf
 WD=~/test_leukemia_simulated_reads
-COMBINED_INDEXED_GENOME=~/mapping_leukemia/data/index
-STARSOLO_BAM=$WD/starsolo/Aligned.sortedByCoord.out.bam
-r1=/home/gmoro/simulated_leukemia_data/combined_r1.fastq.gz
-r2=/home/gmoro/simulated_leukemia_data/combined_r2.fastq.gz
-r2_no_gz=/home/gmoro/simulated_leukemia_data/combined_r1.fastq
+COMBINED_INDEXED_GENOME=~/mapping_leukemia/data/index # STAR indexed genome
+COMBINED_GTF_GENOME=~/mapping_leukemia_data/genome/combined.gtf # genome .gtf
+r1=/home/gmoro/simulated_leukemia_data/combined_r1.fastq.gz # simulated reads
+r2=/home/gmoro/simulated_leukemia_data/combined_r2.fastq.gz # simulated reads
 
-# for bwa mem2
+# for bwa aln
 
-TRANSCRIPTOME=gencode.v38.pc_transcripts.fa
-
-CUSTOM_FA=~/leukemia_bwamem2/genome/BCR_ABL.fa
-CUSTOM_GTF=~/leukemia_bwamem2/genome/BCR_ABL.gtf
-
-# for STAR fusion
-
-STAR_FUSION_GENOME=~/test_starfusion/genome/ctat_genome_lib_build_dir
-PATH_STAR_FUSION=~/STAR-Fusion/ctat-genome-lib-builder
-PATH_SIMG_FILE=~/star-fusion.v1.13.0.simg
+CUSTOM_FA=~/leukemia_bwamem2/genome/BCR_ABL.fa # file containing fusion cDNAs
 
 # threads
 
 NTHREADS=5
+
+# additional parameters (files will be generated during the workflow and do not need to be specified)
+
+STARSOLO_BAM=$WD/starsolo/Aligned.sortedByCoord.out.bam # will be generated during the workflow
+TRANSCRIPTOME=gencode.v38.pc_transcripts.fa # downloaded during the script
+
+
+
+# running STARsolo
+
+STAR --runThreadN $NTHREADS \
+     --genomeDir ~/mapping_leukemia/data/index \
+     --readFilesCommand zcat \
+     --outFileNamePrefix $WD/starsolo/ \
+     --readFilesIn $r2 $r1  \
+     --soloType CB_UMI_Complex \
+     --soloAdapterSequence AATGNNNNNNNNNCCAC \
+     --soloCBposition 2_-9_2_-1 2_4_2_12 2_17_2_25 \
+     --soloUMIposition 3_10_3_17 \
+     --soloUMIlen 8 \
+     --soloCellReadStats Standard \
+     --soloCBwhitelist ~/whitelist_96x3/BD_CLS1.txt ~/whitelist_96x3/BD_CLS2.txt ~/whitelist_96x3/BD_CLS3.txt \
+     --soloCBmatchWLtype 1MM \
+     --soloCellFilter None \
+     --outSAMattributes NH HI AS nM NM MD jM jI MC ch CB UB gx gn sS CR CY UR UY\
+     --outSAMtype BAM SortedByCoordinate \
+     --quantMode GeneCounts \
+     --sjdbGTFfile $COMBINED_GTF_GENOME \
+     --sjdbOverhang 179 \
+     --limitBAMsortRAM 20000 * 1024 * 1024 \
+     --outSAMunmapped Within
+
+samtools index $STARSOLO_BAM
+
 
 # get unmapped reads and reads that mapped to BCR and to ABL and append their name to the readname
 
