@@ -28,6 +28,9 @@ STAR --runMode genomeGenerate \
 gzip $r1
 gzip $r2
 
+mkdir -p $WD/starsolo
+cd $WD/starsolo
+
 STAR --runThreadN $NTHREADS_genome \
      --genomeDir ~/mapping_leukemia/data/index \
      --readFilesCommand zcat \
@@ -51,7 +54,6 @@ STAR --runThreadN $NTHREADS_genome \
      --outSAMunmapped Within
 
 samtools index $STARSOLO_BAM
-
 
 # get unmapped reads and reads that mapped to BCR and to ABL and append their name to the readname
 
