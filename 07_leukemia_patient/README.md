@@ -16,7 +16,7 @@ Files needed to run the simulation_patient_cell_lines workflow:
 - custom .fa file: contains the cDNAs covering the fusion region to be detected 
 - STAR indexed genome: used to align the simulated data using STARsolo and for running STAR fusion
 - genome .gtf: to run STARsolo <br />
-The parameters of interest need to be changed in the in the first lines of the script (# PARAMETERS TO SPECIFY)
+The script run.sh is used to define the parameters used in the workflow.sh script and to run the script
 
 Installs neede to run the simulation_patient_cell_lines_workflow:
 - STAR: version 2.7.10b was used for the analysis
@@ -26,7 +26,7 @@ Files needed to run the workflow (on real data):
 - custom .fa file: contains the cDNAs covering the fusion region to be detected. The file is found in the simulation_patient_cell_lines folder. 
 - STAR indexed genome: used for running STAR fusion
 - TSO .bam file generated with the rock_roi_method <br />
-The parameters of interest need to be changed in the in the first lines of the script (# PARAMETERS TO SPECIFY)
+The script run.sh is used to define the parameters used in the workflow.sh script and to run the script
 
 Installs neede to run the simulation_patient_cell_lines_workflow:
 - STAR: version 2.7.10b was used for the analysis
