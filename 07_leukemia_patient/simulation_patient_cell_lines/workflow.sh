@@ -8,7 +8,25 @@
 # the simulation script also contains a STARsolo run to generate a TSO .bam file
 # only on TSO data, since the fusions are expected to be there
 
+# making STAR genome
+
+mkdir -p $WD/genome
+cd $WD/genome
+
+wget http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_38/"$human_fa".gz
+wget http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_38/"$human_gtf".gz
+
+pigz --decompress *gz
+
+STAR --runMode genomeGenerate \
+      --runThreadN "$NTHREADS" \
+      --genomeDir . \
+      --genomeFastaFiles $human_fa
+
 # running STARsolo
+
+gzip $r1
+gzip $r2
 
 STAR --runThreadN $NTHREADS \
      --genomeDir ~/mapping_leukemia/data/index \
