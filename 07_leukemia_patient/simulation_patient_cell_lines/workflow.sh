@@ -8,39 +8,6 @@
 # the simulation script also contains a STARsolo run to generate a TSO .bam file
 # only on TSO data, since the fusions are expected to be there
 
-# PARAMETERS TO SPECIFY
-
-# STAR path 
-
-export PATH=/home/imallona/soft/star/STAR-2.7.10b/source:$PATH #path to STAR for STARsolo and STAR fusion
-
-# for STARsolo
-
-WD=~/test_leukemia_simulated_reads
-COMBINED_INDEXED_GENOME=~/mapping_leukemia/data/index # STAR indexed genome
-COMBINED_GTF_GENOME=~/mapping_leukemia_data/genome/combined.gtf # genome .gtf
-r1=/home/gmoro/simulated_leukemia_data/combined_r1.fastq.gz # simulated reads
-r2=/home/gmoro/simulated_leukemia_data/combined_r2.fastq.gz # simulated reads
-
-CL1=/home/gmoro/whitelist_96x3/BD_CLS1.txt # first whitelist for cell label 1
-CL2=/home/gmoro/whitelist_96x3/BD_CLS2.txt # second whitelist for cell label 2
-CL3=/home/gmoro/whitelist_96x3/BD_CLS3.txt # third whitelist for cell label 3
-
-# for bwa aln
-
-CUSTOM_FA=~/leukemia_bwamem2/genome/BCR_ABL.fa # file containing fusion cDNAs
-
-# threads
-
-NTHREADS=5
-
-# additional parameters (files will be generated during the workflow and do not need to be specified)
-
-STARSOLO_BAM=$WD/starsolo/Aligned.sortedByCoord.out.bam # will be generated during the workflow
-TRANSCRIPTOME=gencode.v38.pc_transcripts.fa # downloaded during the script
-
-
-
 # running STARsolo
 
 STAR --runThreadN $NTHREADS \
@@ -229,7 +196,7 @@ cat "$CUSTOM_GTF" ABL1_human.gtf BCR_human.gtf > combined.gtf
 
 # bwa version: bwa 0.7.18
 
-~/bwa/bwa index -p indexed ~/leukemia_bwamem2/indexed_genome/combined.fa
+bwa index -p indexed ~/leukemia_bwamem2/indexed_genome/combined.fa
 
 mkdir -p $WD/bwa_aln/output
 cd $WD/bwa_aln/output
@@ -239,9 +206,9 @@ cd $WD/bwa_aln/output
 # -k: Maximum edit distance in the seed
 # -O: gap open penalty
 
-~/bwa/bwa aln $WD/bwa_aln/genome/indexed $WD/sorted_duplicate_r2.fastq.gz -0 -d 20 -i 20 -k 3 -O 1000 > bwa_aln_alignments.sai
+bwa aln $WD/bwa_aln/genome/indexed $WD/sorted_duplicate_r2.fastq.gz -0 -d 20 -i 20 -k 3 -O 1000 > bwa_aln_alignments.sai
 
-~/bwa/bwa samse -f bwa_aln_alignments.sam $WD/bwa_aln/genome/indexed bwa_aln_alignments.sai $WD/sorted_duplicate_r2.fastq.gz 
+bwa samse -f bwa_aln_alignments.sam $WD/bwa_aln/genome/indexed bwa_aln_alignments.sai $WD/sorted_duplicate_r2.fastq.gz 
 
 samtools view -o out.bam bwa_aln_alignments.sam
 

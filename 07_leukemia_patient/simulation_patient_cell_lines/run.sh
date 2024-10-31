@@ -6,6 +6,7 @@
 ##
 
 export PATH=/home/imallona/soft/star/STAR-2.7.10b/source:$PATH #path to STAR for STARsolo and STAR fusion
+export PATH=/home/gmoro/bwa/:$PATH #path to bwa
 export WD=~/test_leukemia_simulated_reads #working directory
 export COMBINED_INDEXED_GENOME=~/mapping_leukemia/data/index #STAR indexed genome 
 export COMBINED_GTF_GENOME=~/mapping_leukemia_data/genome/combined.gtf #genome .gtf
