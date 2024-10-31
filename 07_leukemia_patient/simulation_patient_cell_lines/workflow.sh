@@ -28,7 +28,7 @@ STAR --runMode genomeGenerate \
 gzip $r1
 gzip $r2
 
-STAR --runThreadN $NTHREADS \
+STAR --runThreadN $NTHREADS_genome \
      --genomeDir ~/mapping_leukemia/data/index \
      --readFilesCommand zcat \
      --outFileNamePrefix $WD/starsolo/ \
