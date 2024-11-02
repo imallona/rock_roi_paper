@@ -10,8 +10,8 @@
 
 # making STAR genome
 
-mkdir -p $WD/genome
-cd $WD/genome
+mkdir -p ./genome
+cd ./genome
 
 wget http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_38/"$human_fa".gz
 wget http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_38/"$human_gtf".gz
@@ -19,23 +19,25 @@ wget http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_38/"$human
 pigz --decompress *gz
 
 STAR --runMode genomeGenerate \
-      --runThreadN "$NTHREADS" \
-      --genomeDir . \
-      --genomeFastaFiles $human_fa
+     --runThreadN $NTHREADS_genome \
+     --genomeDir . \
+     --genomeFastaFiles $human_fa \
+     --sjdbGTFfile $human_gtf \
+     --sjdbOverhang 179
 
 # running STARsolo
+
+cd ..
+mkdir -p ./starsolo
 
 gzip $r1
 gzip $r2
 
-mkdir -p $WD/starsolo
-cd $WD/starsolo
-
-STAR --runThreadN $NTHREADS_genome \
-     --genomeDir ~/mapping_leukemia/data/index \
+STAR --runThreadN $NTHREADS \
+     --genomeDir ./genome \
      --readFilesCommand zcat \
-     --outFileNamePrefix $WD/starsolo/ \
-     --readFilesIn $r2 $r1  \
+     --outFileNamePrefix ./starsolo/ \
+     --readFilesIn $r2.gz $r1.gz  \
      --soloType CB_UMI_Complex \
      --soloAdapterSequence AATGNNNNNNNNNCCAC \
      --soloCBposition 2_-9_2_-1 2_4_2_12 2_17_2_25 \
@@ -58,8 +60,6 @@ samtools index $STARSOLO_BAM
 # get unmapped reads and reads that mapped to BCR and to ABL and append their name to the readname
 
 ## Step 1: get unmapped reads, reads in the BCR ABL slice, reads with no gx tag from .bam file and output in new .fastq file. Append the CB and UB tag to their read id. Deduplicate CB and UB.  
-
-cd $WD
 
 # getting reads in BCR and ABL region and adding 1M bp to each side
 
@@ -209,34 +209,35 @@ done
     samtools faidx $TRANSCRIPTOME "$i"  >> BCR_human.fa
 done
 
-cat "$CUSTOM_FA" ABL1_human.fa BCR_human.fa > combined.fa
-cat "$CUSTOM_GTF" ABL1_human.gtf BCR_human.gtf > combined.gtf
+cd ..
+cd ..
+
+cat "$CUSTOM_FA" ./bwa_aln/genome/ABL1_human.fa ./bwa_aln/genome/BCR_human.fa > ./bwa_aln/genome/combined.fa
 
 # index reference
 
 # bwa version: bwa 0.7.18
 
-bwa index -p indexed ~/leukemia_bwamem2/indexed_genome/combined.fa
+bwa index -p ./bwa_aln/genome/indexed ./bwa_aln/genome/combined.fa
 
-mkdir -p $WD/bwa_aln/output
-cd $WD/bwa_aln/output
+mkdir -p ./bwa_aln/output
 
 # -d: Disallow a long deletion within INT bp towards the 3’-end
 # -i: Disallow an indel within INT bp towards the ends
 # -k: Maximum edit distance in the seed
 # -O: gap open penalty
 
-bwa aln $WD/bwa_aln/genome/indexed $WD/sorted_duplicate_r2.fastq.gz -0 -d 20 -i 20 -k 3 -O 1000 > bwa_aln_alignments.sai
+bwa aln ./bwa_aln/genome/indexed ./sorted_duplicate_r2.fastq.gz -0 -d 20 -i 20 -k 3 -O 1000 > ./bwa_aln/output/bwa_aln_alignments.sai
 
-bwa samse -f bwa_aln_alignments.sam $WD/bwa_aln/genome/indexed bwa_aln_alignments.sai $WD/sorted_duplicate_r2.fastq.gz 
+bwa samse -f ./bwa_aln/output/bwa_aln_alignments.sam ./bwa_aln/genome/indexed ./bwa_aln/output/bwa_aln_alignments.sai ./sorted_duplicate_r2.fastq.gz 
 
-samtools view -o out.bam bwa_aln_alignments.sam
+samtools view -o ./bwa_aln/output/out.bam ./bwa_aln/output/bwa_aln_alignments.sam
 
-samtools view -H out.bam > header.txt
+samtools view -H ./bwa_aln/output/out.bam > ./bwa_aln/output/header.txt
 
-samtools sort out.bam -o output.sorted.bam
+samtools sort ./bwa_aln/output/out.bam -o ./bwa_aln/output/output.sorted.bam
 
-rm bwa_aln_alignments.sam bwa_aln_alignments.sai
+rm ./bwa_aln/output/bwa_aln_alignments.sam ./bwa_aln/output/bwa_aln_alignments.sai
 
 ## Step 4: run STAR fusion
 
@@ -244,10 +245,9 @@ rm bwa_aln_alignments.sam bwa_aln_alignments.sai
 
 # STAR fusion is run with default settings
 
-mkdir -p $WD/star_fusion/output
-cd $WD/star_fusion/output
+mkdir -p ./star_fusion/output
 
-STAR --genomeDir "$COMBINED_INDEXED_GENOME" \
+STAR --genomeDir ./genome \
 --outReadsUnmapped None \
 --chimSegmentMin 12 \
 --chimJunctionOverhangMin 8 \
@@ -276,7 +276,8 @@ STAR --genomeDir "$COMBINED_INDEXED_GENOME" \
 --twopassMode None \
 --readFilesCommand zcat \
 --quantMode GeneCounts \
---outFilterMismatchNmax 1
+--outFilterMismatchNmax 1 \
+--outFileNamePrefix ./star_fusion/output/
 
 echo "STAR_fusion finished"
 
@@ -284,32 +285,30 @@ echo "STAR_fusion finished"
 
 # adding the CB and UB tag to the bwa mem2 bam file and generating count table for bwa mem2 after extracting mapped reads
 
-cd $WD/bwa_aln/output
+samtools view -b -F 4 ./bwa_aln/output/output.sorted.bam > ./bwa_aln/output/mapped.bam
 
-samtools view -b -F 4 output.sorted.bam > mapped.bam
-
-samtools view -H mapped.bam > header.txt
+samtools view -H ./bwa_aln/output/mapped.bam > ./bwa_aln/output/header.txt
 
 # only some reads will have the XA tag for secondary alignments (multialigners), others will be empty so need to split between the two (unique)
 # also want to remove the reads that have an SA tag, which means that they are chimeric alignments which are split into two. In the simulated data this was the case for the ABL_BCR. 
 
 # extracting the entries that don't have an XA tag
 
-samtools view mapped.bam | grep -v "SA:" | grep -v "XA:" |  awk 'BEGIN {OFS="\t"} {split($1, a, /[;,]/); print a[1], $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, a[2], a[3]}' | cat header.txt - | samtools view -Sbh > no_xa_annotated_bwa_aln.sorted.bam
+samtools view ./bwa_aln/output/mapped.bam | grep -v "SA:" | grep -v "XA:" |  awk 'BEGIN {OFS="\t"} {split($1, a, /[;,]/); print a[1], $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, a[2], a[3]}' | cat ./bwa_aln/output/header.txt - | samtools view -Sbh > ./bwa_aln/output/no_xa_annotated_bwa_aln.sorted.bam
 
 # extracting the entries with an XA tag
 
-samtools view mapped.bam | grep -v "SA:" | grep "XA:" | awk 'BEGIN {OFS="\t"} {split($1, a, /[;,]/); print a[1], $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, a[2], a[3]}' | cat header.txt - | samtools view -Sbh > xa_annotated_bwa_aln.sorted.bam
+samtools view ./bwa_aln/output/mapped.bam | grep -v "SA:" | grep "XA:" | awk 'BEGIN {OFS="\t"} {split($1, a, /[;,]/); print a[1], $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, a[2], a[3]}' | cat ./bwa_aln/output/header.txt - | samtools view -Sbh > ./bwa_aln/output/xa_annotated_bwa_aln.sorted.bam
 
-rm mapped.bam
+rm ./bwa_aln/output/mapped.bam
 
 echo '# bwa aln alignments with xa tag (multimapped)'
 
-samtools view xa_annotated_bwa_aln.sorted.bam | cut -f 1 | wc -l
+samtools view ./bwa_aln/output/xa_annotated_bwa_aln.sorted.bam | cut -f 1 | wc -l
 
 echo '# bwa aln alignments with no xa tag (unique)'
 
-samtools view no_xa_annotated_bwa_aln.sorted.bam | cut -f 1 | wc -l
+samtools view ./bwa_aln/output/no_xa_annotated_bwa_aln.sorted.bam | cut -f 1 | wc -l
 
 # bwa aln does not require deduplication as we already deduplicated the .fastq files and bwa stores multialigned reads in the XA tag, which we are handling while counting. 
 
@@ -318,13 +317,12 @@ samtools view no_xa_annotated_bwa_aln.sorted.bam | cut -f 1 | wc -l
 # primary alignments are counted as one 
 
 mkdir -p $WD/count_tables/bwa_aln
-cd $WD/count_tables/bwa_aln
 
-echo -e "Counts\tGene_id\tBarcode" > counts_bwa_aln.txt
+echo -e "Counts\tGene_id\tBarcode" > ./count_tables/bwa_aln/counts_bwa_aln.txt
 
 # sort based on k2 which is the CB field and then k1 which is the gene name and then count 
 
-samtools view $WD/bwa_aln/output/no_xa_annotated_bwa_aln.sorted.bam | cut -f3,16 | sort -k2,2 -k1,1 | uniq -c >> counts_bwa_aln.txt
+samtools view $WD/bwa_aln/output/no_xa_annotated_bwa_aln.sorted.bam | cut -f3,16 | sort -k2,2 -k1,1 | uniq -c >> ./count_tables/bwa_aln/counts_bwa_aln.txt
 
 # secondary alignments are handled as fractonary counts
 
@@ -336,11 +334,11 @@ samtools view $WD/bwa_aln/output/no_xa_annotated_bwa_aln.sorted.bam | cut -f3,16
 
 #samtools view $WD/bwa_mem2/output/xa_annotated_bwa_mem2.sorted.bam | awk 'BEGIN {OFS="\t"} {n=split($16, a, /[;]/); print n,$3,$17}' | sort -k3,3 -k2,2 | uniq -f 1 -c | awk '{print $1/$2,$3,$4}' >> counts_bwa_mem2.txt
 
-rm $WD/bwa_aln/output/header.txt
+rm ./bwa_aln/output/header.txt
 
 # need to sum the multimappers
 
-less counts_bwa_aln.txt | awk '{print $1,$2";"$3}' | sort -k2,2 | awk -v seen_gene_cb="sgc" -v current_gene_cb="cgc" -v counts_current="cc" -v counts_seen="cs" 'BEGIN{OFS="\t"} {
+less ./count_tables/bwa_aln/counts_bwa_aln.txt | awk '{print $1,$2";"$3}' | sort -k2,2 | awk -v seen_gene_cb="sgc" -v current_gene_cb="cgc" -v counts_current="cc" -v counts_seen="cs" 'BEGIN{OFS="\t"} {
  counts_current = $1;
  current_gene_cb = $2";"$3;
   if (current_gene_cb==seen_gene_cb) {
@@ -349,9 +347,9 @@ less counts_bwa_aln.txt | awk '{print $1,$2";"$3}' | sort -k2,2 | awk -v seen_ge
  else {
  {print counts_current "\t"$2"\t"$3};
  } seen_gene_cb=current_gene_cb; counts_seen=counts_current;
-}' > combined_counts_bwa_aln.txt
+}' > ./count_tables/bwa_aln/combined_counts_bwa_aln.txt
 
-rm counts_bwa_aln.txt
+rm ./count_tables/bwa_aln/counts_bwa_aln.txt
 
 ## Step 6: count STAR fusion data
 
@@ -360,35 +358,32 @@ rm counts_bwa_aln.txt
 # here we are reporting multiple alignments for the same read --> depending if for the same read multiple possible fusions were detected
 # we are also reporting things other than BCR:ABL if we don't filter for the chromosomes --> only take chr22 and chr9 in the correct order
 
-cd $WD/star_fusion/output
-
 bcr_start=23179704
 bcr_end=23318037
 abl_start=130713016
 abl_end=130887675
 
-awk '$2 >23179704  || $2 <23318037 || $4 > 130713016 || $4 < 130887675' Chimeric.out.junction > sub_Chimeric.out.junction
+awk '$2 >23179704  || $2 <23318037 || $4 > 130713016 || $4 < 130887675' ./star_fusion/output/Chimeric.out.junction > ./star_fusion/output/sub_Chimeric.out.junction
 
 # $1: first chr, $4: second chr, $2: position in first chromosome, $5: position in second chromosome
 
-grep -v "-" sub_Chimeric.out.junction | grep "chr9" | grep "chr22" | awk 'BEGIN {OFS="\t"} {split($10, a, /[;,]/); print a[1],$1"_"$4"_"$2"__"$5,a[2],a[3]}' > annotated_sub_Chimeric.out.junction
+grep -v "-" ./star_fusion/output/sub_Chimeric.out.junction | grep "chr9" | grep "chr22" | awk 'BEGIN {OFS="\t"} {split($10, a, /[;,]/); print a[1],$1"_"$4"_"$2"__"$5,a[2],a[3]}' > ./star_fusion/output/annotated_sub_Chimeric.out.junction
 
 echo "# chimeric alignments starfusion"
-wc -l annotated_sub_Chimeric.out.junction
+wc -l ./star_fusion/output/annotated_sub_Chimeric.out.junction
 
-less annotated_sub_Chimeric.out.junction | cut -f2,3 | sort | uniq -c >> p_counts_star_fusion.txt
+less ./star_fusion/output/annotated_sub_Chimeric.out.junction | cut -f2,3 | sort | uniq -c >> ./star_fusion/output/p_counts_star_fusion.txt
 
 rm sub_Chimeric.out.junction
 
 # counts
 
 mkdir -p $WD/count_tables/star_fusion
-cd $WD/count_tables/star_fusion
 
-echo -e "Counts\tfusion_position\tBarcode" > counts_star_fusion_complete.txt
+echo -e "Counts\tfusion_position\tBarcode" > ./count_tables/star_fusion/counts_star_fusion_complete.txt
 
 # remove chr9 and chr22 as this would be the inversion of the fusion
 
-grep -v "chr9chr22" $WD/star_fusion/output/p_counts_star_fusion.txt > counts_star_fusion.txt
+grep -v "chr9chr22" ./star_fusion/output/p_counts_star_fusion.txt > ./count_tables/star_fusion/counts_star_fusion.txt
 
-rm $WD/star_fusion/output/p_counts_star_fusion.txt counts_star_fusion_complete.txt
+rm ./star_fusion/output/p_counts_star_fusion.txt ./count_tables/star_fusion/counts_star_fusion_complete.txt/counts_star_fusion_complete.txt

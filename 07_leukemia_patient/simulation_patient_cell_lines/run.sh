@@ -11,10 +11,9 @@ export PATH=/home/imallona/soft/star/STAR-2.7.10b/source:$PATH #path to STAR for
 export PATH=/home/gmoro/bwa/:$PATH #path to bwa
 export WD=.
 
-export COMBINED_INDEXED_GENOME=./genome #STAR indexed genome
 export COMBINED_GTF_GENOME=./genome/gencode.v38.basic.annotation.gtf #genome .gtf
-export r1=./combined_r1.fastq.gz #simulated reads
-export r2=./combined_r2.fastq.gz #simulated reads
+export r1=./combined_r1.fastq #simulated reads
+export r2=./combined_r2.fastq #simulated reads
 export CL1=./BD_CLS1.txt #first whitelist for cell label 1
 export CL2=./BD_CLS2.txt #second whitelist for cell label 2
 export CL3=./BD_CLS3.txt #second whitelist for cell label 3
