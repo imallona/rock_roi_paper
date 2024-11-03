@@ -163,13 +163,12 @@ done
 done
 
 cat "$CUSTOM_FA" ABL1_human.fa BCR_human.fa > combined.fa
-cat "$CUSTOM_GTF" ABL1_human.gtf BCR_human.gtf > combined.gtf
 
 # index reference
 
 # bwa version: bwa 0.7.18
 
-bwa index -p indexed ~/leukemia_bwamem2/indexed_genome/combined.fa
+bwa index -p indexed combined.fa
 
 mkdir -p $WD/bwa_aln/output
 cd $WD/bwa_aln/output
@@ -181,7 +180,7 @@ cd $WD/bwa_aln/output
 
 bwa aln $WD/bwa_aln/genome/indexed $WD/sorted_duplicate_r2.fastq.gz -0 -d 20 -i 20 -k 3 -O 1000 > bwa_aln_alignments.sai
 
-bwa/bwa samse -f bwa_aln_alignments.sam $WD/bwa_aln/genome/indexed bwa_aln_alignments.sai $WD/sorted_duplicate_r2.fastq.gz 
+bwa samse -f bwa_aln_alignments.sam $WD/bwa_aln/genome/indexed bwa_aln_alignments.sai $WD/sorted_duplicate_r2.fastq.gz 
 
 samtools view -o out.bam bwa_aln_alignments.sam
 
