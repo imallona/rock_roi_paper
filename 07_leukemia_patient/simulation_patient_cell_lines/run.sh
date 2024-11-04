@@ -49,4 +49,3 @@ conda install -c conda-forge -c bioconda bwa=0.7.18 #0.7.18
 
 ./workflow.sh
 
-conda deactivate fusion_detection
