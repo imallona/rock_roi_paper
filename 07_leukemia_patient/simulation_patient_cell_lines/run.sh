@@ -7,8 +7,6 @@
 
 ## The code needs to be run from the cloned repository in the 07_leukemia_patient_workflow/simulation_patient_cell_lines
 
-export PATH=/home/imallona/soft/star/STAR-2.7.10b/source:$PATH #path to STAR for STARsolo and STAR fusion
-export PATH=/home/gmoro/bwa/:$PATH #path to bwa
 export WD=.
 
 export COMBINED_GTF_GENOME=./genome/gencode.v38.basic.annotation.gtf #genome .gtf
@@ -28,4 +26,26 @@ export TRANSCRIPTOME=gencode.v38.pc_transcripts.fa #transcriptome to download
 export human_fa=GRCh38.p13.genome.fa
 export human_gtf=gencode.v38.basic.annotation.gtf
 
+# software installation
+
+# installing conda and packages 
+
+#mkdir -p ~/miniconda3
+#wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
+#bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
+
+source ~/miniconda3/bin/activate
+
+conda create --name fusion_detection
+conda activate fusion_detection
+
+conda config --add channels bioconda
+conda config --add channels conda-forge
+
+conda install -c conda-forge -c bioconda star=2.7.10b
+conda install -c conda-forge -c bioconda samtools=1.21 # v1.21
+conda install -c conda-forge -c bioconda bwa=0.7.18 #0.7.18
+
 ./workflow.sh
+
+conda deactivate fusion_detection
