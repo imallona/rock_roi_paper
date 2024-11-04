@@ -166,7 +166,7 @@ echo 'remaining reads to deduplicate'
 
 wc -l duplicated.txt
 
-# obtain the entry in the .fastq file for the duplicated CB and UB. Only taking the second line as the unmapped will always be at that position
+# obtain the entry in the .fastq file for the duplicated CB and UB. Only taking the second line as the unmapped alignemnt will always be reported at the second position as it is concatenated later.
 
 grep -Ff duplicated.txt r2.fastq | awk 'NR % 2 == 1' > unmapped_reads.txt
 
@@ -198,14 +198,14 @@ pigz --decompress *gz
 
 # extracting all transcripts for ABL1 and BCR from the .fa transcriptome
 
-grep "ENSG00000097007" "$TRANSCRIPTOME"| sed 's/>//g' > ABL1_human.gtf
-grep "ENSG00000186716" "$TRANSCRIPTOME"| sed 's/>//g' >  BCR_human.gtf
+grep "ENSG00000097007" "$TRANSCRIPTOME"| sed 's/>//g' > ABL1_human.txt
+grep "ENSG00000186716" "$TRANSCRIPTOME"| sed 's/>//g' >  BCR_human.txt
 
-for i in $(cat ABL1_human.gtf); do
+for i in $(cat ABL1_human.txt); do
     samtools faidx $TRANSCRIPTOME "$i" >> ABL1_human.fa
 done
 
- for i in $(cat BCR_human.gtf) ; do
+for i in $(cat BCR_human.txt) ; do
     samtools faidx $TRANSCRIPTOME "$i"  >> BCR_human.fa
 done
 
@@ -331,8 +331,6 @@ samtools view $WD/bwa_aln/output/no_xa_annotated_bwa_aln.sorted.bam | cut -f3,16
 # sort based on CB field which here is k3 and then k2 for the gene id
 
 # IMPORTANT: the wt BCR will always multimap. There are two annotated transcripts and they have the same exact sequence at the fusion junction. We are summing the multimappers and recovering both, so the count will anyway sum up to 1. Currently not counting the multimappers.
-
-#samtools view $WD/bwa_mem2/output/xa_annotated_bwa_mem2.sorted.bam | awk 'BEGIN {OFS="\t"} {n=split($16, a, /[;]/); print n,$3,$17}' | sort -k3,3 -k2,2 | uniq -f 1 -c | awk '{print $1/$2,$3,$4}' >> counts_bwa_mem2.txt
 
 rm ./bwa_aln/output/header.txt
 
