@@ -163,13 +163,12 @@ done
 done
 
 cat "$CUSTOM_FA" ABL1_human.fa BCR_human.fa > combined.fa
-cat "$CUSTOM_GTF" ABL1_human.gtf BCR_human.gtf > combined.gtf
 
 # index reference
 
 # bwa version: bwa 0.7.18
 
-bwa index -p indexed ~/leukemia_bwamem2/indexed_genome/combined.fa
+bwa index -p indexed combined.fa
 
 mkdir -p $WD/bwa_aln/output
 cd $WD/bwa_aln/output
