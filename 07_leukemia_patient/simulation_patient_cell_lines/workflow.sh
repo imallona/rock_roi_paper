@@ -13,17 +13,17 @@
 mkdir -p ./genome
 cd ./genome
 
-#wget http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_38/"$human_fa".gz
-#wget http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_38/"$human_gtf".gz
+wget http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_38/"$human_fa".gz
+wget http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_38/"$human_gtf".gz
 
-#pigz --decompress *gz
+pigz --decompress *gz
 
-#STAR --runMode genomeGenerate \
-#     --runThreadN $NTHREADS_genome \
-#     --genomeDir . \
-#     --genomeFastaFiles $human_fa \
-#     --sjdbGTFfile $human_gtf \
-#     --sjdbOverhang 179
+STAR --runMode genomeGenerate \
+     --runThreadN $NTHREADS_genome \
+     --genomeDir . \
+     --genomeFastaFiles $human_fa \
+     --sjdbGTFfile $human_gtf \
+     --sjdbOverhang 179
 
 # running STARsolo
 
@@ -33,29 +33,29 @@ mkdir -p ./starsolo
 gzip $r1
 gzip $r2
 
-#STAR --runThreadN $NTHREADS \
-#     --genomeDir ./genome \
-#     --readFilesCommand zcat \
-#     --outFileNamePrefix ./starsolo/ \
-#     --readFilesIn $r2.gz $r1.gz  \
-#     --soloType CB_UMI_Complex \
-#     --soloAdapterSequence AATGNNNNNNNNNCCAC \
-#     --soloCBposition 2_-9_2_-1 2_4_2_12 2_17_2_25 \
-#     --soloUMIposition 3_10_3_17 \
-#     --soloUMIlen 8 \
-#     --soloCellReadStats Standard \
-#     --soloCBwhitelist $CL1 $CL2 $CL3 \
-#     --soloCBmatchWLtype 1MM \
-#     --soloCellFilter None \
-#     --outSAMattributes NH HI AS nM NM MD jM jI MC ch CB UB gx gn sS CR CY UR UY\
-#     --outSAMtype BAM SortedByCoordinate \
-#     --quantMode GeneCounts \
-#     --sjdbGTFfile $COMBINED_GTF_GENOME \
-#     --sjdbOverhang 179 \
-#     --limitBAMsortRAM 20000 * 1024 * 1024 \
-#     --outSAMunmapped Within
+STAR --runThreadN $NTHREADS \
+     --genomeDir ./genome \
+     --readFilesCommand zcat \
+     --outFileNamePrefix ./starsolo/ \
+     --readFilesIn $r2.gz $r1.gz  \
+     --soloType CB_UMI_Complex \
+     --soloAdapterSequence AATGNNNNNNNNNCCAC \
+     --soloCBposition 2_-9_2_-1 2_4_2_12 2_17_2_25 \
+     --soloUMIposition 3_10_3_17 \
+     --soloUMIlen 8 \
+     --soloCellReadStats Standard \
+     --soloCBwhitelist $CL1 $CL2 $CL3 \
+     --soloCBmatchWLtype 1MM \
+     --soloCellFilter None \
+     --outSAMattributes NH HI AS nM NM MD jM jI MC ch CB UB gx gn sS CR CY UR UY\
+     --outSAMtype BAM SortedByCoordinate \
+     --quantMode GeneCounts \
+     --sjdbGTFfile $COMBINED_GTF_GENOME \
+     --sjdbOverhang 179 \
+     --limitBAMsortRAM 20000 * 1024 * 1024 \
+     --outSAMunmapped Within
 
-#samtools index $STARSOLO_BAM
+samtools index $STARSOLO_BAM
 
 # get unmapped reads and reads that mapped to BCR and to ABL and append their name to the readname
 
