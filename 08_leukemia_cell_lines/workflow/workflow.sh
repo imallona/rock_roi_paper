@@ -28,7 +28,7 @@ echo "getting read names and deduplicating"
 
 samtools view -H $STARSOLO_BAM -@ $NTHREADS > header.txt
 
-samtools view "$STARSOLO_BAM" "chr22:22179704-24318037" -@ "$NTHREADS" \
+samtools view "$STARSOLO_BAM" -L $REGIONS -@ "$NTHREADS" \
 | cat header.txt - \
 | samtools view -@ "$NTHREADS" \
 | grep -v "CB:Z:-" \
@@ -52,33 +52,7 @@ samtools view "$STARSOLO_BAM" "chr22:22179704-24318037" -@ "$NTHREADS" \
     seen_ub = current_ub; \
   }"' >> r2.fastq
 
-echo "BCR extracted"
-
-samtools view "$STARSOLO_BAM" "chr9:129713016-131887675" -@ "$NTHREADS" \
-| cat header.txt - \
-| samtools view -@ "$NTHREADS" \
-| grep -v "CB:Z:-" \
-| grep -v "UB:Z:-" \
-| sort -k28,28 -k27,27 -k1,1 \
-| parallel --pipe --block 10M -j "$NTHREADS" \
-'awk -v seen="" -v current="" -v current_ub_cb="" -v seen_ub_cb="" -v current_ub="" -v seen_ub="" \
-  "BEGIN { OFS=\"\t\" } \
-  { \
-    current = \$1; \
-    current_ub_cb = \$28 \";\" \$27; \
-    current_ub = \$28; \
-    cmd = \"grep -q \" current \" r2.fastq\"; \
-    exit_code = system(cmd); \
-    if (exit_code == 0) { next; } \
-    if (current_ub != seen_ub && current_ub_cb != seen_ub_cb && current != seen) { \
-      print \"@\" current \";\" \$27 \";\" \$28 \"\\n\" \$10 \"\\n+\\n\" \$11; \
-    } \
-    seen = current; \
-    seen_ub_cb = current_ub_cb; \
-    seen_ub = current_ub; \
-  }"' >> r2.fastq
-
-echo "ABL extracted"
+echo "BCR and ABL extracted"
 
 # for unmapped reads: they don't have the gx tag, so the CB and UB will be at a different position (UB (23), CB (22) and 1 (read id)
 
@@ -109,33 +83,13 @@ echo "unmapped extracted"
 
 rm header.txt
 
-## Step 2: additonal CB / UB deduplication
-
-# Additional CB and UB deduplication if reads appended in different steps have same CB and UB
-
-awk 'NR%4==1{print}' r2.fastq | awk '{split ($0, a, /[;]/); print a[2]";"a[3]}' | sort | uniq -d > duplicated.txt
-
-echo 'remaining reads to deduplicate'
-
-wc -l duplicated.txt
-
-# obtain the entry in the .fastq file for the duplicated CB and UB. Only taking the second line as the unmapped will always be at that position
-
-grep -Ff duplicated.txt r2.fastq | awk 'NR % 2 == 1' > unmapped_reads.txt
-
-# remove the lines from that entry and generate new file --> only works if the wc -l of the unmapped_reads.txt is larger than 0, so need to add that condition
-
-awk 'NF {exit 1}' unmapped_reads.txt && mv r2.fastq deduplicated_r2.fastq || mv r2.fastq deduplicated_r2.fastq; while read -r id; do sed -i "/$id/,+3d" deduplicated_r2.fastq; done < unmapped_reads.txt
-
-rm duplicated.txt unmapped_reads.txt
-
-mv deduplicated_r2.fastq sorted_duplicate_r2.fastq
+mv r2.fastq sorted_duplicate_r2.fastq
 
 pigz sorted_duplicate_r2.fastq
 
 echo "R2 file generated"
 
-## Step 3: running bwa aln
+## Step 2: running bwa aln
 
 mkdir -p $WD/bwa_aln/genome
 cd $WD/bwa_aln/genome
@@ -151,14 +105,14 @@ pigz --decompress *gz
 
 # extracting all transcripts for ABL1 and BCR from the .fa transcriptome
 
-grep "ENSG00000097007" "$TRANSCRIPTOME"| sed 's/>//g' > ABL1_human.gtf
-grep "ENSG00000186716" "$TRANSCRIPTOME"| sed 's/>//g' >  BCR_human.gtf
+grep "ENSG00000097007" "$TRANSCRIPTOME"| sed 's/>//g' > ABL1_human.txt
+grep "ENSG00000186716" "$TRANSCRIPTOME"| sed 's/>//g' >  BCR_human.txt
 
-for i in $(cat ABL1_human.gtf); do
+for i in $(cat ABL1_human.txt); do
     samtools faidx $TRANSCRIPTOME "$i" >> ABL1_human.fa
 done
 
- for i in $(cat BCR_human.gtf) ; do
+for i in $(cat BCR_human.txt) ; do
     samtools faidx $TRANSCRIPTOME "$i"  >> BCR_human.fa
 done
 
@@ -190,7 +144,7 @@ samtools sort out.bam -o output.sorted.bam
 
 rm bwa_aln_alignments.sam bwa_aln_alignments.sai
 
-## Step 4: run STAR fusion
+## Step 3: run STAR fusion
 
 # genome was previously generated based on the .fa and .gtf files also used for STARsolo
 
@@ -232,7 +186,7 @@ STAR --genomeDir "$COMBINED_INDEXED_GENOME" \
 
 echo "STAR_fusion finished"
 
-## Step 5: count bwa aln data
+## Step 4: count bwa aln data
 
 # adding the CB and UB tag to the bwa mem2 bam file and generating count table for bwa mem2 after extracting mapped reads
 
@@ -305,7 +259,7 @@ less counts_bwa_aln.txt | awk '{print $1,$2";"$3}' | sort -k2,2 | awk -v seen_ge
 
 rm counts_bwa_aln.txt
 
-## Step 6: count STAR fusion data
+## Step 5: count STAR fusion data
 
 # do the same for STAR fusion based on the Chimeric.out.junction
 # only count the ones on the + strand
