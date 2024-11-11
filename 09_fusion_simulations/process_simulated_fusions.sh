@@ -55,10 +55,13 @@ zcat ./out/labelled_umis_cdna.fq.gz | tail
 
 echo 'Scan for motifs (with mismatches, against a reference)'
 
+## mind the mismatches
 zcat out/labelled_umis_cdna.fq.gz | \
     seqkit locate  \
-           --max-mismatch 4 \
+           --max-mismatch 0 \
            --pattern-file data/reference_fusions.fa \
            -j $NTHREADS | gzip -c > ./out/fusion_locate_out.txt.gz
+
+zcat ./out/fusion_locate_out.txt.gz | head
 
 ## deduplicate by CB, UMI, pattern and start - here or in R?
