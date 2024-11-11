@@ -57,7 +57,7 @@ echo 'Scan for motifs (with mismatches, against a reference)'
 
 zcat out/labelled_umis_cdna.fq.gz | \
     seqkit locate  \
-           --max-mismatch 2 \
+           --max-mismatch 4 \
            --pattern-file data/reference_fusions.fa \
            -j $NTHREADS | gzip -c > ./out/fusion_locate_out.txt.gz
 
