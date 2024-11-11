@@ -35,15 +35,28 @@ echo 'Uncomment to install using conda/similar the environment env/fusion_conda_
 # micromamba activate fusion
 # micromamba install -f env/fusion_conda_env.txt
 
-echo 'Scan for motifs (with mismatches, against a reference)'
+
+echo 'Extract UMIs/CBs'
+
+regex='^(?P<discard_1>.{0,3})(?P<cell_1>.{9})(?P<discard_2>GTGA)(?P<cell_2>.{9})(?P<discard_3>GACA)(?P<cell_3>.{9})(?P<umi_1>.{8}).*'
 
 mkdir -p out
 
-cat ./data/fusion_simulations_cdna.fq | \
+## so we label the cdnas with the CB and UMI
+umi_tools extract --extract-method=regex \
+          --stdin=./data/fusion_simulations_cbumi.fq \
+          --read2-in=./data/fusion_simulations_cdna.fq \
+          --read2-out=./out/labelled_umis_cdna.fq.gz \
+          --bc-pattern="$regex" --log=processed.log --stdout out/processed.fastq.gz
+
+
+echo 'Scan for motifs (with mismatches, against a reference)'
+
+zcat out/labelled_umis_cdna.fq.gz | \
     seqkit locate  \
            --max-mismatch 2 \
            --pattern-file data/reference_fusions.fa \
-           -j $NTHREADS > .out/fusion_simulations_seqkit_locate.out
+           -j $NTHREADS > ./out/fusion_simulations_seqkit_locate.out
        
 # This cannot be correct, the simulations are not ok because in line 3 we get a fused simulation aligning to
 ## a nonfused reference?
@@ -63,3 +76,4 @@ cat ./data/fusion_simulations_cdna.fq | \
 
 # rather umitools the fastqs, to add the UMI to each read name?
 # umi_tools dedup -I example.bam --output-stats=deduplicated -S deduplicated.bam
+
