@@ -12,7 +12,7 @@ NTHREADS=10
 Expected reads follow this pattern, being the `/` the splicing site or fusion site
   apparently only 16 nt on each side of the fusion are expected (Giulia dixit, something about
   rois not being efficient)
-Content matches ./data/reference_fusions.fa
+The actual content is available as ./data/reference_fusions.fa
 
 wt_ABL1_1      GTTTTTGTGGAACATG/AAGCCCTTCAGCGGCC
 wt_ABL1_2      AGCTGTTATCTGGAAG/AAGCCCTTCAGCGGCC
@@ -25,7 +25,11 @@ BCRABL_e1a2    TTCCATGGAGACGCAG/AAGCCCTTCAGCGGCC
 BCRABL_1e13a2  ACCATCAATAAGGAAG/AAGCCCTTCAGCGGCC
 BCRABL1_e14a2  TTTAAGCAGAGTTCAA/AAGCCCTTCAGCGGCC 
 
+To allow for deletions at the fusion site we also search for regexes
 
+TTTAAGCAGAGTTCAA/AAGCCCTTCAGCGGCC with up to six deletions or six insertions symmetrical to the junction
+                                  that is, up to 12 "free" nucleotides centering 6:6 from the junction viewpoint
+ 
 EOF
 
 
@@ -55,13 +59,43 @@ zcat ./out/labelled_umis_cdna.fq.gz | tail
 
 echo 'Scan for motifs (with mismatches, against a reference)'
 
-## mind the mismatches
+## without mismatches
 zcat out/labelled_umis_cdna.fq.gz | \
     seqkit locate  \
-           --max-mismatch 0 \
+           --use-regexp \
            --pattern-file data/reference_fusions.fa \
            -j $NTHREADS | gzip -c > ./out/fusion_locate_out.txt.gz
 
 zcat ./out/fusion_locate_out.txt.gz | head
+
+## with mismatches
+
+zcat out/labelled_umis_cdna.fq.gz | \
+    seqkit locate  \
+           --max-mismatch 3 \
+           --pattern-file data/reference_fusions.fa \
+           -j $NTHREADS | gzip -c > ./out/fusion_locate_out_mm3.txt.gz
+
+zcat ./out/fusion_locate_out_mm3.txt.gz | head
+
+
+zcat out/labelled_umis_cdna.fq.gz | \
+    seqkit locate  \
+           --max-mismatch 5 \
+           --pattern-file data/reference_fusions.fa \
+           -j $NTHREADS | gzip -c > ./out/fusion_locate_out_mm5.txt.gz
+
+zcat ./out/fusion_locate_out_mm5.txt.gz | head
+
+## with regular expressions
+
+zcat out/labelled_umis_cdna.fq.gz | \
+    seqkit locate  \
+           --use-regexp \
+           --pattern-file data/reference_fusions_regex.fa \
+           -j $NTHREADS | gzip -c > ./out/fusion_locate_out_reg.txt.gz
+
+zcat ./out/fusion_locate_out_reg.txt.gz | head
+
 
 ## deduplicate by CB, UMI, pattern and start - here or in R?
