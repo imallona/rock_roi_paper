@@ -80,26 +80,3 @@ zcat out/fusion_locate_out_reg.txt.gz | cut -f2 | grep -f - data/fusion_simulati
 zcat out/fusion_locate_out_reg.txt.gz | cut -f2 | grep -v -f - data/fusion_simulations_cdna.fq | grep "^@"
 
 # ## deduplicate by CB, UMI, pattern and start - here or in R?
-
-
-
-## actual runs #----------------------------------------------------------------------------------------
-## edit here
-run_id="cell_lines_downsampled"
-clines_cdna=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R2_5M.fastq.gz
-clines_cbumi=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R1_5M.fastq.gz
-
-umi_tools extract --extract-method=regex \
-          --stdin="$clines_cbumi" \
-          --read2-in="$lines_cdna" \
-          --read2-out=./out/"$run_id"_labelled_umis_cdna.fq.gz \
-          --bc-pattern="$regex" --log=log/"$run_id"_umitools.log --stdout out/"$run_id".fq.gz
-
-
-pigz -dc -p "$NTHREADS" ./out/cellline_labelled_umis_cdna.fq.gz | \
-    seqkit locate  \
-           --use-regexp \
-           --pattern-file data/reference_fusions_regex.fa \
-           -j "$NTHREADS" | pigz -c -p "$NTHREADS" > ./out/"$run_id"_regex.txt.gz
-
-
