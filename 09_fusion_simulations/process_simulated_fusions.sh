@@ -6,7 +6,11 @@
 ##
 ## Izaskun Mallona
 
-NTHREADS=10
+NTHREADS=30
+
+# enhanced beads regex
+regex='^(?P<discard_1>.{0,3})(?P<cell_1>.{9})(?P<cell_2>[GTGA|AATG]{4}){s<=1}(?P<cell_3>.{9})(?<cell_4>[GACA|CCAC]{4}){s<=1}(?P<cell_5>.{9})(?P<umi_1>.{8}).*'
+
 
 :<<EOF
 Expected reads follow this pattern, being the `/` the splicing site or fusion site
@@ -41,14 +45,12 @@ echo 'Uncomment to install using conda/similar the environment env/fusion_conda_
 
 # micromamba create fusion
 # micromamba activate fusion
-# micromamba install -f env/fusion_conda_env.txt
+# micromamba install -f env/fusion_conda_env.yaml
 
+
+## example / simulated run -------------------------------------------------------------------------------------------------
 
 echo 'Extract UMIs/CBs'
-
-#regex='^(?P<discard_1>.{0,3})(?P<cell_1>.{9})(?P<discard_2>GTGA)(?P<cell_2>.{9})(?P<discard_3>GACA)(?P<cell_3>.{9})(?P<umi_1>.{8}).*'
-regex='^(?P<discard_1>.{0,3})(?P<cell_1>.{9})(?P<cell_2>[GTGA|AATG]{4}){s<=1}(?P<cell_3>.{9})(?<cell_4>[GACA|CCAC]{4}){s<=1}(?P<cell_5>.{9})(?P<umi_1>.{8}).*'
-
 
 mkdir -p out log
 
@@ -61,25 +63,7 @@ umi_tools extract --extract-method=regex \
 
 zcat ./out/labelled_umis_cdna.fq.gz | tail
 
-echo 'Scan for motifs (with mismatches, against a reference)'
-
-## five mm
-zcat out/labelled_umis_cdna.fq.gz | \
-    seqkit locate  \
-           --max-mismatch 5 \
-           --pattern-file data/reference_fusions.fa \
-           -j $NTHREADS | gzip -c > ./out/fusion_locate_out_mm5.txt.gz
-
-zcat ./out/fusion_locate_out_mm5.txt.gz | head 
-
-
-# matched
-zcat out/fusion_locate_out_mm5.txt.gz | cut -f2 | grep -f - data/fusion_simulations_cdna.fq
-
-# missing
-zcat out/fusion_locate_out_mm5.txt.gz | cut -f2 | grep -v -f - data/fusion_simulations_cdna.fq | grep "^@"
-
-## with regular expressions
+echo 'Scan for motifs with seqkit'
 
 zcat out/labelled_umis_cdna.fq.gz | \
     seqkit locate  \
@@ -98,22 +82,24 @@ zcat out/fusion_locate_out_reg.txt.gz | cut -f2 | grep -v -f - data/fusion_simul
 # ## deduplicate by CB, UMI, pattern and start - here or in R?
 
 
-# # quick dirty check cell-lines
-# giulia_cdna=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R2_5M.fastq.gz
-# giulia_cbumi=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R1_5M.fastq.gz
 
-# umi_tools extract --extract-method=regex \
-#           --stdin="$giulia_cbumi" \
-#           --read2-in="$giulia_cdna" \
-#           --read2-out=./out/cellline_labelled_umis_cdna.fq.gz \
-#           --bc-pattern="$regex" --log=log/cellline_umitools.log --stdout out/celllines.fq.gz
+## actual runs #----------------------------------------------------------------------------------------
+## edit here
+run_id="cell_lines_downsampled"
+clines_cdna=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R2_5M.fastq.gz
+clines_cbumi=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R1_5M.fastq.gz
+
+umi_tools extract --extract-method=regex \
+          --stdin="$clines_cbumi" \
+          --read2-in="$lines_cdna" \
+          --read2-out=./out/"$run_id"_labelled_umis_cdna.fq.gz \
+          --bc-pattern="$regex" --log=log/"$run_id"_umitools.log --stdout out/"$run_id".fq.gz
 
 
-# pigz -dc -p 5 ./out/cellline_labelled_umis_cdna.fq.gz | \
-#     seqkit locate  \
-#            --use-regexp \
-#            -G \
-#            --pattern-file data/reference_fusions.fa \
-#            -j 40 | gzip -c > ./out/cellline_regex_greedy.txt.gzip
+pigz -dc -p "$NTHREADS" ./out/cellline_labelled_umis_cdna.fq.gz | \
+    seqkit locate  \
+           --use-regexp \
+           --pattern-file data/reference_fusions_regex.fa \
+           -j "$NTHREADS" | pigz -c -p "$NTHREADS" > ./out/"$run_id"_regex.txt.gz
 
 
