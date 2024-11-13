@@ -52,9 +52,9 @@ echo 'Extract UMIs/CBs'
 mkdir -p out log
 
 ## edit here
-run_id="cell_lines_downsampled"
-clines_cdna=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R2_5M.fastq.gz
-clines_cbumi=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R1_5M.fastq.gz
+run_id="cell_lines_full"
+clines_cdna=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/331131_1-Cell_lines_50_50_S1_R2_001.fastq.gz
+clines_cbumi=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/331131_1-Cell_lines_50_50_S1_R1_001.fastq.gz
 
 umi_tools extract --extract-method=regex \
           --stdin="$clines_cbumi" \
