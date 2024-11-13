@@ -75,13 +75,6 @@ zcat out/fusion_locate_out_mm5.txt.gz | cut -f2 | grep -f - data/fusion_simulati
 # missing
 zcat out/fusion_locate_out_mm5.txt.gz | cut -f2 | grep -v -f - data/fusion_simulations_cdna.fq | grep "^@"
 
-# ok, truths and simulated read names don't match still
-
-exit 123
-
-
-
-
 ## with regular expressions
 
 zcat out/labelled_umis_cdna.fq.gz | \
@@ -92,26 +85,31 @@ zcat out/labelled_umis_cdna.fq.gz | \
 
 zcat ./out/fusion_locate_out_reg.txt.gz | head
 
+# matched
+zcat out/fusion_locate_out_reg.txt.gz | cut -f2 | grep -f - data/fusion_simulations_cdna.fq
 
-## deduplicate by CB, UMI, pattern and start - here or in R?
+# missing
+zcat out/fusion_locate_out_reg.txt.gz | cut -f2 | grep -v -f - data/fusion_simulations_cdna.fq | grep "^@"
 
-
-# quick dirty check cell-lines
-giulia_cdna=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R2_5M.fastq.gz
-giulia_cbumi=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R1_5M.fastq.gz
-
-umi_tools extract --extract-method=regex \
-          --stdin="$giulia_cbumi" \
-          --read2-in="$giulia_cdna" \
-          --read2-out=./out/cellline_labelled_umis_cdna.fq.gz \
-          --bc-pattern="$regex" --log=log/cellline_umitools.log --stdout out/celllines.fq.gz
+# ## deduplicate by CB, UMI, pattern and start - here or in R?
 
 
-pigz -dc -p 5 ./out/cellline_labelled_umis_cdna.fq.gz | \
-    seqkit locate  \
-           --use-regexp \
-           -G \
-           --pattern-file data/reference_fusions.fa \
-           -j 40 | gzip -c > ./out/cellline_regex_greedy.txt.gzip
+# # quick dirty check cell-lines
+# giulia_cdna=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R2_5M.fastq.gz
+# giulia_cbumi=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/downsampled_R1_5M.fastq.gz
+
+# umi_tools extract --extract-method=regex \
+#           --stdin="$giulia_cbumi" \
+#           --read2-in="$giulia_cdna" \
+#           --read2-out=./out/cellline_labelled_umis_cdna.fq.gz \
+#           --bc-pattern="$regex" --log=log/cellline_umitools.log --stdout out/celllines.fq.gz
+
+
+# pigz -dc -p 5 ./out/cellline_labelled_umis_cdna.fq.gz | \
+#     seqkit locate  \
+#            --use-regexp \
+#            -G \
+#            --pattern-file data/reference_fusions.fa \
+#            -j 40 | gzip -c > ./out/cellline_regex_greedy.txt.gzip
 
 
