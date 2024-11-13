@@ -5,6 +5,9 @@
 ## Fusion analysis for the leukemia dataset
 ##
 
+echo "This script might be buggy, has not been tested and its usage is discouraged"
+exit 125
+
 export PATH=/home/imallona/soft/star/STAR-2.7.10b/source:$PATH #path to STAR for STAR fusion
 export PATH=/home/gmoro/bwa/:$PATH #path to bwa
 export WD=~/data_mapping_leukemia_patient/workflow_aln #working directory
