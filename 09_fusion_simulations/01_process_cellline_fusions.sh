@@ -58,12 +58,12 @@ clines_cbumi=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/331131_1
 
 umi_tools extract --extract-method=regex \
           --stdin="$clines_cbumi" \
-          --read2-in="$lines_cdna" \
+          --read2-in="$clines_cdna" \
           --read2-out=./out/"$run_id"_labelled_umis_cdna.fq.gz \
           --bc-pattern="$regex" --log=log/"$run_id"_umitools.log --stdout out/"$run_id".fq.gz
 
 
-pigz -dc -p "$NTHREADS" ./out/cellline_labelled_umis_cdna.fq.gz | \
+pigz -dc -p "$NTHREADS" ./out/"$run_id"_labelled_umis_cdna.fq.gz | \
     seqkit locate  \
            --use-regexp \
            --pattern-file data/reference_fusions_regex.fa \
