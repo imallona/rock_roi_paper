@@ -80,3 +80,14 @@ zcat out/fusion_locate_out_reg.txt.gz | cut -f2 | grep -f - data/fusion_simulati
 zcat out/fusion_locate_out_reg.txt.gz | cut -f2 | grep -v -f - data/fusion_simulations_cdna.fq | grep "^@"
 
 # ## deduplicate by CB, UMI, pattern and start - here or in R?
+
+
+# alternative combinatorial piece scan
+# shouldn't we add some room to variations to the roi seqs?
+# why is e13_roi not found in simulations?
+# why are e1 nor e14 not overlapping any of the right/left pieces from reference_anchors_regex.fa?
+zcat out/labelled_umis_cdna.fq.gz | \
+    seqkit locate  \
+           --use-regexp \
+           --pattern-file data/reference_anchors_regex.fa \
+           -j $NTHREADS | gzip -c > ./out/fusion_locate_out_anchors_reg.txt.gz
