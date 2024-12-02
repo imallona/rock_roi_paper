@@ -55,10 +55,10 @@ mkdir -p out log
 
 ## run scan on fastq file with cDNA
 
-#seqkit locate $clines_cdna \
-#        --use-regexp \
-#        --pattern-file ./data/reference_fusions_regex.fa \
-#        -j $NTHREADS > ./out/"$run_id"_fusion_locate_out_reg.txt
+seqkit locate $clines_cdna \
+        --use-regexp \
+        --pattern-file ./data/reference_fusions_regex.fa \
+        -j $NTHREADS > ./out/"$run_id"_fusion_locate_out_reg.txt
 
 ## from .bam file generate .txt file with read id, cb and ub
 
@@ -91,29 +91,17 @@ wc -l ./out/"$run_id"_reads_with_cb_ub.txt
 
 ## need to sort the two files first keeping the header the same
 
-#head -1 ./out/"$run_id"_fusion_locate_out_reg.txt > ./out/"$run_id"_sorted_fusion_locate_out_reg.txt
-#head -1 ./out/"$run_id"_reads_with_cb_ub.txt > ./out/"$run_id"_sorted_reads_with_cb_ub.txt
-#tail -n+2 ./out/"$run_id"_fusion_locate_out_reg.txt | sort -k 1,1 >> ./out/"$run_id"_sorted_fusion_locate_out_reg.txt
-#tail -n+2 ./out/"$run_id"_reads_with_cb_ub.txt | sort -k 1,1 >> ./out/"$run_id"_sorted_reads_with_cb_ub.txt
+head -1 ./out/"$run_id"_fusion_locate_out_reg.txt > ./out/"$run_id"_sorted_fusion_locate_out_reg.txt
+head -1 ./out/"$run_id"_reads_with_cb_ub.txt > ./out/"$run_id"_sorted_reads_with_cb_ub.txt
+tail -n+2 ./out/"$run_id"_fusion_locate_out_reg.txt | sort -k 1,1 >> ./out/"$run_id"_sorted_fusion_locate_out_reg.txt
+tail -n+2 ./out/"$run_id"_reads_with_cb_ub.txt | sort -k 1,1 >> ./out/"$run_id"_sorted_reads_with_cb_ub.txt
 
-#paste ./out/"$run_id"_sorted_fusion_locate_out_reg.txt ./out/"$run_id"_sorted_reads_with_cb_ub.txt > ./out/"$run_id"_annotated_fusion_locate_out_reg.txt
+paste ./out/"$run_id"_sorted_fusion_locate_out_reg.txt ./out/"$run_id"_sorted_reads_with_cb_ub.txt > ./out/"$run_id"_annotated_fusion_locate_out_reg.txt
 
-#rm ./out/"$run_id"_reads_with_cb_ub.txt ./out/"$run_id"_sorted_reads_with_cb_ub.txt ./out/"$run_id"_sorted_fusion_locate_out_reg.txt
+rm ./out/"$run_id"_reads_with_cb_ub.txt ./out/"$run_id"_sorted_reads_with_cb_ub.txt ./out/"$run_id"_sorted_fusion_locate_out_reg.txt
 
-## UMI deduplication based on start site of alignment
+## removing all alignments with no UB and CB to make the file smaller
 
-## first removing all alignments with no UB and CB
+less ./out/"$run_id"_annotated_fusion_locate_out_reg.txt | grep -v 'CB:-' | grep -v 'UB:-' > ./out/"$run_id"_cb_ub_annotated_fusion_locate_out_reg.txt
 
-#less ./out/"$run_id"_annotated_fusion_locate_out_reg.txt | grep -v 'CB:-' | grep -v 'UB:-' > ./out/"$run_id"_cb_ub_annotated_fusion_locate_out_reg.txt
-
-## then sorting based on CB, UMI and pattern name 
-
-#sort -k10,10 -k9,9 -k2,2 -u ./out/"$run_id"_cb_ub_annotated_fusion_locate_out_reg.txt > ./out/"$run_id"_deduplicated_cb_ub_annotated_fusion_locate_out_reg.txt
-
-#echo 'Number of patterns prior to deduplication'
-#wc -l ./out/"$run_id"_annotated_fusion_locate_out_reg.txt
-
-#echo 'Number of patterns after deduplication'
-#wc -l ./out/"$run_id"_deduplicated_cb_ub_annotated_fusion_locate_out_reg.txt
-
-#rm ./out/"$run_id"_cb_ub_annotated_fusion_locate_out_reg.txt
+rm ./out/"$run_id"_annotated_fusion_locate_out_reg.txt
