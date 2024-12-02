@@ -53,7 +53,7 @@ mkdir -p out log
 
 ## run scan on fastq file with cDNA
 
-seqkit locate $clines_cdna \
+seqkit locate $patient_cdna\
         --use-regexp \
         --pattern-file ./data/reference_fusions_regex.fa \
         -j $NTHREADS > ./out/"$run_id"_fusion_locate_out_reg.txt
