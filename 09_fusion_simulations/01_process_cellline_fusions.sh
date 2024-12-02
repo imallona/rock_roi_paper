@@ -82,23 +82,25 @@ echo 'Unmapped'
 
 samtools view -@ $NTHREADS -f 4 ./out/subsetted.bam | cut -f1,22,23 >> ./out/"$run_id"_reads_with_cb_ub.txt
 
+# need to sort and unique them 
+
+sort -k 1,1 ./out/"$run_id"_reads_with_cb_ub.txt -u > ./out/sorted_"$run_id"_reads_with_cb_ub.txt
+
 rm header.txt read_ids.txt
 
-wc -l ./out/"$run_id"_reads_with_cb_ub.txt
-wc -l ./out/"$run_id"_reads_with_cb_ub.txt
+wc -l ./out/sorted_"$run_id"_reads_with_cb_ub.txt
+wc -l ./out/"$run_id"_fusion_locate_out_reg.txt
 
 ## append the information to the seqtk file
 
-## need to sort the two files first keeping the header the same
+## need to sort the two files and remove the header since it is not part of the information
 
-head -1 ./out/"$run_id"_fusion_locate_out_reg.txt > ./out/"$run_id"_sorted_fusion_locate_out_reg.txt
-head -1 ./out/"$run_id"_reads_with_cb_ub.txt > ./out/"$run_id"_sorted_reads_with_cb_ub.txt
 tail -n+2 ./out/"$run_id"_fusion_locate_out_reg.txt | sort -k 1,1 >> ./out/"$run_id"_sorted_fusion_locate_out_reg.txt
-tail -n+2 ./out/"$run_id"_reads_with_cb_ub.txt | sort -k 1,1 >> ./out/"$run_id"_sorted_reads_with_cb_ub.txt
+tail -n+2 ./out/sorted_"$run_id"_reads_with_cb_ub.txt | sort -k 1,1 >> ./out/"$run_id"_sorted_reads_with_cb_ub.txt
 
-paste ./out/"$run_id"_sorted_fusion_locate_out_reg.txt ./out/"$run_id"_sorted_reads_with_cb_ub.txt > ./out/"$run_id"_annotated_fusion_locate_out_reg.txt
+join -1 1 -2 1 -e '-' ./out/"$run_id"_sorted_fusion_locate_out_reg.txt ./out/"$run_id"_sorted_reads_with_cb_ub.txt > ./out/"$run_id"_annotated_fusion_locate_out_reg.txt
 
-rm ./out/"$run_id"_reads_with_cb_ub.txt ./out/"$run_id"_sorted_reads_with_cb_ub.txt ./out/"$run_id"_sorted_fusion_locate_out_reg.txt
+rm ./out/"$run_id"_reads_with_cb_ub.txt ./out/"$run_id"_sorted_reads_with_cb_ub.txt ./out/"$run_id"_sorted_fusion_locate_out_reg.txt ./out/sorted_"$run_id"_reads_with_cb_ub.txt
 
 ## removing all alignments with no UB and CB to make the file smaller
 
