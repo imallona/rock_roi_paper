@@ -7,9 +7,10 @@
 ## Izaskun Mallona
 
 NTHREADS=30
+run_id="cell_lines_full"
+clines_cdna=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/331131_1-Cell_lines_50_50_S1_R2_001.fastq.gz
+star_bam=/home/gmoro/cell_lines_leukemia/rock_roi_repo_for_cell_lines/output/align_tso/leukemia_cell_lines/Aligned.sortedByCoord.out.bam
 
-# enhanced beads regex
-regex='^(?P<discard_1>.{0,3})(?P<cell_1>.{9})(?P<cell_2>[GTGA|AATG]{4}){s<=1}(?P<cell_3>.{9})(?<cell_4>[GACA|CCAC]{4}){s<=1}(?P<cell_5>.{9})(?P<umi_1>.{8}).*'
 
 
 :<<EOF
@@ -40,31 +41,79 @@ TTTAAGCAGAGTTCAA/AAGCCCTTCAGCGGCC with up to six deletions or six insertions sym
  
 EOF
 
-
 echo 'Uncomment to install using conda/similar the environment env/fusion_conda_env.txt'
 
-# micromamba create fusion
+# conda install micromamba
+# mamba init
+# micromamba create -n fusion
 # micromamba activate fusion
 # micromamba install -f env/fusion_conda_env.yaml
 
-echo 'Extract UMIs/CBs'
-
 mkdir -p out log
 
-## edit here
-run_id="cell_lines_full"
-clines_cdna=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/331131_1-Cell_lines_50_50_S1_R2_001.fastq.gz
-clines_cbumi=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/331131_1-Cell_lines_50_50_S1_R1_001.fastq.gz
+## cannot run the UMI deduplication with UMI tools on the .bam file from STARsolo as we also need the unmapped reads
 
-umi_tools extract --extract-method=regex \
-          --stdin="$clines_cbumi" \
-          --read2-in="$clines_cdna" \
-          --read2-out=./out/"$run_id"_labelled_umis_cdna.fq.gz \
-          --bc-pattern="$regex" --log=log/"$run_id"_umitools.log --stdout out/"$run_id".fq.gz
+## run scan on fastq file with cDNA
 
+#seqkit locate $clines_cdna \
+#        --use-regexp \
+#        --pattern-file ./data/reference_fusions_regex.fa \
+#        -j $NTHREADS > ./out/"$run_id"_fusion_locate_out_reg.txt
 
-pigz -dc -p "$NTHREADS" ./out/"$run_id"_labelled_umis_cdna.fq.gz | \
-    seqkit locate  \
-           --use-regexp \
-           --pattern-file data/reference_fusions_regex.fa \
-           -j "$NTHREADS" | pigz -c -p "$NTHREADS" > ./out/"$run_id"_regex.txt.gz
+## from .bam file generate .txt file with read id, cb and ub
+
+## need to do it separate for mapped and unmapped as will have different columns
+
+## also need to grep for the read ids which are in the seqkit 
+
+cut -f1 ./out/"$run_id"_fusion_locate_out_reg.txt > read_ids.txt
+
+samtools view -H -@ $NTHREADS $star_bam > header.txt
+
+samtools view -@ $NTHREADS $star_bam | grep -f read_ids.txt | cat header.txt - | samtools view -Sbh > ./out/subsetted.bam
+
+echo 'Mapped'
+
+echo -e 'Read_id\tCB\tUB' > ./out/"$run_id"_reads_with_cb_ub.txt
+
+samtools view -@ $NTHREADS -F 4 ./out/subsetted.bam | cut -f1,27,28 >> ./out/"$run_id"_reads_with_cb_ub.txt
+
+echo 'Unmapped'
+
+samtools view -@ $NTHREADS -f 4 ./out/subsetted.bam | cut -f1,22,23 >> ./out/"$run_id"_reads_with_cb_ub.txt
+
+rm header.txt read_ids.txt
+
+wc -l ./out/"$run_id"_reads_with_cb_ub.txt
+wc -l ./out/"$run_id"_reads_with_cb_ub.txt
+
+## append the information to the seqtk file
+
+## need to sort the two files first keeping the header the same
+
+#head -1 ./out/"$run_id"_fusion_locate_out_reg.txt > ./out/"$run_id"_sorted_fusion_locate_out_reg.txt
+#head -1 ./out/"$run_id"_reads_with_cb_ub.txt > ./out/"$run_id"_sorted_reads_with_cb_ub.txt
+#tail -n+2 ./out/"$run_id"_fusion_locate_out_reg.txt | sort -k 1,1 >> ./out/"$run_id"_sorted_fusion_locate_out_reg.txt
+#tail -n+2 ./out/"$run_id"_reads_with_cb_ub.txt | sort -k 1,1 >> ./out/"$run_id"_sorted_reads_with_cb_ub.txt
+
+#paste ./out/"$run_id"_sorted_fusion_locate_out_reg.txt ./out/"$run_id"_sorted_reads_with_cb_ub.txt > ./out/"$run_id"_annotated_fusion_locate_out_reg.txt
+
+#rm ./out/"$run_id"_reads_with_cb_ub.txt ./out/"$run_id"_sorted_reads_with_cb_ub.txt ./out/"$run_id"_sorted_fusion_locate_out_reg.txt
+
+## UMI deduplication based on start site of alignment
+
+## first removing all alignments with no UB and CB
+
+#less ./out/"$run_id"_annotated_fusion_locate_out_reg.txt | grep -v 'CB:-' | grep -v 'UB:-' > ./out/"$run_id"_cb_ub_annotated_fusion_locate_out_reg.txt
+
+## then sorting based on CB, UMI and pattern name 
+
+#sort -k10,10 -k9,9 -k2,2 -u ./out/"$run_id"_cb_ub_annotated_fusion_locate_out_reg.txt > ./out/"$run_id"_deduplicated_cb_ub_annotated_fusion_locate_out_reg.txt
+
+#echo 'Number of patterns prior to deduplication'
+#wc -l ./out/"$run_id"_annotated_fusion_locate_out_reg.txt
+
+#echo 'Number of patterns after deduplication'
+#wc -l ./out/"$run_id"_deduplicated_cb_ub_annotated_fusion_locate_out_reg.txt
+
+#rm ./out/"$run_id"_cb_ub_annotated_fusion_locate_out_reg.txt
