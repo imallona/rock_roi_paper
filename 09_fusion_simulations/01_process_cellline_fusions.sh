@@ -102,6 +102,6 @@ rm ./out/"$run_id"_reads_with_cb_ub.txt ./out/"$run_id"_sorted_reads_with_cb_ub.
 
 ## removing all alignments with no UB and CB to make the file smaller
 
-less ./out/"$run_id"_annotated_fusion_locate_out_reg.txt | grep -v 'CB:-' | grep -v 'UB:-' > ./out/"$run_id"_cb_ub_annotated_fusion_locate_out_reg.txt
+less ./out/"$run_id"_annotated_fusion_locate_out_reg.txt | grep -v 'CB:Z:-' | grep -v 'UB:Z:-' > ./out/"$run_id"_cb_ub_annotated_fusion_locate_out_reg.txt
 
 rm ./out/"$run_id"_annotated_fusion_locate_out_reg.txt
