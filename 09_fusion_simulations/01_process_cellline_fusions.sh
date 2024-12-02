@@ -86,7 +86,7 @@ samtools view -@ $NTHREADS -f 4 ./out/subsetted.bam | cut -f1,22,23 >> ./out/"$r
 
 sort -k 1,1 ./out/"$run_id"_reads_with_cb_ub.txt -u > ./out/sorted_"$run_id"_reads_with_cb_ub.txt
 
-rm header.txt read_ids.txt
+rm header.txt read_ids.txt ./out/subsetted.bam
 
 wc -l ./out/sorted_"$run_id"_reads_with_cb_ub.txt
 wc -l ./out/"$run_id"_fusion_locate_out_reg.txt
