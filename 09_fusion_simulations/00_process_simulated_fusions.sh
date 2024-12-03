@@ -63,43 +63,50 @@ cut -f2 ./out/fusion_locate_out_reg.txt | grep -v -f - data/fusion_simulations_c
 
 ## need to do it separate for mapped and unmapped as will have different columns
 
+## from .bam file generate .txt file with read id, cb and ub
+
+## need to do it separate for mapped and unmapped as will have different columns
+
+## also need to grep for the read ids which are in the seqkit 
+
+cut -f1 ./out/fusion_locate_out_reg.txt > read_ids.txt
+
+samtools view -H -@ $NTHREADS ./starsolo/Aligned.sortedByCoord.out.bam > header.txt
+
+samtools view -@ $NTHREADS ./starsolo/Aligned.sortedByCoord.out.bam | grep -f read_ids.txt | cat header.txt - | samtools view -Sbh > ./out/subsetted.bam
+
 echo 'Mapped'
 
 echo -e 'Read_id\tCB\tUB' > ./out/reads_with_cb_ub.txt
 
-samtools view -@ $NTHREADS -F 4 ./starsolo/Aligned.sortedByCoord.out.bam | cut -f1,27,28 >> ./out/reads_with_cb_ub.txt
+samtools view -@ $NTHREADS -F 4 ./out/subsetted.bam | cut -f1,27,28 >> ./out/reads_with_cb_ub.txt
 
 echo 'Unmapped'
 
-samtools view -@ $NTHREADS -f 4 ./starsolo/Aligned.sortedByCoord.out.bam | cut -f1,22,23 >> ./out/reads_with_cb_ub.txt
+samtools view -@ $NTHREADS -f 4 ./out/subsetted.bam | cut -f1,22,23 >> ./out/reads_with_cb_ub.txt
+
+# need to sort and unique them 
+
+sort -k 1,1 ./out/reads_with_cb_ub.txt -u > ./out/sorted_reads_with_cb_ub.txt
+
+rm header.txt read_ids.txt ./out/subsetted.bam
+
+wc -l ./out/sorted_reads_with_cb_ub.txt
+wc -l ./out/fusion_locate_out_reg.txt
 
 ## append the information to the seqtk file
 
-## need to sort the two files first keeping the header the same
+## need to sort the two files and remove the header since it is not part of the information
 
-head -1 ./out/fusion_locate_out_reg.txt > ./out/sorted_fusion_locate_out_reg.txt
-head -1 ./out/reads_with_cb_ub.txt > ./out/sorted_reads_with_cb_ub.txt
 tail -n+2 ./out/fusion_locate_out_reg.txt | sort -k 1,1 >> ./out/sorted_fusion_locate_out_reg.txt
-tail -n+2 ./out/reads_with_cb_ub.txt | sort -k 1,1 >> ./out/sorted_reads_with_cb_ub.txt
+tail -n+2 ./out/sorted_reads_with_cb_ub.txt | sort -k 1,1 >> ./out/sorted_reads_with_cb_ub.txt
 
-paste ./out/sorted_fusion_locate_out_reg.txt ./out/sorted_reads_with_cb_ub.txt > ./out/annotated_fusion_locate_out_reg.txt
+join -1 1 -2 1 -e '-' ./out/sorted_fusion_locate_out_reg.txt ./out/sorted_reads_with_cb_ub.txt > ./out/annotated_fusion_locate_out_reg.txt
 
 rm ./out/reads_with_cb_ub.txt ./out/sorted_reads_with_cb_ub.txt ./out/sorted_fusion_locate_out_reg.txt
 
-## UMI deduplication based on start site of alignment
+## removing all alignments with no UB and CB to make the file smaller
 
-## first removing all alignments with no UB and CB
+less ./out/annotated_fusion_locate_out_reg.txt | grep -v 'CB:Z:-' | grep -v 'UB:Z:-' > ./out/cb_ub_annotated_fusion_locate_out_reg.txt
 
-less ./out/annotated_fusion_locate_out_reg.txt | grep -v 'CB:-' | grep -v 'UB:-' > ./out/cb_ub_annotated_fusion_locate_out_reg.txt
-
-## then sorting based on CB, UMI and pattern name 
-
-sort -k10,10 -k9,9 -k2,2 -u ./out/cb_ub_annotated_fusion_locate_out_reg.txt > ./out/deduplicated_cb_ub_annotated_fusion_locate_out_reg.txt
-
-echo 'Number of patterns prior to deduplication'
-wc -l ./out/annotated_fusion_locate_out_reg.txt
-
-echo 'Number of patterns after deduplication'
-wc -l ./out/deduplicated_cb_ub_annotated_fusion_locate_out_reg.txt
-
-rm ./out/cb_ub_annotated_fusion_locate_out_reg.txt
+rm ./out/annotated_fusion_locate_out_reg.txt
