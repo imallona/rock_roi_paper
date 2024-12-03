@@ -10,6 +10,7 @@ NTHREADS=30
 run_id="patient_full"
 patient_cdna=/home/gmoro/kiel_leukemia_data/kiel_data_longer_R2/331131_2-Patient_S2_R2_001.fastq.gz
 patient_cbumi=/home/gmoro/kiel_leukemia_data/kiel_data_longer_R2/331131_2-Patient_S2_R1_001.fastq.gz
+star_bam=/home/gmoro//kiel_leukemia_data/mapping_patient_data/align_tso/leukemia_patient/Aligned.sortedByCoord.out.bam
 
 :<<EOF
 Expected reads follow this pattern, being the `/` the splicing site or fusion site
@@ -53,10 +54,10 @@ mkdir -p out log
 
 ## run scan on fastq file with cDNA
 
-seqkit locate $patient_cdna\
-        --use-regexp \
-        --pattern-file ./data/reference_fusions_regex.fa \
-        -j $NTHREADS > ./out/"$run_id"_fusion_locate_out_reg.txt
+#seqkit locate $patient_cdna\
+#        --use-regexp \
+#        --pattern-file ./data/reference_fusions_regex.fa \
+#        -j $NTHREADS > ./out/"$run_id"_fusion_locate_out_reg.txt
 
 ## from .bam file generate .txt file with read id, cb and ub
 

@@ -11,8 +11,6 @@ run_id="cell_lines_full"
 clines_cdna=/home/gmoro/test_leukemia_downsampled_cell_line_experiment/331131_1-Cell_lines_50_50_S1_R2_001.fastq.gz
 star_bam=/home/gmoro/cell_lines_leukemia/rock_roi_repo_for_cell_lines/output/align_tso/leukemia_cell_lines/Aligned.sortedByCoord.out.bam
 
-
-
 :<<EOF
 Expected reads follow this pattern, being the `/` the splicing site or fusion site
   apparently only 16 nt on each side of the fusion are expected (Giulia dixit, something about
