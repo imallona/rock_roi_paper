@@ -166,67 +166,67 @@ ggsave(file=file.path(datadir,"umap.svg"), plot=plot1, width=2.7, height=2.7)
 
 ```{r}
 
-counts_bwa_aln<-read.delim("~/figure_making_paper/rock_roi_paper/07_analysis_patient_data/data_aln/combined_counts_bwa_aln.txt", header=FALSE)
-
-tail(counts_bwa_aln)
-
-length(rownames(counts_bwa_aln))
-
-counts_bwa_aln<-counts_bwa_aln[1:362,]
-
-colnames(counts_bwa_aln)<-c("counts","combined","NA")
-
-# splitting column two into V2 and V2
-
-split<-data.frame(do.call(rbind,strsplit(counts_bwa_aln$combined,";")))
-counts_bwa_aln$gene<-split$X1
-counts_bwa_aln$barcode<-split$X2
-
-counts_bwa_aln<-counts_bwa_aln[,c("counts","gene","barcode")]
-counts_bwa_aln$counts<-as.numeric(counts_bwa_aln$counts)
-
-# convert into a count table
-
-counts<-data.frame(matrix(nrow=length(unique(counts_bwa_aln$gene)),ncol=length(unique(counts_bwa_aln$barcode))))
-colnames(counts)<-unique(counts_bwa_aln$barcode)
-rownames(counts)<-unique(counts_bwa_aln$gene)
-
-for (i in rownames(counts)){
-  for (k in colnames(counts)){
-    idx <- intersect(which(counts_bwa_aln$gene == i), which(counts_bwa_aln$barcode == k))
-    if (length(idx) > 0) {
-    counts[i, k] <- counts_bwa_aln$counts[idx]
-    }
-  }
-}
-
-colnames(counts) <- gsub("^CB:Z:", "", colnames(counts))
-
-# add as altExp
-
-# need to first have the same columns
-
-to_bind<-data.frame(matrix(ncol=length(setdiff(colnames(clustered_sces_nd),colnames(counts))),nrow=length(rownames(counts))))
-to_bind[,]<-0
-colnames(to_bind)<-setdiff(colnames(clustered_sces_nd),colnames(counts))
-rownames(to_bind)<-rownames(counts)
-
-counts_total<-cbind(counts,to_bind)
-counts_total<-counts_total[intersect(colnames(counts_total),colnames(clustered_sces_nd))]
-clustered_sces_nd<-clustered_sces_nd[,colnames(counts_total)]
-
-altExp(clustered_sces_nd, "bwa_aln") <- SingleCellExperiment(as.matrix(counts_total))
-rownames(counts_total)
-
-clustered_sces_nd$bwa_aln_BCRABL1e13a2<-colSums(counts_total["BCRABL1e13a2",],na.rm=TRUE)
-clustered_sces_nd$bwa_aln_BCRABL1e14a2<-colSums(counts_total["BCRABL1e14a2",],na.rm=TRUE)
-clustered_sces_nd$bwa_aln_BCRABLe1a2<-colSums(counts_total["BCRABLe1a2",],na.rm=TRUE)
-
-clustered_sces_nd$bwa_aln_ABL1<-colSums(counts_total[grep("ENSG00000097007.19",rownames(counts_total)),],na.rm=TRUE)
-clustered_sces_nd$bwa_aln_BCR<-colSums(counts_total[grep("ENSG00000186716.21",rownames(counts_total)),],na.rm = TRUE)
-
-table(clustered_sces_nd$bwa_aln_BCRABL1e14a2)
-table(clustered_sces_nd$bwa_aln_BCRABLe1a2)
+# counts_bwa_aln<-read.delim("~/figure_making_paper/rock_roi_paper/07_analysis_patient_data/data_aln/combined_counts_bwa_aln.txt", header=FALSE)
+# 
+# tail(counts_bwa_aln)
+# 
+# length(rownames(counts_bwa_aln))
+# 
+# counts_bwa_aln<-counts_bwa_aln[1:303,]
+# 
+# colnames(counts_bwa_aln)<-c("counts","combined","NA")
+# 
+# # splitting column two into V2 and V2
+# 
+# split<-data.frame(do.call(rbind,strsplit(counts_bwa_aln$combined,";")))
+# counts_bwa_aln$gene<-split$X1
+# counts_bwa_aln$barcode<-split$X2
+# 
+# counts_bwa_aln<-counts_bwa_aln[,c("counts","gene","barcode")]
+# counts_bwa_aln$counts<-as.numeric(counts_bwa_aln$counts)
+# 
+# # convert into a count table
+# 
+# counts<-data.frame(matrix(nrow=length(unique(counts_bwa_aln$gene)),ncol=length(unique(counts_bwa_aln$barcode))))
+# colnames(counts)<-unique(counts_bwa_aln$barcode)
+# rownames(counts)<-unique(counts_bwa_aln$gene)
+# 
+# for (i in rownames(counts)){
+#   for (k in colnames(counts)){
+#     idx <- intersect(which(counts_bwa_aln$gene == i), which(counts_bwa_aln$barcode == k))
+#     if (length(idx) > 0) {
+#     counts[i, k] <- counts_bwa_aln$counts[idx]
+#     }
+#   }
+# }
+# 
+# colnames(counts) <- gsub("^CB:Z:", "", colnames(counts))
+# 
+# # add as altExp
+# 
+# # need to first have the same columns
+# 
+# to_bind<-data.frame(matrix(ncol=length(setdiff(colnames(clustered_sces_nd),colnames(counts))),nrow=length(rownames(counts))))
+# to_bind[,]<-0
+# colnames(to_bind)<-setdiff(colnames(clustered_sces_nd),colnames(counts))
+# rownames(to_bind)<-rownames(counts)
+# 
+# counts_total<-cbind(counts,to_bind)
+# counts_total<-counts_total[intersect(colnames(counts_total),colnames(clustered_sces_nd))]
+# clustered_sces_nd<-clustered_sces_nd[,colnames(counts_total)]
+# 
+# altExp(clustered_sces_nd, "bwa_aln") <- SingleCellExperiment(as.matrix(counts_total))
+# rownames(counts_total)
+# 
+# clustered_sces_nd$bwa_aln_BCRABL1e13a2<-colSums(counts_total["BCRABL1e13a2",],na.rm=TRUE)
+# clustered_sces_nd$bwa_aln_BCRABL1e14a2<-colSums(counts_total["BCRABL1e14a2",],na.rm=TRUE)
+# clustered_sces_nd$bwa_aln_BCRABLe1a2<-colSums(counts_total["BCRABLe1a2",],na.rm=TRUE)
+# 
+# clustered_sces_nd$bwa_aln_ABL1<-colSums(counts_total[grep("ENSG00000097007.19",rownames(counts_total)),],na.rm=TRUE)
+# clustered_sces_nd$bwa_aln_BCR<-colSums(counts_total[grep("ENSG00000186716.21",rownames(counts_total)),],na.rm = TRUE)
+# 
+# table(clustered_sces_nd$bwa_aln_BCRABL1e14a2)
+# table(clustered_sces_nd$bwa_aln_BCRABLe1a2)
 
 ```
 
@@ -235,42 +235,62 @@ table(clustered_sces_nd$bwa_aln_BCRABLe1a2)
 ```{r}
 
 names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","patient","positive","cluster2","cluster3","tdtom_cds","no_detection","doublets","cluster1")
+# 
+# positive_cells <- clustered_sces_nd$bwa_aln_BCRABL1e14a2 > 0
+# 
+# clustered_sces_nd <- clustered_sces_nd[, order(positive_cells)]
+# 
+# plot1<-scater::plotUMAP(clustered_sces_nd, colour_by = "bwa_aln_BCRABL1e14a2",point_alpha=1,point_size=0.1)+ 
+#   scale_colour_gradient2(low="lightgrey",
+#                          mid="lightgrey",
+#                          high=myscale["positive"])+
+#   rock_roi_theme()
+# 
+# 
+# plot1<-ggrastr::rasterize(plot1, layers='Point', dpi=1000)
+# 
+# plot1
+# 
+# ggsave(file=file.path(datadir,"umap_major.svg"), plot=plot1, width=2.7, height=2.7)
+# 
+# 
+# # same with minor 
+# 
+# positive_cells <- clustered_sces_nd$bwa_aln_BCRABLe1a2 > 0
+# 
+# clustered_sces_nd <- clustered_sces_nd[, order(positive_cells)]
+# 
+# plot2<-scater::plotUMAP(clustered_sces_nd, colour_by = "bwa_aln_BCRABLe1a2",point_alpha=1,point_size=0.1)+ 
+#   scale_colour_gradient2(low="lightgrey",
+#                          mid="lightgrey",
+#                          high=myscale["positive"])+
+#   rock_roi_theme()
+# 
+# plot2<-ggrastr::rasterize(plot2, layers='Point', dpi=1000)
+# 
+# plot2
+# 
+# ggsave(file=file.path(datadir,"umap_minor.svg"), plot=plot2, width=2.7, height=2.7)
+# 
+# 
+# # same with e13a2
+# 
+# positive_cells <- clustered_sces_nd$bwa_aln_BCRABL1e13a2 > 0
+# 
+# clustered_sces_nd <- clustered_sces_nd[, order(positive_cells)]
+# 
+# plot4<-scater::plotUMAP(clustered_sces_nd, colour_by = "bwa_aln_BCRABL1e13a2",point_alpha=1,point_size=0.1)+ 
+#   scale_colour_gradient2(low="lightgrey",
+#                          mid="lightgrey",
+#                          high=myscale["positive"])+
+#   rock_roi_theme()
+# 
+# plot4<-ggrastr::rasterize(plot4, layers='Point', dpi=1000)
+# 
+# plot4
+# 
+# ggsave(file=file.path(datadir,"umap_e13.svg"), plot=plot4, width=2.7, height=2.7)
 
-positive_cells <- clustered_sces_nd$bwa_aln_BCRABL1e14a2 > 0.5
-
-clustered_sces_nd <- clustered_sces_nd[, order(positive_cells)]
-
-plot1<-scater::plotUMAP(clustered_sces_nd, colour_by = "bwa_aln_BCRABL1e14a2",point_alpha=1,point_size=0.1)+ 
-  scale_colour_gradient2(low="lightgrey",
-                         mid="lightgrey",
-                         high=myscale["positive"])+
-  rock_roi_theme()
-
-
-plot1<-ggrastr::rasterize(plot1, layers='Point', dpi=1000)
-
-plot1
-
-ggsave(file=file.path(datadir,"umap_major.svg"), plot=plot1, width=2.7, height=2.7)
-
-
-# same with minor 
-
-positive_cells <- clustered_sces_nd$bwa_aln_BCRABLe1a2 > 0.5
-
-clustered_sces_nd <- clustered_sces_nd[, order(positive_cells)]
-
-plot2<-scater::plotUMAP(clustered_sces_nd, colour_by = "bwa_aln_BCRABLe1a2",point_alpha=1,point_size=0.1)+ 
-  scale_colour_gradient2(low="lightgrey",
-                         mid="lightgrey",
-                         high=myscale["positive"])+
-  rock_roi_theme()
-
-plot2<-ggrastr::rasterize(plot2, layers='Point', dpi=1000)
-
-plot2
-
-ggsave(file=file.path(datadir,"umap_minor.svg"), plot=plot2, width=2.7, height=2.7)
 
 ```
 
@@ -333,43 +353,220 @@ ggsave(file=file.path(datadir,"markers.svg"), plot=plot11, width=10, height=2.7)
 ### Barplot BCR and ABL
 
 ```{r}
+# 
+# rownames(clustered_sces_nd)[grep("BCR",rownames(clustered_sces_nd))]
+# 
+# clustered_sces_nd$wt_bcr<-assay(clustered_sces_nd,1)["ENSG00000186716.21--BCR" ,]
+# clustered_sces_nd$wt_abl<-assay(clustered_sces_nd,1)["ENSG00000097007.19--ABL1" ,]
+# 
+# cd<-colData(clustered_sces_nd)
+# 
+# df<-data.frame(matrix(nrow=2,ncol=7))
+# 
+# rownames(df)<-c("wt_bcr","wt_abl")
+# colnames(df)<-c("precursor erythocytes",
+#                 "T cells",
+#                 "SUP-B15 cell line",
+#                 "myeloid precursors",
+#                 "dendritic cells",
+#                 "monocytes",
+#                 "patient leukemic cells")
+# 
+# for (i in rownames(df)){
+#   name<-i
+#   df[i,1]<-length(which(cd[which(cd$ident=="precursor erythocytes"),][,name]>0))/length(which(cd$ident=="precursor erythocytes"))*100
+#   df[i,2]<-length(which(cd[which(cd$ident=="T cells"),][,name]>0))/length(which(cd$ident=="T cells"))*100
+#   df[i,3]<-length(which(cd[which(cd$ident=="SUP-B15 cell line"),][,name]>0))/length(which(cd$ident=="SUP-B15 cell line"))*100
+#   df[i,4]<-length(which(cd[which(cd$ident=="myeloid precursors"),][,name]>0))/length(which(cd$ident=="myeloid precursors"))*100
+#   df[i,5]<-length(which(cd[which(cd$ident=="dendritic cells"),][,name]>0))/length(which(cd$ident=="dendritic cells"))*100
+#   df[i,6]<-length(which(cd[which(cd$ident=="monocytes"),][,name]>0))/length(which(cd$ident=="monocytes"))*100
+#   df[i,7]<-length(which(cd[which(cd$ident=="patient leukemic cells"),][,name]>0))/length(which(cd$ident=="patient leukemic cells"))*100
+# }
+# 
+# plottable<-melt(df)
+# plottable$id<-rep(c("bcr","abl"),7)
+# plottable$value
+# 
+# names(myscale)<-unique(clustered_sces_nd$ident)
+# plottable$variable<-as.character(plottable$variable)
+# plot4<-ggplot(plottable,aes(x = factor(id,levels=c("bcr","abl")), 
+#                         y = value, 
+#                         fill = variable,
+#                         colour = variable, group = variable)) +
+#   geom_bar(position = position_dodge2(), stat = "identity") +
+#   geom_text(aes(label = round(value, 1), 
+#                 y = value+1.5), colour = "black",
+#             position = position_dodge2(width = 1),
+#             size=2,
+#             vjust=-0.2) +
+#   ylab("Percent cells expressed")+
+#   scale_fill_manual(labels=unique(plottable$variable),
+#                     values=myscale)+
+#   scale_color_manual(labels=unique(plottable$variable),
+#                     values=myscale)+
+#   xlab("")+
+#   theme_bw()+
+#   rock_roi_theme()
+# 
+# plot4<-ggrastr::rasterize(plot4, layers='Point', dpi=1000)
+# plot4
+# 
+# ggsave(file=file.path(datadir,"wt_bcr_abl.svg"), plot=plot4, width=5.4, height=2.7)
 
-rownames(clustered_sces_nd)[grep("BCR",rownames(clustered_sces_nd))]
 
-clustered_sces_nd$wt_bcr<-assay(clustered_sces_nd,1)["ENSG00000186716.21--BCR" ,]
-clustered_sces_nd$wt_abl<-assay(clustered_sces_nd,1)["ENSG00000097007.19--ABL1" ,]
+```
+
+### Reading in the cbs from pipeline Izaskun
+
+```{r}
+
+seqtk_output<-read.table("/Users/gimoro/figure_making_paper/rock_roi_paper/07_analysis_patient_data/data/patient_full_cb_ub_annotated_fusion_locate_out_reg.txt", quote="\"", comment.char="")
+
+colnames(seqtk_output)<-c("seqID","patternName","pattern","strand","start","end","matched","CB","UB")
+
+sub_seqtk_output<-seqtk_output[,c("patternName","CB")]
+sub_seqtk_output$CB<-sapply(strsplit(sub_seqtk_output$CB,"CB:Z:"),"[",2)
+
+sub_seqtk_output$BCRABL1e14a2<-0
+sub_seqtk_output$BCRABL1e13a2<-0
+sub_seqtk_output$BCRABL1e1a2<-0
+sub_seqtk_output$wt_BCR<-0
+sub_seqtk_output$wt_ABL<-0
+
+table(sub_seqtk_output$patternName)
+
+sub_seqtk_output$BCRABL1e14a2[which(sub_seqtk_output$patternName=="BCRABLe14a2")]<-1
+sub_seqtk_output$BCRABL1e13a2[which(sub_seqtk_output$patternName=="BCRABLe13a2")]<-1
+sub_seqtk_output$BCRABL1e1a2[which(sub_seqtk_output$patternName=="BCRABLe1a2")]<-1
+sub_seqtk_output$wt_BCR[which(sub_seqtk_output$patternName %in% c("ENST00000359540.7_BCRABLe13a2","ENST00000359540.7_BCRABLe14a2","ENST00000359540.7_BCRABLe1a2"))]<-1
+sub_seqtk_output$wt_ABL[which(sub_seqtk_output$patternName %in% c("ENST00000318560.6","ENST00000372348.7"))]<-1
+
+cb_harmonized_sub_output_seqtk<-sub_seqtk_output[which(sub_seqtk_output$CB %in% colnames(clustered_sces_nd)),]
+
+# have duplicate rows
+
+summed_cb_harmonized_sub_output_seqtk<-aggregate(cb_harmonized_sub_output_seqtk[3:ncol(cb_harmonized_sub_output_seqtk)],cb_harmonized_sub_output_seqtk['CB'], FUN=sum)
+
+setdiff(colnames(clustered_sces_nd),summed_cb_harmonized_sub_output_seqtk$CB)
+
+df<-data.frame(matrix(ncol=length(colnames(summed_cb_harmonized_sub_output_seqtk)),nrow=length(setdiff(colnames(clustered_sces_nd),summed_cb_harmonized_sub_output_seqtk$CB))))
+
+colnames(df)<-colnames(summed_cb_harmonized_sub_output_seqtk)
+
+df$CB<-setdiff(colnames(clustered_sces_nd),cb_harmonized_sub_output_seqtk$CB)
+df$BCRABL1e14a2<-0
+df$BCRABL1e13a2<-0
+df$BCRABL1e1a2<-0
+df$wt_BCR<-0
+df$wt_ABL<-0
+
+full_summed_cb_harmonized_sub_output_seqtk<-rbind(summed_cb_harmonized_sub_output_seqtk,df)
+
+rownames(full_summed_cb_harmonized_sub_output_seqtk)<-full_summed_cb_harmonized_sub_output_seqtk$CB
+
+full_summed_cb_harmonized_sub_output_seqtk<-full_summed_cb_harmonized_sub_output_seqtk[colnames(clustered_sces_nd), , drop = FALSE]
+
+# since just want yes or no and not counts and didn't do UMI deduplication --> convert all numbers to 1 or 0
+
+full_summed_cb_harmonized_sub_output_seqtk[which(full_summed_cb_harmonized_sub_output_seqtk$BCRABL1e14a2>0),"BCRABL1e14a2"]<-1
+full_summed_cb_harmonized_sub_output_seqtk[which(full_summed_cb_harmonized_sub_output_seqtk$BCRABL1e13a2>0),"BCRABL1e13a2"]<-1
+full_summed_cb_harmonized_sub_output_seqtk[which(full_summed_cb_harmonized_sub_output_seqtk$BCRABL1e1a2>0),"BCRABL1e1a2"]<-1
+full_summed_cb_harmonized_sub_output_seqtk[which(full_summed_cb_harmonized_sub_output_seqtk$wt_BCR>0),"wt_BCR"]<-1
+full_summed_cb_harmonized_sub_output_seqtk[which(full_summed_cb_harmonized_sub_output_seqtk$wt_ABL>0),"wt_ABL"]<-1
+
+clustered_sces_nd$seqtk_BCRABL1e14a2<-full_summed_cb_harmonized_sub_output_seqtk$BCRABL1e14a2
+clustered_sces_nd$seqtk_BCRABL1e1a2<-full_summed_cb_harmonized_sub_output_seqtk$BCRABL1e1a2
+clustered_sces_nd$seqtk_BCRABL1e13a2<-full_summed_cb_harmonized_sub_output_seqtk$BCRABL1e13a2
+clustered_sces_nd$seqtk_wt_BCR<-full_summed_cb_harmonized_sub_output_seqtk$wt_BCR
+clustered_sces_nd$seqtk_wt_ABL<-full_summed_cb_harmonized_sub_output_seqtk$wt_ABL
+
+```
+
+### Plots for new code
+
+```{r}
+
+positive_cells <- clustered_sces_nd$seqtk_BCRABL1e14a2 > 0
+
+clustered_sces_nd <- clustered_sces_nd[, order(positive_cells)]
+
+plot1<-scater::plotUMAP(clustered_sces_nd, colour_by = "seqtk_BCRABL1e14a2",point_alpha=1,point_size=0.1)+ 
+  scale_colour_gradient2(low="lightgrey",
+                         mid="lightgrey",
+                         high=myscale["positive"])+
+  rock_roi_theme()
+
+
+plot1<-ggrastr::rasterize(plot1, layers='Point', dpi=1000)
+
+plot1
+
+ggsave(file=file.path(datadir,"umap_major.svg"), plot=plot1, width=2.7, height=2.7)
+
+
+# same for minor fusion
+
+positive_cells <- clustered_sces_nd$seqtk_BCRABL1e1a2 > 0
+
+clustered_sces_nd <- clustered_sces_nd[, order(positive_cells)]
+
+plot2<-scater::plotUMAP(clustered_sces_nd, colour_by = "seqtk_BCRABL1e1a2",point_alpha=1,point_size=0.1)+ 
+  scale_colour_gradient2(low="lightgrey",
+                         mid="lightgrey",
+                         high=myscale["positive"])+
+  rock_roi_theme()
+
+plot2<-ggrastr::rasterize(plot2, layers='Point', dpi=1000)
+
+plot2
+
+ggsave(file=file.path(datadir,"umap_minor.svg"), plot=plot2, width=2.7, height=2.7)
+
+
+# same for e13
+
+
+positive_cells <- clustered_sces_nd$seqtk_BCRABL1e13a2 > 0
+
+clustered_sces_nd <- clustered_sces_nd[, order(positive_cells)]
+
+plot7<-scater::plotUMAP(clustered_sces_nd, colour_by = "seqtk_BCRABL1e13a2",point_alpha=1,point_size=0.1)+ 
+  scale_colour_gradient2(low="lightgrey",
+                         mid="lightgrey",
+                         high=myscale["positive"])+
+  rock_roi_theme()
+
+plot7<-ggrastr::rasterize(plot7, layers='Point', dpi=1000)
+
+plot7
+
+ggsave(file=file.path(datadir,"umap_e13.svg"), plot=plot7, width=2.7, height=2.7)
+
+# barplot with positivity for minor and major
 
 cd<-colData(clustered_sces_nd)
 
 df<-data.frame(matrix(nrow=2,ncol=7))
 
-rownames(df)<-c("wt_bcr","wt_abl")
-colnames(df)<-c("precursor erythocytes",
-                "T cells",
-                "SUP-B15 cell line",
-                "myeloid precursors",
-                "dendritic cells",
-                "monocytes",
-                "patient leukemic cells")
+rownames(df)<-c("seqtk_BCRABL1e14a2","seqtk_BCRABL1e1a2")
+colnames(df)<-unique(cd$ident)
 
 for (i in rownames(df)){
   name<-i
-  df[i,1]<-length(which(cd[which(cd$ident=="precursor erythocytes"),][,name]>0))/length(which(cd$ident=="precursor erythocytes"))*100
-  df[i,2]<-length(which(cd[which(cd$ident=="T cells"),][,name]>0))/length(which(cd$ident=="T cells"))*100
-  df[i,3]<-length(which(cd[which(cd$ident=="SUP-B15 cell line"),][,name]>0))/length(which(cd$ident=="SUP-B15 cell line"))*100
-  df[i,4]<-length(which(cd[which(cd$ident=="myeloid precursors"),][,name]>0))/length(which(cd$ident=="myeloid precursors"))*100
-  df[i,5]<-length(which(cd[which(cd$ident=="dendritic cells"),][,name]>0))/length(which(cd$ident=="dendritic cells"))*100
-  df[i,6]<-length(which(cd[which(cd$ident=="monocytes"),][,name]>0))/length(which(cd$ident=="monocytes"))*100
-  df[i,7]<-length(which(cd[which(cd$ident=="patient leukemic cells"),][,name]>0))/length(which(cd$ident=="patient leukemic cells"))*100
+  df[i,1]<-length(which(cd[which(cd$ident==unique(cd$ident)[1]),][,name]>0))/length(which(cd$ident==unique(cd$ident)[1]))*100
+  df[i,2]<-length(which(cd[which(cd$ident==unique(cd$ident)[2]),][,name]>0))/length(which(cd$ident==unique(cd$ident)[2]))*100
+  df[i,3]<-length(which(cd[which(cd$ident==unique(cd$ident)[3]),][,name]>0))/length(which(cd$ident==unique(cd$ident)[3]))*100
+  df[i,4]<-length(which(cd[which(cd$ident==unique(cd$ident)[4]),][,name]>0))/length(which(cd$ident==unique(cd$ident)[4]))*100
+  df[i,5]<-length(which(cd[which(cd$ident==unique(cd$ident)[5]),][,name]>0))/length(which(cd$ident==unique(cd$ident)[5]))*100
+  df[i,6]<-length(which(cd[which(cd$ident==unique(cd$ident)[6]),][,name]>0))/length(which(cd$ident==unique(cd$ident)[6]))*100
+  df[i,7]<-length(which(cd[which(cd$ident==unique(cd$ident)[7]),][,name]>0))/length(which(cd$ident==unique(cd$ident)[7]))*100
 }
 
 plottable<-melt(df)
-plottable$id<-rep(c("bcr","abl"),7)
+plottable$id<-rep(c("major","minor"),7)
 plottable$value
 
-names(myscale)<-unique(clustered_sces_nd$ident)
-plottable$variable<-as.character(plottable$variable)
-plot4<-ggplot(plottable,aes(x = factor(id,levels=c("bcr","abl")), 
+plot5<-ggplot(plottable,aes(x = factor(id,levels=c("major","minor")), 
                         y = value, 
                         fill = variable,
                         colour = variable, group = variable)) +
@@ -380,19 +577,14 @@ plot4<-ggplot(plottable,aes(x = factor(id,levels=c("bcr","abl")),
             size=2,
             vjust=-0.2) +
   ylab("Percent cells expressed")+
-  scale_fill_manual(labels=unique(plottable$variable),
-                    values=myscale)+
-  scale_color_manual(labels=unique(plottable$variable),
-                    values=myscale)+
-  xlab("")+
   theme_bw()+
   rock_roi_theme()
 
-plot4<-ggrastr::rasterize(plot4, layers='Point', dpi=1000)
-plot4
 
-ggsave(file=file.path(datadir,"wt_bcr_abl.svg"), plot=plot4, width=5.4, height=2.7)
+plot5<-ggrastr::rasterize(plot5, layers='Point', dpi=1000)
+plot5
 
+ggsave(file=file.path(datadir,"fusion_barplot.svg"), plot=plot5, width=3.5, height=2.7)
 
 ```
 
