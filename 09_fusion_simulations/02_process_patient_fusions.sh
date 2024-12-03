@@ -54,10 +54,10 @@ mkdir -p out log
 
 ## run scan on fastq file with cDNA
 
-#seqkit locate $patient_cdna\
-#        --use-regexp \
-#        --pattern-file ./data/reference_fusions_regex.fa \
-#        -j $NTHREADS > ./out/"$run_id"_fusion_locate_out_reg.txt
+seqkit locate $patient_cdna\
+        --use-regexp \
+        --pattern-file ./data/reference_fusions_regex.fa \
+        -j $NTHREADS > ./out/"$run_id"_fusion_locate_out_reg.txt
 
 ## from .bam file generate .txt file with read id, cb and ub
 
