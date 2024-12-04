@@ -49,7 +49,7 @@ cd $WD/bwa_aln/output
 # -k: Maximum edit distance in the seed
 # -O: gap open penalty
 
-bwa aln $WD/bwa_aln/genome/indexed $cdna_cell_line > bwa_aln_alignments.sai
+bwa aln $WD/bwa_aln/genome/indexed -t $NTHREADS $cdna_cell_line > bwa_aln_alignments.sai
 
 bwa samse -f bwa_aln_alignments.sam $WD/bwa_aln/genome/indexed bwa_aln_alignments.sai $cdna_cell_line
 
