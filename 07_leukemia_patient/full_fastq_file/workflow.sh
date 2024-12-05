@@ -35,6 +35,12 @@ done
 
 cat "$CUSTOM_FA" ABL1_human.fa BCR_human.fa > combined.fa
 
+for file in "$CUSTOM_FA" ABL1_human.fa BCR_human.fa; do
+  cat "$file"
+  echo
+done > combined.fa
+
+
 # index reference
 
 # bwa version: bwa 0.7.18
