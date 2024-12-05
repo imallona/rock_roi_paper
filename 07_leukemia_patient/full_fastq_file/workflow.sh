@@ -41,6 +41,8 @@ cat "$CUSTOM_FA" ABL1_human.fa BCR_human.fa > combined.fa
 
 bwa index -p indexed combined.fa
 
+# running bwa aln
+
 mkdir -p $WD/bwa_aln/output
 cd $WD/bwa_aln/output
 
@@ -57,6 +59,62 @@ samtools view -o out.bam bwa_aln_alignments.sam
 
 samtools view -H out.bam > header.txt
 
-samtools sort out.bam -o output.sorted.bam
+samtools sort -@ $NTHREADS out.bam -o output.sorted.bam
+
+samtools index -@ $NTHREADS output.sorted.bam
 
 rm bwa_aln_alignments.sam bwa_aln_alignments.sai
+
+# subsetting .bam file for unique alignments and only mapped alignments
+
+samtools view -@ $NTHREADS -b -F 4 output.sorted.bam > mapped.bam
+
+samtools view -@ $NTHREADS -H mapped.bam > header.txt
+
+samtools view -@ $NTHREADS mapped.bam | grep -v "XA:" | cat header.txt - | samtools view -Sbh > no_xa_bwa_aln.sorted.bam
+
+rm header.txt mapped.bam
+
+# extracting read ids from bwa aln .bam file
+
+samtools view -@ $NTHREADS no_xa_bwa_aln.sorted.bam | cut -f1 > read_ids.txt
+
+# generating subsetted starsolo .bam file with reads found from bwa aln
+
+samtools view -H -@ $NTHREADS $starsolo_bam > starsolo_header.txt
+
+samtools view -@ $NTHREADS $starsolo_bam | grep -f read_ids.txt | cat starsolo_header.txt - | samtools view -Sbh > subsetted_starsolo.bam
+
+rm starsolo_header.txt
+
+# extracting read id, CB and UMI from the subsetted_starsolo.bam. Needs to be done separately for mapped and unmapped
+
+echo 'Mapped'
+
+samtools view -@ $NTHREADS -F 4 subsetted_starsolo.bam | cut -f1,27,28 >> starsolo_reads_with_cb_ub.txt
+
+echo 'Unmapped'
+
+samtools view -@ $NTHREADS -f 4 subsetted_starsolo.bam | cut -f1,22,23 >> starsolo_reads_with_cb_ub.txt
+
+# sort the read ids and unique them 
+
+sort -k 1,1 starsolo_reads_with_cb_ub.txt -u > sorted_starsolo_reads_with_cb_ub.txt
+
+# extracting read id and detected fusion/non-fused
+
+samtools view -@ $NTHREADS no_xa_bwa_aln.sorted.bam | cut -f1,3 > bwa_aln_reads.txt
+
+sort -k 1,1 bwa_aln_reads.txt > sorted_bwa_aln_reads.txt 
+
+# generate file with read id, detected fusion/non-fused, CB and UMI (to be imported into R)
+
+join -1 1 -2 1 -t $'\t' sorted_bwa_aln_reads.txt sorted_starsolo_reads_with_cb_ub.txt > bwa_aln_annotated_fusion.txt
+
+rm subsetted_starsolo.bam sorted_starsolo_reads_with_cb_ub.txt sorted_bwa_aln_reads.txt starsolo_reads_with_cb_ub.txt bwa_aln_reads.txt read_ids.txt
+
+# to make file smaller only keep alignments with CB and UB
+
+grep -v "CB:Z:-" bwa_aln_annotated_fusion.txt | grep -v "UB:Z:-" > bwa_aln_with_cb_ub_annotated_fusion.txt
+
+rm bwa_aln_annotated_fusion.txt
