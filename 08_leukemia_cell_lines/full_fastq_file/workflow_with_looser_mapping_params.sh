@@ -8,8 +8,8 @@
 
 ## running bwa aln with standard settings on full fusion file
 
-mkdir -p $WD/bwa_aln/genome
-cd $WD/bwa_aln/genome
+mkdir -p $WD/bwa_aln_1/genome
+cd $WD/bwa_aln_1/genome
 
 # transcript reference generation for bwa aln
 
@@ -49,15 +49,15 @@ bwa index -p indexed combined.fa
 
 # running bwa aln
 
-mkdir -p $WD/bwa_aln/output
-cd $WD/bwa_aln/output
+mkdir -p $WD/bwa_aln_1/output
+cd $WD/bwa_aln_1/output
 
 # -k: Maximum edit distance in the seed [2]
 # -n: Maximum edit distance if the value is INT, or the fraction of missing alignments given 2% uniform base error rate if FLOAT. In the latter case, the maximum edit distance is automatically chosen for different read lengths. [0.04]
 
-bwa aln $WD/bwa_aln/genome/indexed -t $NTHREADS $cdna_cell_line -n 0.06 -k 4 > bwa_aln_alignments.sai
+bwa aln $WD/bwa_aln_1/genome/indexed -t $NTHREADS $cdna_cell_line -n 0.1 -k 4 > bwa_aln_alignments.sai
 
-bwa samse -f bwa_aln_alignments.sam $WD/bwa_aln/genome/indexed bwa_aln_alignments.sai $cdna_cell_line
+bwa samse -f bwa_aln_alignments.sam $WD/bwa_aln_1/genome/indexed bwa_aln_alignments.sai $cdna_cell_line
 
 samtools view -o out.bam bwa_aln_alignments.sam
 
