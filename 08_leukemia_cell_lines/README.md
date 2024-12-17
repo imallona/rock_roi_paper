@@ -10,6 +10,6 @@ Snakefile: used for running rock_roi_method (see https://github.com/imallona/roc
 config.yaml: used for running rock_roi_method (see https://github.com/imallona/rock_roi_method)
 
 qmd: files for analysis of count tables and generation of plots
-workflow: workflow used for analysis of the leukemia cell line dataset
+bwa_aln_full_fastq_file: workflow used for detection of fusions in TSO data
 
 Instructions on how to run the workflow can be found in the README of the folder 07_leukemia_patient of the same repository. 
