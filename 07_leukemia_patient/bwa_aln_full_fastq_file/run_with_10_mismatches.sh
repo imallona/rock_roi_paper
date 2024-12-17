@@ -16,20 +16,20 @@ export starsolo_bam=/home/gmoro/kiel_leukemia_data/mapping_patient_data/align_ts
 
 # installing conda and packages 
 
-#mkdir -p ~/miniconda3
-#wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
-#bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
+mkdir -p ~/miniconda3
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
+bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
 
-#source ~/miniconda3/bin/activate
+source ~/miniconda3/bin/activate
 
-#conda create --name fusion_detection
-#conda activate fusion_detection
+conda create --name fusion_detection
+conda activate fusion_detection
 
-#conda config --add channels bioconda
-#conda config --add channels conda-forge
+conda config --add channels bioconda
+conda config --add channels conda-forge
 
-#conda install -c conda-forge -c bioconda star=2.7.10b
-#conda install -c conda-forge -c bioconda samtools=1.21 # v1.21
-#conda install -c conda-forge -c bioconda bwa=0.7.18 #0.7.18
+conda install -c conda-forge -c bioconda star=2.7.10b
+conda install -c conda-forge -c bioconda samtools=1.21 # v1.21
+conda install -c conda-forge -c bioconda bwa=0.7.18 #0.7.18
 
 ./workflow_with_10_mismatches.sh
