@@ -87,7 +87,7 @@ samtools view -@ $NTHREADS no_xa_bwa_aln.sorted.bam | cut -f1 > read_ids.txt
 
 samtools view -H -@ $NTHREADS $starsolo_bam > starsolo_header.txt
 
-samtools view -@ $NTHREADS $starsolo_bam | grep -f read_ids.txt | cat starsolo_header.txt - | samtools view -Sbh > subsetted_starsolo.bam
+samtools view -@ $NTHREADS $starsolo_bam | grep -w -f read_ids.txt | cat starsolo_header.txt - | samtools view -Sbh > subsetted_starsolo.bam
 
 rm starsolo_header.txt
 
