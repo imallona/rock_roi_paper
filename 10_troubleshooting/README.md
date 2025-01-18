@@ -3,18 +3,17 @@
 This set of reports aims to explore, quantify and troubleshoot several aspects of our technique:
 
 1. The abundance of offtargets (<0.5% ontargets for `mixing` [v2](https://www.biorxiv.org/content/10.1101/2024.05.18.594120v2.full))
-   1. The capture of transcripts with `tso` motifs
-   2. The capture of transcripts with `rock` motifs
-   3. Other sources (GC content etc)
+   1. What are the enhanced/targeted (perhaps offtargeted) reads features? e.g. roi- rock- tso- other- motif-wise
+   2. Is there any association to primer/capture features? (e.g. GC content effects)
 2. The generation of chimeric reads with misprimed `roi` primers (`mixing`, `leukemia`, `pdgfra`)
    1. Quantification, description of the problem
-   2. The discrimination between fusion reads and chimeric reads (`leukemia`)
+   2. If a problem, the discrimination between fusion reads and chimeric reads (`leukemia`)
    3. Association to other features (local motifs, GC content etc)
-   4. Impact in cancer applications, e.g. BCR/ABL profiling
+   4. Impact in cancer applications where the ROI primer is very close to the breakpoint, e.g. some BCR/ABL profiling experiments
    
-These thoughts are written by Izaskun Mallona (izaskun.mallona@mls.uzh.ch) **only**. Our research is meant to be reproducible and robust; this report might go too deep into further exploring possible caveats when processing clinical samples in a very specific setting (gene fusions). This is probably a consequence of being a cancer researcher.
+These thoughts are written by Izaskun Mallona (izaskun.mallona@mls.uzh.ch) **only**. Our research is meant to be reproducible and robust; this report might go too deep into further exploring possible caveats when processing clinical samples in a very specific setting (gene fusions). This is probably a consequence of being a cancer researcher. Similarly, this report is **being built** as a side-project (very low time availability Jan-March 2025; and with higher dedication from Apr 2025), so it is **not final**.
 
-Our experimental design offers the necessary flexibility to explore these features and possible caveats. Namely:
+I believe our experimental design offers the necessary flexibility to explore these features and possible caveats. Namely:
 - `mixing`. Normally processed, e.g. evaluating _only_ unique mappers or raw reads, provides rock, roi, and unmod roi (in WTA) experiments, helping 1.1, 1.2, 1.3, 2.2
 - `pdgfra`. Validation set for `mixing` with a single reference genome; low capture efficiency if I recall correctly
 - `leukemia`. Cell lines have associated known truths (fusions to be detected) and one of the roi primers (major) is easy to tell apart from chimeras due to its placement away from the breakpoint. Not so for other roi primers.
@@ -207,7 +206,9 @@ Cell lines:
 
 # Analysis
 
-## `extract_and_quantify_roi_reads` ROIm quantifier
+## Reusable capabilities
+
+### `extract_and_quantify_roi_reads` ROIm quantifier
 
 Script with signature `extract_and_quantify_roi_reads --roi regex --cdna cdna.fastq.gz --cb cbumi.fastq.gz --output annotated.fastq.gz`
 
@@ -220,7 +221,7 @@ Applications:
 Modifications:
 - Perhaps add a 'trim' function to remove the ROI part to facilitate downstream analysis
 
-## `align_roi_reads`
+### `align_roi_reads`
 
 Aligns and counts `extract_and_quantify_roi_reads` outputs, perhaps with the `trim` function, to the relevant genome/transcriptome. Signature `align_roi_reads --fastq annotated.fastq.gz --genome x`.
 
@@ -228,3 +229,17 @@ Applications:
 - First crack at quantifying offtarget/chimeras.
 - All experiments, downsampled
 
+## Sequential plan
+
+1. Describe and quantify roim reads (rates, alignment, offtarget description)
+  - Rule out, or acknowledge, chimeric rates  
+  - For offtargets, couple ROI peak-calling capabilities to roim (and rockm and tsom) motif scans; evaluate colocalization
+  - For on- and offtargets, compare TSO abundances to nonROI WTA abundances and with total TSO abundances (expectations)
+2. For fusion experiments:
+  - Download/buid a leukemia fusion database, while keeping also unfused WTs 
+  - ePCR based on roi primers
+  - Derive expected chimeric structures 
+  - Quantify these (separately if possible)
+  - For roim and/or chimeric reads:
+    - report abudances by using the nonROI part of the read, e.g. BCR:mitoc, BCR:ribos, BCR:others, BCR:ABL we detected
+    - if a clear expectation based in WTA expression levels was found in (1): calculate deviation from expectations for BCR:ABL, relying on the major fusion as yardstick
