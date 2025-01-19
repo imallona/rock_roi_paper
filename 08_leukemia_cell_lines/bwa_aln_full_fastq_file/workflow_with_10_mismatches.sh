@@ -107,7 +107,7 @@ sort -k 1,1 starsolo_reads_with_cb_ub.txt -u > sorted_starsolo_reads_with_cb_ub.
 
 # extracting read id and detected fusion/non-fused
 
-samtools view -@ $NTHREADS no_xa_bwa_aln.sorted.bam | cut -f1,3 > bwa_aln_reads.txt
+samtools view -@ $NTHREADS no_xa_bwa_aln.sorted.bam | cut -f1,3,4 > bwa_aln_reads.txt
 
 sort -k 1,1 bwa_aln_reads.txt > sorted_bwa_aln_reads.txt 
 
