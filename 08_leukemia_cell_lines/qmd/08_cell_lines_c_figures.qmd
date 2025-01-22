@@ -244,6 +244,14 @@ filt_sub_new_bwa_aln<-bind_rows(filt,non_filt)
 # filtering check
 
 table(filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$start)
+table(sub_new_bwa_aln[which(sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$start)
+
+table(filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$patternName)
+table(sub_new_bwa_aln[which(sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$patternName)
+
+table(filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$patternName,
+      filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$start)
+
 
 # counting the alignments for each CB
 
@@ -297,6 +305,107 @@ sces_nd$new_bwa_aln_BCRABL1e1a2<-full_summed_cb_harmonized_sub_output_new_bwa_al
 sces_nd$new_bwa_aln_BCRABL1e13a2<-full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e13a2
 sces_nd$new_bwa_aln_wt_BCR<-full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_BCR
 sces_nd$new_bwa_aln_wt_ABL<-full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_ABL
+
+```
+
+### QC checks for filtering 
+
+```{r}
+
+cd<-colData(sces_nd)
+cd$CB<-rownames(colData(sces_nd))
+sub_cd<-cd[,c("CB","annotation")]
+
+harmonized_filt_sub_new_bwa_aln<-filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$CB %in% colnames(sces_nd)),]
+harmonized_sub_new_bwa_aln<-sub_new_bwa_aln[which(filt_sub_new_bwa_aln$CB %in% colnames(sces_nd)),]
+
+merged_filt<-as.data.frame(merge(harmonized_filt_sub_new_bwa_aln,sub_cd,by="CB",all.x=TRUE))
+merged<-as.data.frame(merge(harmonized_sub_new_bwa_aln,sub_cd,by="CB",all.x=TRUE))
+
+merged_filt$true <- FALSE
+merged_filt$true[merged_filt$annotation=="K562"&merged_filt$patternName=="BCRABL1e14a2"] <- TRUE
+merged_filt$true[merged_filt$annotation=="SUP-B15"&merged_filt$patternName=="BCRABLe1a2"] <- TRUE
+
+merged$true <- FALSE
+merged$true[merged$annotation=="K562"&merged$patternName=="BCRABL1e14a2"] <- TRUE
+merged$true[merged$annotation=="SUP-B15"&merged$patternName=="BCRABLe1a2"] <- TRUE
+
+
+# focus on K562 cells for filt
+df_k562 <- merged_filt %>% 
+  dplyr::filter(annotation=="K562",
+                grepl("^BCRABL",patternName)) %>%
+  arrange(start)
+
+df_k562$id <- seq_len(nrow(df_k562))
+
+ggplot(df_k562 ) +
+  geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
+  ggtitle("K562 + BCRABL1e14a2")
+
+# focus on K562 cells for non-filt
+df_k562 <- merged %>% 
+  dplyr::filter(annotation=="K562",
+                grepl("^BCRABL",patternName)) %>%
+  arrange(start)
+
+df_k562$id <- seq_len(nrow(df_k562))
+
+ggplot(df_k562 ) +
+  geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
+  ggtitle("K562 + BCRABL1e14a2")
+
+
+
+# focus on SUP-B15 cells for filt
+df_supb15 <- merged_filt %>% 
+  dplyr::filter(annotation=="SUP-B15",
+                grepl("^BCRABL",patternName)) %>%
+  arrange(start)
+
+df_supb15$id <- seq_len(nrow(df_supb15))
+
+ggplot(df_supb15 ) +
+  geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
+  ggtitle("SUP-B15 + BCRABL1e1a2")
+
+# focus on SUP-B15 cells for non-filt
+df_supb15 <- merged %>% 
+  dplyr::filter(annotation=="SUP-B15",
+                grepl("^BCRABL",patternName)) %>%
+  arrange(start)
+
+df_supb15$id <- seq_len(nrow(df_supb15))
+
+ggplot(df_supb15 ) +
+  geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
+  ggtitle("SUP-B15 + BCRABL1e1a2")
+
+# in this case it seems like we filter out many true positives
+
+# focus on Loucy cells for filt
+df_loucy <- merged_filt %>% 
+  dplyr::filter(annotation=="Loucy",
+                grepl("^BCRABL",patternName)) %>%
+  arrange(start)
+
+df_loucy$id <- seq_len(nrow(df_loucy))
+
+ggplot(df_loucy) +
+  geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
+  ggtitle("Loucy + BCRABL1e14a2")
+
+# focus on Loucy cells for non-filt
+df_loucy <- merged %>% 
+  dplyr::filter(annotation=="Loucy",
+                grepl("^BCRABL",patternName)) %>%
+  arrange(start)
+
+df_loucy$id <- seq_len(nrow(df_loucy))
+
+ggplot(df_loucy) +
+  geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
+  ggtitle("Loucy + BCRABL1e14a2")
 
 ```
 
