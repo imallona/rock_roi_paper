@@ -195,6 +195,11 @@ As extra datasets and validations, we will reanalyze:
 
 First, we run simple ROI scans on raw reads as follows:
 
+### Experimental design (leukemia)
+
+![leukemia](https://github.com/imallona/rock_roi_paper/blob/troubleshooting/10_troubleshooting/figs/from_giulia.png?raw=true)
+
+Slide from Giulia Moro.
 
 ### Truths, experimental metadata
 
