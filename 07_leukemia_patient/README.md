@@ -1,5 +1,3 @@
-Note: the code in this repository was used for initial analysis but is no longer implemented, please see the folder 09_fusion_simulations
-
 # Experiment
 
 Leukemia patient sample
@@ -13,7 +11,6 @@ qmd: files for analysis of count tables and generation of plots<br />
 bwa_aln_full_fastq_file: workflow used for detection of fusions in TSO data<br />
 
 Installs neede to run the workflow:
-- STAR: version 2.7.10b was used for the analysis
 - bwa: bwa 0.7.18 was used for the analysis
 - samtools: samtools 1.21 was used for the analysis <br />
 The installs can be done with the run.sh file
