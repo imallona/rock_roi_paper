@@ -1,0 +1,320 @@
+---
+title: "08_cell_lines_b_preprocessing_clustering"
+format:
+  html:
+    toc: true
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Load packages, load data
+
+```{r, warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(plotROC)
+library(here)
+library(rtracklayer)
+library(viridis)
+library(scDblFinder)
+library(bluster)
+library(singleCellTK)
+library(RCurl)
+library(AnnotationHub)
+library(ensembldb)
+
+wd<-"/Users/gimoro/figure_making_paper/rock_roi_paper/08_cell_line_analysis/data"
+
+rdss <- dir(here("08_cell_line_analysis"), "cell_line.sce", 
+            recursive = TRUE, full.names = TRUE)
+names(rdss) <- gsub(".sce", "", basename(rdss))
+rdss
+
+datadir <- dirname(rdss)[1]
+
+sces <- mapply(function(u,v)  {
+  rds <- readRDS(u)
+  rds$sample_id <- v
+  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
+  colnames(rowData(rds)) <- c("name", "type", "value")
+  g <- grepl("^ENS", rownames(rds))
+  rownames(rds)[g] <- paste0(rownames(rds)[g], 
+                             "__", rowData(rds)$name[g])
+  rowData(rds)$gene_type <- "capture"
+  k <- grepl("^ENSG", rownames(rds))
+  rowData(rds)$gene_type[k] <- "human_gene"
+  k <- grepl("^ENSMUS", rownames(rds))
+  rowData(rds)$gene_type[k] <- "mouse_gene"
+  k <- grepl("^mt", rowData(rds)$name)
+  rowData(rds)$gene_type[k] <- "mouse_mito"
+  k <- grepl("^MT", rowData(rds)$name)
+  rowData(rds)$gene_type[k] <- "human_mito"
+  rds
+}, rdss, names(rdss))
+
+sces <- Reduce(cbind, sces)
+
+```
+
+## QC on WTA
+
+```{r}
+
+rowData(sces)$gene_type %>% table
+
+rd <- rowData(sces)
+sces <- addPerCellQCMetrics(sces, assay.type = "wta",
+                           subsets=list(human_gene=rd$gene_type=="human_gene",
+                                        human_mito=rd$gene_type=="human_mito"))
+
+cd <- colData(sces) %>% as.data.frame
+
+ggplot(cd, aes(x = total,
+               y = detected,
+               colour = subsets_human_mito_percent)) +
+  geom_point() +
+  scale_x_log10() + scale_y_log10() +
+  geom_density_2d(colour = "orange") 
+
+ggplot(cd, aes(x = total, y = subsets_human_mito_percent)) +
+  geom_point() + scale_x_log10() + scale_y_sqrt() +
+  geom_hline(yintercept=c(1,30), colour="orange") +
+  geom_vline(xintercept=c(3000,50000), colour="orange") +
+  geom_density2d()
+
+ggplot(cd, aes(x = detected, y = subsets_human_mito_percent)) +
+  geom_point() + scale_x_log10() + scale_y_sqrt() +
+  facet_wrap(~sample_id) + 
+  geom_hline(yintercept=c(1,50), colour="orange") +
+  geom_vline(xintercept=c(1000,10000), colour="orange") +
+  geom_density2d()
+
+```
+
+## Crude filter --> no filtering based on upper bound total or detected
+
+```{r}
+
+# crude filter
+dim(sces)
+mito <- sces$subsets_human_mito_percent
+sces <- sces[,sces$detected>1000 & mito>1 & mito<30]
+# sces <- sces[rowSums(assay(sces,1))>2 ,]  # don't b/c removes from off/on target mtx
+sces <- sces[rowSums(assay(sces,1))>2,] 
+dim(sces)
+
+# save filtered to RDS
+
+#saveRDS(sces, file.path(wd, "cell_lines_sce_qc-filtered.rds"))
+sces_filt<-readRDS(file.path(wd, "cell_lines_sce_qc-filtered.rds"))
+
+# remove extra things
+rm(cd, sce,sces); gc()
+
+```
+
+## Rerun clustering based on filtered dataset
+
+```{r}
+
+sces_filt <- logNormCounts(sces_filt, assay.type = "wta")
+
+# find HVGs
+mgv <- modelGeneVar(sces_filt)
+
+# arbitrary cutoff to pick some HVGs
+hvg <- which(mgv$p.value < .05)
+mgv[hvg,] %>% 
+  as.data.frame %>% rownames -> hvg
+length(hvg)
+
+all(rownames(sces_filt)==rownames(mgv))
+
+mgv <- cbind(mgv, gene_type = rowData(sces_filt)$gene_type)
+
+rowData(sces_filt)[hvg,]$gene_type %>% table
+# basically all expressed mouse genes are HV; mainly different b/w
+# +ROI and -ROI
+
+# remove mito genes
+hvg <- which(mgv$p.value < .05 & mgv$gene_type=="human_gene")
+rn <- rownames(mgv)[hvg]
+length(rn)
+
+ggplot(mgv %>% data.frame,
+       aes(x=mean, y=bio, colour=p.value<.05, shape = gene_type)) +
+  geom_point() + facet_wrap(~gene_type)
+
+```
+
+## Visualize cells
+
+```{r}
+
+set.seed(1976)
+
+sces_filt <- fixedPCA(sces_filt, subset.row=rn, rank = 30) 
+sces_filt <- scater::runUMAP(sces_filt, dimred="PCA")
+
+scater::plotUMAP(sces_filt, colour_by = "total")
+scater::plotUMAP(sces_filt, colour_by = "detected")
+scater::plotUMAP(sces_filt, colour_by = "subsets_human_mito_percent")
+
+```
+
+## Doublet removal
+
+```{r}
+
+# couple adjustments to the object for doublet finding
+sces_adj <- sces_filt
+counts(sces_adj) <- assay(sces_filt, 1)
+
+sces_nd <- scDblFinder(sces_adj)
+
+scater::plotUMAP(sces_nd, colour_by = "scDblFinder.score")
+table(sces_nd$scDblFinder.class)
+boxplot(sces_nd$scDblFinder.score ~ sces_nd$scDblFinder.class)
+
+sces_nd <- sces_nd[,sces_nd$scDblFinder.class=="singlet"]
+
+# save filtered-nodoublet object to RDS
+#saveRDS(sces_nd, file.path(wd, "cell_lines_sce_nd-filtered.rds"))
+sces_nd<-readRDS(file.path(wd, "cell_lines_sce_nd-filtered.rds"))
+
+rm(sces,sces_filt); gc()
+
+```
+
+## Clustering
+
+```{r}
+
+set.seed(1976)
+nn.clusters <- clusterCells(sces_nd, use.dimred="PCA",
+                            BLUSPARAM=NNGraphParam(k=70))
+table(nn.clusters)
+sces_nd$cluster <- nn.clusters
+
+scater::plotUMAP(sces_nd, colour_by="cluster")
+
+table(sces_nd$sample_id, sces_nd$cluster)
+
+mm <- model.matrix(~cluster, 
+                   data=as.data.frame(colData(sces_nd)))
+
+lcounts <- logcounts(sces_nd)
+
+table(rs <- rowSums(lcounts)>50 & rowData(sces_nd)$gene_type == "human_gene" )
+f <- lmFit(as.matrix(lcounts[rs,]), mm)
+f <- eBayes(f)
+
+# topTable(f, coef=2:ncol(mm), number = 10)
+tt <- topTable(f, coef=2:ncol(mm), number = 1e6, sort.by = "none")
+
+aac <- aggregateAcrossCells(sces_nd, 
+                            sces_nd$cluster,use.assay.type="wta")
+
+calc_entropy <- function(u) {
+  p <- u[u>0]
+  p <- p/sum(p)
+  -sum(p*log(p))
+}
+
+# adjust the aggregated counts for the number of cells
+agg_counts <- assay(aac,"wta")[rs,]
+for(i in 1:ncol(agg_counts))
+  agg_counts[,i] <- agg_counts[,i]/sum(agg_counts[,i])*1e6
+
+ents <- apply(agg_counts, 1, calc_entropy)
+
+plot(ents, tt$F, log="y")
+
+df <- data.frame(gene = names(ents), 
+                 entropy=ents, Fstat=tt$F,
+                 cluster.max = apply(agg_counts, 1, which.max)) %>%
+  mutate(order_by = Fstat / entropy) %>%
+  dplyr::filter(Fstat > 400, entropy < 1.25) %>%
+  arrange(desc(order_by)) %>%
+  group_by(cluster.max) %>% slice_max(order_by = order_by, n = 10)
+
+col_anno <- colData(sces_nd)[,c("cluster")] %>% as.data.frame
+
+cd<-colData(sces_nd)
+
+```
+
+### ABL and BCR in different cells
+
+```{r}
+
+rownames(sces_nd)[grep("ACTB",rownames(sces_nd))]
+
+table(assay(sces_nd,1)["ENSG00000186716.21__BCR",])
+
+table(assay(sces_nd,1)["ENSG00000097007.19__ABL1",])
+length(colnames(sces_nd))
+
+# same for cluster 1 cells
+
+cluster1_cells<-sces_nd[,which(sces_nd$cluster==1)]
+
+table(assay(cluster1_cells,1)["ENSG00000186716.21__BCR",])
+
+table(assay(cluster1_cells,1)["ENSG00000097007.19__ABL1",])
+length(colnames(sces_nd))
+
+
+# same for major (cluster 3)
+
+cluster3_cells<-sces_nd[,which(sces_nd$cluster==3)]
+
+table(assay(cluster3_cells,1)["ENSG00000186716.21__BCR",])
+
+table(assay(cluster3_cells,1)["ENSG00000097007.19__ABL1",])
+length(colnames(sces_nd))
+
+length(which(assay(cluster3_cells,1)["ENSG00000186716.21__BCR",]>0))/length(colnames(cluster3_cells))
+
+cd$wta_BCR<-assay(sces_nd,1)["ENSG00000186716.21__BCR",]
+cd$wta_ABL<-assay(sces_nd,1)["ENSG00000097007.19__ABL1",]
+
+ggplot(cd, aes(x=wta_BCR))+
+  geom_histogram()+
+  theme_bw()+
+  ylab("number of cells")
+
+ggplot(cd, aes(x=wta_ABL))+
+  geom_histogram()+
+  theme_bw()+
+  ylab("number of cells")
+
+cluster2_cells<-sces_nd[,which(sces_nd$cluster==2)]
+
+cd_cluster1<-colData(cluster1_cells)
+cd_cluster3<-colData(cluster3_cells)
+cd_cluster2<-colData(cluster2_cells)
+
+```
+
+### Session info
+
+```{r}
+
+sessionInfo()
+
+```
+

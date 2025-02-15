@@ -1,0 +1,50 @@
+## simulate: True generates fake data and runs the pipeline
+simulate: False
+
+## software stack, will work out of the box if within the supplied docker container
+Rbin: R
+STAR: STAR
+# bamCoverage: bamCoverage ## not used anymore
+featureCounts: featureCounts
+bedtools: bedtools
+bedGraphToBigWig: bedGraphToBigWig
+faSize: faSize
+
+## run limits
+nthreads: 10
+max_mem_mb: 350000 ## these are megabytes
+
+## full or relative path to the `root` of the rock_roi_method cloned repository
+rock_method_path: /home/gmoro/cell_lines_leukemia/rock_roi_repo_for_cell_lines/rock_roi_method
+
+## full or relative path where outputs will be generated at
+working_dir: /home/gmoro/cell_lines_leukemia/rock_roi_repo_for_cell_lines/output
+nologged_dir: /home/gmoro/cell_lines_leukemia/rock_roi_repo_for_cell_lines/output
+
+## fill below these line if `simulate : False` -----------------------------------------
+## if `simulate: True` then all config below this line will be replaced by
+##   hardcoded values (within the Snakefile)
+
+gtf: /home/gmoro/mapping_leukemia_data/genome/combined.gtf
+genome: /home/gmoro/mapping_leukemia_data/genome/combined.fa
+
+# i.e. cDNA read length minus 1
+sjdbOverhang: 179
+
+## run mode, one of these (please see the README / docs):
+##   'tso off- and ontarget unique'
+##   'tso ontarget multi'
+##   'all'
+run_mode: 'tso off- and ontarget unique'
+
+## GTF `source` field identifying on-target rock- or roi- features
+capture_gtf_column_2_pattern : 'captured'
+featurecounts_t: 'exon' ## feature counting unit for featurecounts
+featurecounts_g: 'gene_id' ## feature grouping unit for featurecounts
+
+samples:
+  - name: leukemia_cell_lines
+    uses:
+      cb_umi_fq: /home/gmoro/test_leukemia_downsampled_cell_line_experiment/331131_1-Cell_lines_50_50_S1_R1_001.fastq.gz
+      cdna_fq: /home/gmoro/test_leukemia_downsampled_cell_line_experiment/331131_1-Cell_lines_50_50_S1_R2_001.fastq.gz
+      whitelist: 96x3

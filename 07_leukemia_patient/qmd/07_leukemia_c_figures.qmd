@@ -1,0 +1,433 @@
+---
+title: "07_leukemia_c_figures"
+format:
+  html:
+    toc: true
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Load packages, load data
+
+```{r, warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(plotROC)
+library(here)
+library(rtracklayer)
+library(viridis)
+library(scDblFinder)
+library(bluster)
+library(singleCellTK)
+library(BUSpaRse)
+library(khroma)
+library(dittoSeq)
+
+# need to restart every time
+
+#install.packages("~/Downloads/Matrix_1.6-1.tar.gz", repos = NULL, type = "source")
+
+wd<-"/Users/gimoro/figure_making_paper/rock_roi_paper/07_analysis_patient_data/data"
+
+rdss <- dir(here("07_analysis_patient_data"), "leukemia_patient.sce", 
+            recursive = TRUE, full.names = TRUE)
+names(rdss) <- gsub(".sce", "", basename(rdss))
+rdss
+
+datadir <- dirname(rdss)[1]
+
+sces <- mapply(function(u,v)  {
+  rds <- readRDS(u)
+  rds$sample_id <- v
+  rds$sample_id.barcode <- paste0(v,".",colnames(rds))
+  colnames(rowData(rds)) <- c("name", "type", "value")
+  g <- grepl("^ENS", rownames(rds))
+  rownames(rds)[g] <- paste0(rownames(rds)[g], 
+                             "__", rowData(rds)$name[g])
+  rowData(rds)$gene_type <- "capture"
+  k <- grepl("^ENSG", rownames(rds))
+  rowData(rds)$gene_type[k] <- "human_gene"
+  k <- grepl("^ENSMUS", rownames(rds))
+  rowData(rds)$gene_type[k] <- "mouse_gene"
+  k <- grepl("^mt", rowData(rds)$name)
+  rowData(rds)$gene_type[k] <- "mouse_mito"
+  k <- grepl("^MT", rowData(rds)$name)
+  rowData(rds)$gene_type[k] <- "human_mito"
+  rds
+}, rdss, names(rdss))
+
+sces <- Reduce(cbind, sces)
+
+```
+
+### Setting up knitr 
+
+```{r}
+
+knitr::opts_chunk$set(fig.width = 2.7,
+               fig.height = 2.7,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache=TRUE,
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+### Themes
+
+```{r}
+
+rock_roi_theme<-function(){
+  theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        aspect.ratio=1,
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+}
+
+rock_roi_theme_multiple_panels<-function(){
+    theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        aspect.ratio=1,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.border = element_rect(colour = "black", fill = NA))
+}
+
+```
+
+## Scale
+
+```{r}
+myscale<-c(color("muted")(9), gray="darkgrey", 
+             black = "black", darkorange = "darkorange")
+
+# defining colors for samples and for species
+
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","patient","positive","cluster2","cluster3","tdtom_cds","no_detection","doublets","cluster1")
+
+```
+
+### Loading clustered object
+
+```{r}
+
+clustered_sces_nd<-readRDS(file.path(wd,"clustered_object.rds"))
+
+names(myscale)<-unique(clustered_sces_nd$ident)
+
+plot1<-scater::plotUMAP(clustered_sces_nd, colour_by = "ident",point_alpha=1,point_size=0.1)+
+  rock_roi_theme()+
+  scale_color_manual(values = myscale)
+
+plot1<-ggrastr::rasterize(plot1, layers='Point', dpi=1000)
+
+plot1
+
+ggsave(file=file.path(datadir,"umap.svg"), plot=plot1, width=2.7, height=2.7)
+
+```
+
+## Extracting metadata for GEO
+
+```{r}
+
+cd<-colData(clustered_sces_nd)
+cd$barcode<-rownames(cd)
+
+to_export<-cd[,c("barcode","ident")]
+
+write.csv(to_export,"leukemia_patient_sample_annotation.csv")
+
+```
+
+### Barplot markers
+
+```{r}
+
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","patient","positive","cluster2","cluster3","tdtom_cds","no_detection","doublets","cluster1")
+
+grep("17--",rownames(clustered_sces_nd))
+
+rownames(clustered_sces_nd)[8758]
+
+markers<-c("ENSG00000177455.15--CD19",
+                     "ENSG00000012124.17--CD22",
+                     "ENSG00000010278.15--CD9",
+                     "ENSG00000107447.8--DNTT",
+                     "ENSG00000196549.13--MME",
+                     "ENSG00000134460.18--IL2RA",
+                     "ENSG00000174059.17--CD34",
+                     "ENSG00000198851.10--CD3E",
+                     "ENSG00000173762.8--CD7",
+                     "ENSG00000153563.16--CD8A",
+                     "ENSG00000172116.23--CD8B",
+                     "ENSG00000145649.8--GZMA",
+                     "ENSG00000244734.4--HBB",
+                     "ENSG00000170458.14--CD14",
+                     "ENSG00000005381.8--MPO",
+                     "ENSG00000105383.15--CD33",
+                     "ENSG00000197561.7--ELANE",
+                     "ENSG00000197405.8--C5AR1",
+                     "ENSG00000158869.11--FCER1G",
+                     "ENSG00000090382.7--LYZ",
+                     "ENSG00000166927.13--MS4A7",
+                     "ENSG00000101439.9--CST3",
+                     "ENSG00000114013.16--CD86",
+                     "ENSG00000158481.13--CD1C",
+                     "ENSG00000179639.10--FCER1A",
+                     "ENSG00000239961.3--LILRA4")
+
+short_markers<-as.vector(sapply(strsplit(markers,"--"),"[",2))
+short_sces<-clustered_sces_nd[markers,]
+rownames(short_sces)<-short_markers
+
+plot11<-dittoDotPlot(short_sces,
+             short_markers,
+             group.by="ident",
+             min.color="grey", 
+             max.color=myscale[["positive"]],
+             scale=FALSE,
+             size=7)+
+  rock_roi_theme()
+
+plot11<-ggrastr::rasterize(plot11, layers='Point', dpi=1000)
+
+plot11
+
+ggsave(file=file.path(datadir,"markers.svg"), plot=plot11, width=10, height=2.7)
+
+```
+
+### bwa aln analysis
+
+```{r}
+
+new_bwa_aln <- read.table("/Users/gimoro/figure_making_paper/rock_roi_paper/07_analysis_patient_data/data/bwa_aln_with_cb_ub_annotated_fusion.txt", quote="\"", comment.char="")
+
+colnames(new_bwa_aln)<-c("seqID","patternName","start","CB","UB")
+
+sub_new_bwa_aln<-new_bwa_aln[,c("patternName","start","CB")]
+sub_new_bwa_aln$CB<-sapply(strsplit(sub_new_bwa_aln$CB,"CB:Z:"),"[",2)
+
+# filtering the start position for the fusions --> want an overlap of at least 10 for both BCR and ABL
+
+filt<-filter(sub_new_bwa_aln,patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2") & start > 10 & start < 170)
+non_filt<-sub_new_bwa_aln[! sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2"),]
+
+filt_sub_new_bwa_aln<-bind_rows(filt,non_filt)
+
+# counting the alignments for each CB
+
+filt_sub_new_bwa_aln$BCRABL1e14a2<-0
+filt_sub_new_bwa_aln$BCRABL1e13a2<-0
+filt_sub_new_bwa_aln$BCRABL1e1a2<-0
+filt_sub_new_bwa_aln$wt_BCR<-0
+filt_sub_new_bwa_aln$wt_ABL<-0
+
+# filtering steps
+
+table(filt_sub_new_bwa_aln$patternName)
+
+table(sub_new_bwa_aln$patternName)
+
+table(filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$start)
+
+table(sub_new_bwa_aln[which(sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$start)
+
+
+filt_sub_new_bwa_aln$BCRABL1e14a2[which(filt_sub_new_bwa_aln$patternName=="BCRABL1e14a2")]<-1
+filt_sub_new_bwa_aln$BCRABL1e13a2[which(filt_sub_new_bwa_aln$patternName=="BCRABLe13a2")]<-1
+filt_sub_new_bwa_aln$BCRABL1e1a2[which(filt_sub_new_bwa_aln$patternName=="BCRABLe1a2")]<-1
+filt_sub_new_bwa_aln$wt_BCR[which(filt_sub_new_bwa_aln$patternName %in% c("ENST00000359540.7_BCRABLe13a2","ENST00000359540.7_BCRABLe14a2","ENST00000359540.7_BCRABLe1a2"))]<-1
+filt_sub_new_bwa_aln$wt_ABL[which(filt_sub_new_bwa_aln$patternName %in% c("ENST00000318560.6","ENST00000372348.7"))]<-1
+
+cb_harmonized_sub_output_bwa_aln<-filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$CB %in% colnames(clustered_sces_nd)),]
+
+# have duplicate rows
+
+summed_cb_harmonized_sub_new_bwa_aln<-aggregate(cb_harmonized_sub_output_bwa_aln[4:ncol(cb_harmonized_sub_output_bwa_aln)],cb_harmonized_sub_output_bwa_aln['CB'], FUN=sum)
+
+df<-data.frame(matrix(ncol=length(colnames(summed_cb_harmonized_sub_new_bwa_aln)),nrow=length(setdiff(colnames(clustered_sces_nd),summed_cb_harmonized_sub_new_bwa_aln$CB))))
+
+colnames(df)<-colnames(summed_cb_harmonized_sub_new_bwa_aln)
+
+df$CB<-setdiff(colnames(clustered_sces_nd),cb_harmonized_sub_output_bwa_aln$CB)
+df$BCRABL1e14a2<-0
+df$BCRABL1e13a2<-0
+df$BCRABL1e1a2<-0
+df$wt_BCR<-0
+df$wt_ABL<-0
+
+full_summed_cb_harmonized_sub_output_new_bwa_aln<-rbind(summed_cb_harmonized_sub_new_bwa_aln,df)
+
+rownames(full_summed_cb_harmonized_sub_output_new_bwa_aln)<-full_summed_cb_harmonized_sub_output_new_bwa_aln$CB
+
+full_summed_cb_harmonized_sub_output_new_bwa_aln<-full_summed_cb_harmonized_sub_output_new_bwa_aln[colnames(clustered_sces_nd), , drop = FALSE]
+
+# since just want yes or no and not counts and didn't do UMI deduplication --> convert all numbers to 1 or 0
+
+full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e14a2>0),"BCRABL1e14a2"]<-1
+full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e13a2>0),"BCRABL1e13a2"]<-1
+full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e1a2>0),"BCRABL1e1a2"]<-1
+full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_BCR>0),"wt_BCR"]<-1
+full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_ABL>0),"wt_ABL"]<-1
+
+clustered_sces_nd$new_bwa_aln_BCRABL1e14a2<-full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e14a2
+clustered_sces_nd$new_bwa_aln_BCRABL1e1a2<-full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e1a2
+clustered_sces_nd$new_bwa_aln_BCRABL1e13a2<-full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e13a2
+clustered_sces_nd$new_bwa_aln_wt_BCR<-full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_BCR
+clustered_sces_nd$new_bwa_aln_wt_ABL<-full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_ABL
+
+```
+
+### New bwa aln plots
+
+```{r}
+
+positive_cells <- clustered_sces_nd$new_bwa_aln_BCRABL1e14a2> 0
+
+clustered_sces_nd <- clustered_sces_nd[, order(positive_cells)]
+
+plot1<-scater::plotUMAP(clustered_sces_nd, colour_by = "new_bwa_aln_BCRABL1e14a2",point_alpha=1,point_size=0.1)+ 
+  scale_colour_gradient2(low="lightgrey",
+                         mid="lightgrey",
+                         high=myscale["positive"])+
+  rock_roi_theme()
+
+plot1<-ggrastr::rasterize(plot1, layers='Point', dpi=1000)
+
+plot1
+
+ggsave(file=file.path(datadir,"umap_major.svg"), plot=plot1, width=2.7, height=2.7)
+
+# same for minor fusion
+
+positive_cells <- clustered_sces_nd$new_bwa_aln_BCRABL1e1a2 > 0
+
+clustered_sces_nd <- clustered_sces_nd[, order(positive_cells)]
+
+plot2<-scater::plotUMAP(clustered_sces_nd, colour_by = "new_bwa_aln_BCRABL1e1a2",point_alpha=1,point_size=0.1)+ 
+  scale_colour_gradient2(low="lightgrey",
+                         mid="lightgrey",
+                         high=myscale["positive"])+
+  rock_roi_theme()
+
+plot2<-ggrastr::rasterize(plot2, layers='Point', dpi=1000)
+
+plot2
+
+ggsave(file=file.path(datadir,"umap_minor.svg"), plot=plot2, width=2.7, height=2.7)
+
+## same plot for e13
+
+positive_cells <- clustered_sces_nd$new_bwa_aln_BCRABL1e13a2 > 0
+
+clustered_sces_nd <- clustered_sces_nd[, order(positive_cells)]
+
+plot7<-scater::plotUMAP(clustered_sces_nd, colour_by = "new_bwa_aln_BCRABL1e13a2",point_alpha=1,point_size=0.1)+ 
+  scale_colour_gradient2(low="lightgrey",
+                         mid="lightgrey",
+                         high=myscale["positive"])+
+  rock_roi_theme()
+
+plot7<-ggrastr::rasterize(plot7, layers='Point', dpi=1000)
+
+plot7
+
+table(clustered_sces_nd$new_bwa_aln_BCRABL1e13a2 )
+
+ggsave(file=file.path(datadir,"umap_e13.svg"), plot=plot7, width=2.7, height=2.7)
+
+# barplot
+
+cd<-colData(clustered_sces_nd)
+
+df<-data.frame(matrix(nrow=2,ncol=7))
+
+rownames(df)<-c("new_bwa_aln_BCRABL1e14a2","new_bwa_aln_BCRABL1e1a2")
+colnames(df)<-unique(cd$ident)
+
+for (i in rownames(df)){
+  name<-i
+  df[i,1]<-length(which(cd[which(cd$ident==unique(cd$ident)[1]),][,name]>0))/length(which(cd$ident==unique(cd$ident)[1]))*100
+  df[i,2]<-length(which(cd[which(cd$ident==unique(cd$ident)[2]),][,name]>0))/length(which(cd$ident==unique(cd$ident)[2]))*100
+  df[i,3]<-length(which(cd[which(cd$ident==unique(cd$ident)[3]),][,name]>0))/length(which(cd$ident==unique(cd$ident)[3]))*100
+  df[i,4]<-length(which(cd[which(cd$ident==unique(cd$ident)[4]),][,name]>0))/length(which(cd$ident==unique(cd$ident)[4]))*100
+  df[i,5]<-length(which(cd[which(cd$ident==unique(cd$ident)[5]),][,name]>0))/length(which(cd$ident==unique(cd$ident)[5]))*100
+  df[i,6]<-length(which(cd[which(cd$ident==unique(cd$ident)[6]),][,name]>0))/length(which(cd$ident==unique(cd$ident)[6]))*100
+  df[i,7]<-length(which(cd[which(cd$ident==unique(cd$ident)[7]),][,name]>0))/length(which(cd$ident==unique(cd$ident)[7]))*100
+}
+
+plottable<-melt(df)
+plottable$id<-rep(c("major","minor"),7)
+plottable$value
+
+names(myscale)<-unique(clustered_sces_nd$ident)
+
+plot5<-ggplot(plottable,aes(x = factor(id,levels=c("major","minor")), 
+                        y = value, 
+                        fill = variable,
+                        colour = variable, group = variable)) +
+  geom_bar(position = position_dodge2(), stat = "identity") +
+  geom_text(aes(label = round(value, 1), 
+                y = value+1.5), colour = "black",
+            position = position_dodge2(width = 1),
+            size=2,
+            vjust=-0.2) +
+  ylab("Percent cells expressed")+
+  theme_bw()+
+  rock_roi_theme()+
+  scale_fill_manual(values = myscale)+
+  scale_color_manual(values = myscale)
+  
+plot5<-ggrastr::rasterize(plot5, layers='Point', dpi=1000)
+plot5
+
+ggsave(file=file.path(datadir,"fusion_barplot.svg"), plot=plot5, width=3.5, height=2.7)
+
+```
+
+### SessionInfo()
+
+```{r}
+
+sessionInfo()
+
+```
+
+
+
