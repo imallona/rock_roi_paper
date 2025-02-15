@@ -1,8 +1,6 @@
-Note: the code in this repository was used for initial analysis but is no longer implemented, please see the folder 09_fusion_simulations
-
 # Experiment
 
-Leukemia patient sample
+Leukemia cell lines
 
 # Files and folders
 
