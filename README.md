@@ -5,6 +5,8 @@
 - `03_first_mixing_experiment`: mouse + human cell mixing experiment, with GFP and tdTomato as captures. Aim: testing the addition of T primer during library generation
 - `05_facs_plots`: analysis of FACS plots from RoCKseq bead modification
 - `06_Sankey_plots`: code to generate Sankey plots for the two mixing experiments
+- `07_leukemia_patient`: analysis of BCR-ABL patient data 
+- `08_leukemia_cell_lines`: analysis of BCR-ABL cell line mixing experiment
 
 # Other resources
 
