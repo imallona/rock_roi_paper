@@ -20,6 +20,10 @@ I believe our experimental design offers the necessary flexibility to explore th
 
 We have preliminary data describing aspects of these two major concerns but have not formalized them into a single report nor manuscript section.
 
+# Disclaimer's disclaimer
+
+Not pursuing the analysis because I (Izaskun) will not author updated manuscripts containing data affected by these thoughts/concerns. 
+
 # Design
 
 We plan our checks to be:
