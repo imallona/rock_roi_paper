@@ -1,0 +1,480 @@
+---
+title: "09_HeLa_e_analysis_mod_7_sample"
+format:
+  html:
+    toc: true
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Load packages, load data
+
+```{r, warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+#install.packages("https://cran.r-project.org/src/contrib/Archive/Matrix/Matrix_1.6-1.tar.gz", repos = NULL, type = "source")
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(ggrepel)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(plotROC)
+library(here)
+library(Matrix)
+library(scDblFinder)
+library(biomaRt)
+library(GenomicFeatures)
+library(khroma)
+library(rtracklayer)       
+library(Biostrings)     
+library(GenomicRanges) 
+library(openxlsx)
+library(GenomicRanges)
+library(GenomicAlignments)
+library(rtracklayer)
+library(Gviz)
+library(plyranges)
+library(seqinr)
+library(Rsamtools)
+library(googlesheets4)
+library(tools)
+library(here)
+library(GenomicFeatures)
+library(khroma)
+
+datadir_unmod_downsampled<-"/Users/gimoro/figure_making_paper/rock_roi_paper/09_hela_analysis/data/unmod_1_downsampled"
+datadir_mod<-"/Users/gimoro/figure_making_paper/rock_roi_paper/09_hela_analysis/data/mod_7"
+
+sce_unmod<-readRDS(paste0(datadir_unmod_downsampled,"/sce_qc-filtered-nodoublets.rds"))
+sce_mod<-readRDS(paste0(datadir_mod,"/sce_qc-filtered-nodoublets.rds"))
+
+sce_unmod$sample_id<-"unmod"
+sce_mod$sample_id<-"mod"
+
+rowData(sce_unmod)$scDblFinder.selected <- NULL
+rowData(sce_mod)$scDblFinder.selected <- NULL
+
+# combining object
+
+sce <- cbind(sce_unmod,sce_mod)
+
+table(sce$sample_id)
+
+```
+
+## Setting up knitr
+
+```{r}
+knitr::opts_chunk$set(fig.width = 2.7,
+               fig.height = 2.7,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache=TRUE,
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+```
+
+# Themes
+
+```{r}
+
+rock_roi_theme<-function(){
+  theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        aspect.ratio=1,
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+}
+
+rock_roi_theme_multiple_panels<-function(){
+    theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        aspect.ratio=1,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=7),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.border = element_rect(colour = "black", fill = NA))
+}
+
+```
+
+## Defining colors
+
+```{r}
+
+myscale<-c(color("muted")(9), gray="darkgrey", 
+             black = "black", darkorange = "darkorange",
+             yellowgreen = "yellowgreen")
+
+# defining colors for samples and for species
+
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","mod","human","unknown","mouse","tdtom_cds","no_detection","doublets","low","high")
+
+#plot(1:13, col=myscale, pch=19, cex=4)
+
+```
+
+## Adding information on captured transcripts from featurecounts
+
+```{r}
+
+wta_alt<-altExp(sce,"wta_ontarget_multi")
+tso_alt<-altExp(sce,"tso_ontarget_multi")
+
+# targeted genes: FOXP3, RAB4B, SCN9A, ADRA1D, SOX9, KRT23, EHD3
+
+sce$wta_EHD3<-assay(wta_alt)["ENSG00000013016.16",]
+sce$tso_EHD3<-assay(tso_alt)["ENSG00000013016.16",]
+sce$total_EHD3<-sce$wta_EHD3+sce$tso_EHD3
+
+sce$wta_FOXP3<-assay(wta_alt)["ENSG00000049768.17",]
+sce$tso_FOXP3<-assay(tso_alt)["ENSG00000049768.17",]
+sce$total_FOXP3<-sce$wta_FOXP3+sce$tso_FOXP3
+
+sce$wta_KRT23<-assay(wta_alt)["ENSG00000108244.17",]
+sce$tso_KRT23<-assay(tso_alt)["ENSG00000108244.17",]
+sce$total_KRT23<-sce$wta_KRT23+sce$tso_KRT23
+
+sce$wta_SOX9<-assay(wta_alt)["ENSG00000125398.8",]
+sce$tso_SOX9<-assay(tso_alt)["ENSG00000125398.8",]
+sce$total_SOX9<-sce$wta_SOX9+sce$tso_SOX9
+
+sce$wta_RAB4B<-assay(wta_alt)["ENSG00000167578.18",]
+sce$tso_RAB4B<-assay(tso_alt)["ENSG00000167578.18",]
+sce$total_RAB4B<-sce$wta_RAB4B+sce$tso_RAB4B
+
+sce$wta_RAB4B<-assay(wta_alt)["ENSG00000167578.18",]
+sce$tso_RAB4B<-assay(tso_alt)["ENSG00000167578.18",]
+sce$total_RAB4B<-sce$wta_RAB4B+sce$tso_RAB4B
+
+sce$wta_SCN9A<-assay(wta_alt)["ENSG00000169432.18",]
+sce$tso_SCN9A<-assay(tso_alt)["ENSG00000169432.18",]
+sce$total_SCN9A<-sce$wta_SCN9A+sce$tso_SCN9A
+
+sce$wta_ADRA1D<-assay(wta_alt)["ENSG00000171873.8",]
+sce$tso_ADRA1D<-assay(tso_alt)["ENSG00000171873.8",]
+sce$total_ADRA1D<-sce$wta_ADRA1D+sce$tso_ADRA1D
+
+```
+
+# Percentage of positive cells (total), multialigners
+
+```{r}
+
+positive_cells<-data.frame(matrix(nrow=2,ncol=7))
+colnames(positive_cells)<-c("RAB4B","FOXP3","KRT23","SCN9A","ADRA1D","EHD3","SOX9")
+
+rows<-c()
+for (i in unique(sce$sample_id)){
+  rows<-c(rows,paste0(i))
+}
+
+rownames(positive_cells)<-rows
+
+cd<-colData(sce)
+
+for (i in unique(sce$sample_id)){
+  for (k in colnames(positive_cells)){
+    cd_sub <- cd[cd$sample_id == i, ]
+    positive_cells[i,k]<-length(which(cd_sub[[paste0("total_", k)]] > 0))/
+      length(rownames(cd_sub))*100
+  }
+}
+
+rm(cd_sub)
+
+plottable<-melt(positive_cells)
+
+plottable$sample<-rep(rownames(positive_cells),7)
+
+samples<-c("unmod","mod")
+
+p1<-ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=samples)))+
+  geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9))+
+  xlab(" ")+
+  ylab("positive cells (%)")+
+  theme_bw()+
+  ylim(0,50)+
+  rock_roi_theme()+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), 
+            position=position_dodge(width=0.9), 
+            size=2,
+            angle = 90)+
+  scale_fill_manual(values=c("unmod"=myscale[["unmod"]], "mod"=myscale[["mod"]])) +
+  scale_alpha_manual(values=c("unmod"=1, "mod"=0.5)) +
+  guides(colour = guide_legend(override.aes = list(size=3)))+
+  theme(legend.title = element_blank())
+
+p1<-ggrastr::rasterize(p1, layers='Point', dpi=1000)
+
+p1
+
+ggsave(file=file.path(datadir_unmod_downsampled,"barplot.svg"), plot=p1, width=3, height=3)
+
+```
+
+# Percentage of positive cells (total), unique
+
+```{r}
+
+positive_cells<-data.frame(matrix(nrow=2,ncol=7))
+colnames(positive_cells)<-c("RAB4B","FOXP3","KRT23","SCN9A","ADRA1D","EHD3","SOX9")
+
+rows<-c()
+for (i in unique(sce$sample_id)){
+  rows<-c(rows,paste0(i))
+}
+
+rownames(positive_cells)<-rows
+
+# adding unique counts 
+
+sce$unique_EHD3<-assay(sce,1)["EHD3",]+assay(sce,2)["EHD3",]
+
+sce$unique_FOXP3<-assay(sce,1)["FOXP3",]+assay(sce,2)["FOXP3",]
+
+sce$unique_KRT23<-assay(sce,1)["KRT23",]+assay(sce,2)["KRT23",]
+
+sce$unique_SOX9<-assay(sce,1)["SOX9",]+assay(sce,2)["SOX9",]
+
+sce$unique_RAB4B<-assay(sce,1)["RAB4B",]+assay(sce,2)["RAB4B",]
+
+sce$unique_SCN9A<-assay(sce,1)["SCN9A",]+assay(sce,2)["SCN9A",]
+
+sce$unique_ADRA1D<-assay(sce,1)["ADRA1D",]+assay(sce,2)["ADRA1D",]
+
+cd<-colData(sce)
+
+for (i in unique(sce$sample_id)){
+  for (k in colnames(positive_cells)){
+    cd_sub <- cd[cd$sample_id == i, ]
+    positive_cells[i,k]<-length(which(cd_sub[[paste0("unique_",k)]] > 0))/
+      length(rownames(cd_sub))*100
+  }
+}
+
+rm(cd_sub)
+
+plottable<-melt(positive_cells)
+
+plottable$sample<-rep(rownames(positive_cells),7)
+
+samples<-c("unmod","mod")
+
+p1<-ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=samples)))+
+  geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9))+
+  xlab(" ")+
+  ylab("positive cells (%)")+
+  theme_bw()+
+  rock_roi_theme()+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), 
+            position=position_dodge(width=0.9), 
+            size=2,
+            angle = 90)+
+  scale_fill_manual(values=c("unmod"=myscale[["unmod"]], "mod"=myscale[["mod"]])) +
+  scale_alpha_manual(values=c("unmod"=1, "mod"=0.5)) +
+  guides(colour = guide_legend(override.aes = list(size=3)))+
+  theme(legend.title = element_blank())
+
+p1<-ggrastr::rasterize(p1, layers='Point', dpi=1000)
+
+p1
+
+ggsave(file=file.path(datadir_unmod_downsampled,"barplot_unique.svg"), plot=p1, width=3, height=3)
+
+```
+
+## Figure with tracks (with bam files)
+
+```{r}
+
+options(ucscChromosomeNames=FALSE)
+
+gtf_path<-dir(here("09_hela_analysis/data/mod_7"), "subset.gtf", 
+            recursive = TRUE, full.names = TRUE)
+
+combined_gtf<-rtracklayer::import(gtf_path)
+
+```
+
+## Loading bam files
+
+```{r}
+
+bam<-dir(here("09_hela_analysis"), "*.bam", 
+            recursive = TRUE, full.names = TRUE)
+
+names(bam) <- gsub(".bam", "", basename(bam))
+
+datadir <- dirname(bam)[1] # folder where the .bam files are 
+
+for (i in 1:length(bam)){
+  indexBam(bam[[i]])
+}
+
+```
+
+## Generating TxDb gene track
+
+```{r}
+
+track<-makeTxDbFromGFF(file=gtf_path, format="gtf")
+
+```
+
+## Generating tracks (FOXP3)
+
+```{r}
+
+genes_of_interest<-c("FOXP3", "RAB4B", "SCN9A", "ADRA1D", "KRT23", "EHD3","SOX9")
+modality<-c("unmod","mod")
+
+bam_coverages<-list()
+bam_coverages_overlayed<-list()
+gms<-list()
+
+for (x in genes_of_interest){
+  params<-list()
+  gals<-list()
+  sub_gtf<-combined_gtf[grep(x,combined_gtf$gene_name),]
+  chr<-unique(as.character(as.data.frame(sub_gtf)$seqnames))
+  range<-max(end(ranges(sub_gtf)))-min(start(ranges(sub_gtf)))
+  region_start<-min(start(ranges(sub_gtf)))-(range/1.5) # otherwise for short genes will be too long and opposite for long genes
+  region_end<-max(end(ranges(sub_gtf)))+100
+
+  print(paste0(x,"_",chr,"_",region_start,"_",region_end))
+
+  gm <- GeneRegionTrack(track,
+                           chromosome=chr,
+                           name=x,
+                           from=region_start,
+                           to=region_end,
+                           geneSymbol=TRUE,
+                           showId=TRUE,
+                           transcriptAnnotation="symbol")
+  
+  displayPars(gm)<-list(col="black",
+                           cex.group=0.5,
+                           col.line="black",
+                           fontcolor.group="black",
+                           background.title="darkgrey")
+  
+  displayPars(gm)<-list(fill="black",
+                        shape="arrow")
+  
+  gms[[x]]<-gm # saving object in case want to replot later
+  
+  gals[[paste0("unmod","_tso_",x)]] <- readGAlignments(bam[[paste0("unmod","_tso_",x)]], use.names = TRUE, param=params[[k]])
+  gals[[paste0("mod","_tso_",x)]] <- readGAlignments(bam[[paste0("mod","_tso_",x)]], use.names = TRUE, param=params[[k]])
+  gals[[paste0("unmod","_wta_",x)]] <- readGAlignments(bam[[paste0("unmod","_wta_",x)]], use.names = TRUE, param=params[[k]])
+  gals[[paste0("mod","_wta_",x)]] <- readGAlignments(bam[[paste0("mod","_wta_",x)]], use.names = TRUE, param=params[[k]])
+
+  covs_gene<-list()
+
+  covs<-lapply(gals,coverage)
+  covs<-lapply(covs,function(x) as(x,"GRanges"))
+
+  for (i in 1:length(covs)){
+    covs_gene[[names(covs)[[i]]]]<-DataTrack(covs[[i]],
+                     chromosome=chr,
+                     from=region_start,
+                     to=region_end,
+                     name=names(covs)[[i]])
+  }
+  
+  z<- GRanges(x, IRanges(range))
+  
+  tso<- grep("tso",names(covs_gene))
+  wta<- grep("wta",names(covs_gene))
+  
+  for (i in tso){
+    covs_gene[[i]]@name<-gsub("_tso","",covs_gene[[i]]@name)
+    displayPars(covs_gene[[i]])<-list(col.histogram="darkgrey",
+                                       fill.histogram="darkgrey",
+                                       alpha.title = 1, 
+                                       alpha = 0.5)
+  }
+
+  for (i in wta){
+    covs_gene[[i]]@name<-gsub("_wta","",covs_gene[[i]]@name)
+    displayPars(covs_gene[[i]])<-list(col.histogram="black",
+                                       fill.histogram="black",
+                                       alpha.title = 1, 
+                                       alpha = 0.5)
+  }
+
+  overlays_bam<-list()
+
+  for (i in modality){
+    overlays_bam[[paste0(i,"_",x)]]<-OverlayTrack(trackList=list(covs_gene[[paste0(i,"_wta_",x)]],covs_gene[[paste0(i,"_tso_",x)]]))
+    
+    displayPars(overlays_bam[[paste0(i,"_",x)]])<-list(background.title=myscale[[i]])
+  }
+  
+  ranges<-c()
+
+   for (i in names(covs)){
+      ranges[i]<-max(range(c(values(covs_gene[[i]]), 
+                     values(covs_gene[[i]]))))
+  }
+
+  
+  plotTracks(c(
+           overlays_bam,
+           gms[[x]]),
+           type="histogram",
+           from=region_start,
+           to=region_end,
+           cex.axis = 0.5,
+           cex.title=0.5,
+           col.axis="white",
+           col.title="white",
+           col.border.title="white",
+           showSampleNames = TRUE,
+           lwd.title=0.5,
+           ylim=c(0,max(ranges)))
+  
+    bam_coverages[[x]]<-covs
+    bam_coverages_overlayed[[x]]<-overlays_bam
+    
+}
+
+
+```
+
+## Session info
+
+```{r}
+
+sessionInfo()
+
+```
+
