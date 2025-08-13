@@ -449,28 +449,89 @@ ggsave(file=file.path(datadir,"comparison_monocytes.png"), plot=plot1, width=2.7
 
 ```
 
-### Numbers taking 24 random negative monocytes
+## Dot plot with monocyte markers
 
 ```{r}
 
 monocytes_sce_nd<-fusion_db_sces_nd[,fusion_db_sces_nd$ident=="monocytes"]
-monocytes_sce_nd<-monocytes_sce_nd[,monocytes_sce_nd$gene_fusion_num_14865_id_6899__BCR_ABL1==0]
-monocytes_sce_nd$positive<-"no"
-monocytes_sce_nd$positive[3:27]<-"yes"
+positive_monocytes_sce_nd<-monocytes_sce_nd[,monocytes_sce_nd$positive_cells_gene_fusion_num_14865_id_6899__BCR_ABL1>0]
+negative_monocytes_sce_nd<-monocytes_sce_nd[,monocytes_sce_nd$positive_cells_gene_fusion_num_14865_id_6899__BCR_ABL1==0]
 
-table(monocytes_sce_nd$positive)
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","patient","positive","cluster2","cluster3","tdtom_cds","no_detection","doublets","cluster1")
 
-summed <- aggregateAcrossCells(monocytes_sce_nd, 
-    ids=monocytes_sce_nd$positive)
+grep("17--",rownames(fusion_db_sces_nd))
 
-summed<-summed[-which(rowSums(assay(summed,"counts"))==0),] # removing genes with zero counts 
+markers<-c("ENSG00000177455.15--CD19",
+                     "ENSG00000012124.17--CD22",
+                     "ENSG00000010278.15--CD9",
+                     "ENSG00000107447.8--DNTT",
+                     "ENSG00000196549.13--MME",
+                     "ENSG00000134460.18--IL2RA",
+                     "ENSG00000174059.17--CD34",
+                     "ENSG00000198851.10--CD3E",
+                     "ENSG00000173762.8--CD7",
+                     "ENSG00000153563.16--CD8A",
+                     "ENSG00000172116.23--CD8B",
+                     "ENSG00000145649.8--GZMA",
+                     "ENSG00000244734.4--HBB",
+                     "ENSG00000170458.14--CD14",
+                     "ENSG00000005381.8--MPO",
+                     "ENSG00000105383.15--CD33",
+                     "ENSG00000197561.7--ELANE",
+                     "ENSG00000197405.8--C5AR1",
+                     "ENSG00000158869.11--FCER1G",
+                     "ENSG00000090382.7--LYZ",
+                     "ENSG00000166927.13--MS4A7",
+                     "ENSG00000101439.9--CST3",
+                     "ENSG00000114013.16--CD86",
+                     "ENSG00000158481.13--CD1C",
+                     "ENSG00000179639.10--FCER1A",
+                     "ENSG00000239961.3--LILRA4")
 
-monocytes_logcpm<-as.data.frame(cpm(summed,log=TRUE,prior.count=1))
+# positive cells
 
-pearson_corr<-cor(monocytes_logcpm$no,monocytes_logcpm$yes,method="pearson")
-pearson_corr
+short_markers<-as.vector(sapply(strsplit(markers,"--"),"[",2))
+short_sces<-positive_monocytes_sce_nd[markers,]
+rownames(short_sces)<-short_markers
+
+plot11<-dittoDotPlot(short_sces,
+             short_markers,
+             group.by="ident",
+             min.color="grey", 
+             max.color=myscale[["positive"]],
+             scale=FALSE,
+             size=7)+
+  rock_roi_theme()
+
+plot11<-ggrastr::rasterize(plot11, layers='Point', dpi=1000)
+
+plot11
+
+ggsave(file=file.path(datadir,"positive_monocyte_markers.svg"), plot=plot11, width=3.5, height=2.7)
+
+# negative cells
+
+short_markers<-as.vector(sapply(strsplit(markers,"--"),"[",2))
+short_sces<-negative_monocytes_sce_nd[markers,]
+rownames(short_sces)<-short_markers
+
+plot11<-dittoDotPlot(short_sces,
+             short_markers,
+             group.by="ident",
+             min.color="grey", 
+             max.color=myscale[["positive"]],
+             scale=FALSE,
+             size=7)+
+  rock_roi_theme()
+
+plot11<-ggrastr::rasterize(plot11, layers='Point', dpi=1000)
+
+plot11
+
+ggsave(file=file.path(datadir,"negative_monocyte_markers.svg"), plot=plot11, width=3.5, height=2.7)
 
 ```
+
 
 ### SessionInfo()
 
