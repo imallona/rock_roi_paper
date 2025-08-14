@@ -1,10 +1,16 @@
 ---
 title: "mod vs unmod enrichment plots"
 author: "Giulia Moro, Izaskun Mallona"
-  date: "`r format(Sys.time(), '%d %B, %Y')`"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
-    bookdown::html_document2:
+    html_document:
+    toc: true
+    toc_float: true
     code_folding: hide
+    code_download: true
+    number_sections: true
+    df_print: kable
+    theme: lumen
 ---
 
 
@@ -15,7 +21,7 @@ suppressPackageStartupMessages({
   library(ggplot2)
   library(edgeR)
   library(scales)
-  library(ggthemes)
+  ## library(ggthemes)
 })
 
 knitr::opts_chunk$set(
@@ -32,7 +38,7 @@ knitr::opts_chunk$set(
 
 ```{r}
 
-(pdgfra <- readRDS('pdgfra/pdgfra.rds'))
+(pdgfra <- readRDS('sces/pdgfra.rds'))
 
 
 mod <- pdgfra[,pdgfra$sample_id=="rockroi"]
@@ -92,7 +98,7 @@ unmod_counts <- rbind(uniques_unmod, ontarget_multis_unmod)
 mod_avg_cpm <- rowMeans(edgeR::cpm(mod_counts, log = FALSE))
 unmod_avg_cpm <- rowMeans(edgeR::cpm(unmod_counts, log = FALSE))
 
-summary(mod_cpm)
+
 stopifnot(all(rownames(mod_avg_cpm) == rownames(unmod_avg_cpm)))
 
 ## str(mod_avg_lcpm)
@@ -112,7 +118,10 @@ fd$target <- fd$gene == highlight_gene
 stopifnot(sum(fd$target) == 1)
 
 head(fd)
+```
 
+
+```{r plots, fig.width =10, fig.height = 10}
 ggplot(fd, aes(x = unmod, y = mod)) +
   geom_point(aes(color = target), alpha = 0.6) +
   
@@ -154,7 +163,8 @@ ggplot(fd, aes(x = unmod, y = mod)) +
     x = "unmod mean CPM across cells",
     y = "mod mean CPM across cells",
   ) +
-  theme_bw()
+  theme_bw() +
+  coord_fixed()
 
 
 ```
