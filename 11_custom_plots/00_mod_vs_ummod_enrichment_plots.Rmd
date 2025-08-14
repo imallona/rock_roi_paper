@@ -1,0 +1,160 @@
+---
+title: "mod vs unmod enrichment plots"
+author: "Giulia Moro, Izaskun Mallona"
+  date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+    bookdown::html_document2:
+    code_folding: hide
+---
+
+
+
+```{r, setup}
+
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(edgeR)
+  library(scales)
+  library(ggthemes)
+})
+
+knitr::opts_chunk$set(
+    echo = FALSE,
+    message = FALSE,
+    warning = FALSE,
+    fig.path = "../output/00_mod_vs_unmod_enrichment_plots/",
+    dev = c("png", "svg"),
+    dpi=500
+)
+
+```
+
+
+```{r}
+
+(pdgfra <- readRDS('pdgfra/pdgfra.rds'))
+
+
+mod <- pdgfra[,pdgfra$sample_id=="rockroi"]
+unmod <- pdgfra[,pdgfra$sample_id=="unmod"]
+
+
+## unique counts for both wta and tso
+uniques_mod <- assay(mod, "wta") + assay(mod, "tso_off_and_ontarget_unique")
+uniques_unmod <- assay(unmod, "wta") + assay(unmod, "tso_off_and_ontarget_unique")
+
+## also multialigned counts for both wta and tso
+multis_mod <- assay(altExp(mod, "wta_ontarget_multi")) + assay(altExp(mod, "tso_ontarget_multi"))
+multis_unmod <- assay(altExp(unmod, "wta_ontarget_multi")) + assay(altExp(unmod, "tso_ontarget_multi"))
+
+pd_features <- c('roi_4_chr5:75166756-75166771',
+                 'roi_4_chr5:75167837-75167882',
+                 'roi_5_chr5:75167954-75167967',
+                 'roi_5_chr5:75170495-75170544',
+                 'roi_6_chr5:75170652-75170666',
+                 'roi_6_chr5:75170762-75170808',
+                 'roi_13_chr5:75180257-75180272',
+                 'roi_13_chr5:75180999-75181044',
+                 'roi_14_chr5:75181096-75181110',
+                 'roi_14_chr5:75181522-75181569',
+                 'roi_15_chr5:75181661-75181675',
+                 'roi_15_chr5:75182976-75183022',
+                 'roi_16_chr5:75183128-75183142',
+                 'roi_16_chr5:75185514-75185560')
+
+
+egfp_features <- c("h2b_egfp:1-378",
+          "linker_egfp:379-396",
+          "egfp_before_roi_egfp:397-708",
+          "roi_egfp_egfp:709-769",
+          "between_roi_egfp:770-1049",
+          "capture_egfp_egfp:1050-1074",
+          "3_to_capture_egfp:1075-1113",
+          "3_utr_egfp_egfp:1114-1425")
+
+
+egfp_mod <- colSums(multis_mod[egfp_features,])
+pdgfra_mod <- colSums(multis_mod[pd_features,])
+ontarget_multis_mod <- rbind(egfp_mod, pdgfra_mod)
+rownames(ontarget_multis_mod) <- c('eGFP', 'Pdgfra')
+print('caution merging unique features with multimapping features!')
+mod_counts <- rbind(uniques_mod, ontarget_multis_mod)
+
+
+# same for unmod
+egfp_unmod <- colSums(multis_unmod[egfp_features,])
+pdgfra_unmod <- colSums(multis_unmod[pd_features,])
+ontarget_multis_unmod <- rbind(egfp_unmod, pdgfra_unmod)
+rownames(ontarget_multis_unmod) <- c('eGFP', 'Pdgfra')
+unmod_counts <- rbind(uniques_unmod, ontarget_multis_unmod)
+
+## mean cpm them
+mod_avg_cpm <- rowMeans(edgeR::cpm(mod_counts, log = FALSE))
+unmod_avg_cpm <- rowMeans(edgeR::cpm(unmod_counts, log = FALSE))
+
+summary(mod_cpm)
+stopifnot(all(rownames(mod_avg_cpm) == rownames(unmod_avg_cpm)))
+
+## str(mod_avg_lcpm)
+## > str(mod_avg_lcpm)
+##  Named num [1:25636] 7.59e-14 8.32e-13 1.06e-13 1.74e-13 5.36e-13 ...
+##  - attr(*, "names")= chr [1:25636] "ENSMUSG00000064842.1__Gm26206" "ENSMUSG00000051951.5__Xkr4" "ENSMUSG00000103377.1__Gm37180" "ENSMUSG00000103161.1__Gm38148" ...
+## > 
+
+fd <- data.frame(
+  gene = names(mod_avg_cpm),
+  mod = mod_avg_cpm,
+  unmod = unmod_avg_cpm)
+
+## flag for highlighting pdgfra
+highlight_gene <- "Pdgfra"
+fd$target <- fd$gene == highlight_gene
+stopifnot(sum(fd$target) == 1)
+
+head(fd)
+
+ggplot(fd, aes(x = unmod, y = mod)) +
+  geom_point(aes(color = target), alpha = 0.6) +
+  
+  # large point for Pdgfra
+  geom_point(
+    data = subset(fd, target),
+    aes(x = unmod, y = mod),
+    color = "red",
+    size = 4
+  ) +
+  
+  # label for Pdgfra
+  geom_text(
+    data = subset(fd, target),
+    aes(label = highlight_gene),
+    vjust = -1,
+    color = "red",
+    size = 4.5,
+    fontface = "bold"
+  ) +
+
+    ## scale_x_log10() +
+    ## scale_y_log10() +
+
+  scale_x_log10(
+    breaks       = trans_breaks("log10", function(x) 10^x),
+    labels       = trans_format("log10", math_format(10^.x))
+  ) +
+  scale_y_log10(
+    breaks       = trans_breaks("log10", function(x) 10^x),
+    labels       = trans_format("log10", math_format(10^.x))
+  ) +
+
+    ## manual color scale
+  scale_color_manual(values = c("FALSE" = "grey60", "TRUE" = "red")) +
+  
+  # labels and theme
+  labs(
+    x = "unmod mean CPM across cells",
+    y = "mod mean CPM across cells",
+  ) +
+  theme_bw()
+
+
+```
