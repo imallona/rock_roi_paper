@@ -37,6 +37,11 @@ library(khroma)
 library(dittoSeq)
 library(ggrastr)
 library(edgeR)
+library(tibble)
+library(ggplotify)
+library(grid)
+library(gridExtra)
+
 
 # need to restart every time
 
@@ -72,7 +77,7 @@ sces <- mapply(function(u,v)  {
 }, rdss, names(rdss))
 
 sces <- Reduce(cbind, sces)
-
+sces
 fusion_db_sces_nd<-readRDS("/Users/gimoro/figure_making_paper/rock_roi_paper/08_cell_line_analysis/data/lines_and_patients.rds")$patient
 
 dim(fusion_db_sces_nd) # dim: 21487 5434
@@ -83,8 +88,8 @@ dim(fusion_db_sces_nd) # dim: 21487 5434
 
 ```{r}
 
-knitr::opts_chunk$set(fig.width = 2.7,
-               fig.height = 2.7,
+knitr::opts_chunk$set(fig.width = 5.4,
+               fig.height = 10,
                fig.align = "center",
                include = TRUE,
                dev = c("png","svg"),
@@ -154,8 +159,6 @@ names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","patient","positive","
 clustered_sces_nd<-readRDS(file.path(wd,"clustered_object.rds"))
 
 dim(clustered_sces_nd)
-
-rm(clustered_sces_nd)
 
 names(myscale)<-unique(fusion_db_sces_nd$ident)
 
@@ -237,88 +240,6 @@ plot11<-ggrastr::rasterize(plot11, layers='Point', dpi=1000)
 plot11
 
 ggsave(file=file.path(datadir,"markers.svg"), plot=plot11, width=10, height=2.7)
-
-```
-
-### bwa aln analysis
-
-```{r}
-# 
-# new_bwa_aln <- read.table("/Users/gimoro/figure_making_paper/rock_roi_paper/07_analysis_patient_data/data/bwa_aln_with_cb_ub_annotated_fusion.txt", quote="\"", comment.char="")
-# 
-# colnames(new_bwa_aln)<-c("seqID","patternName","start","CB","UB")
-# 
-# sub_new_bwa_aln<-new_bwa_aln[,c("patternName","start","CB")]
-# sub_new_bwa_aln$CB<-sapply(strsplit(sub_new_bwa_aln$CB,"CB:Z:"),"[",2)
-# 
-# # filtering the start position for the fusions --> want an overlap of at least 10 for both BCR and ABL
-# 
-# filt<-filter(sub_new_bwa_aln,patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2") & start > 10 & start < 170)
-# non_filt<-sub_new_bwa_aln[! sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2"),]
-# 
-# filt_sub_new_bwa_aln<-bind_rows(filt,non_filt)
-# 
-# # counting the alignments for each CB
-# 
-# filt_sub_new_bwa_aln$BCRABL1e14a2<-0
-# filt_sub_new_bwa_aln$BCRABL1e13a2<-0
-# filt_sub_new_bwa_aln$BCRABL1e1a2<-0
-# filt_sub_new_bwa_aln$wt_BCR<-0
-# filt_sub_new_bwa_aln$wt_ABL<-0
-# 
-# # filtering steps
-# 
-# table(filt_sub_new_bwa_aln$patternName)
-# 
-# table(sub_new_bwa_aln$patternName)
-# 
-# table(filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$start)
-# 
-# table(sub_new_bwa_aln[which(sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$start)
-# 
-# 
-# filt_sub_new_bwa_aln$BCRABL1e14a2[which(filt_sub_new_bwa_aln$patternName=="BCRABL1e14a2")]<-1
-# filt_sub_new_bwa_aln$BCRABL1e13a2[which(filt_sub_new_bwa_aln$patternName=="BCRABLe13a2")]<-1
-# filt_sub_new_bwa_aln$BCRABL1e1a2[which(filt_sub_new_bwa_aln$patternName=="BCRABLe1a2")]<-1
-# filt_sub_new_bwa_aln$wt_BCR[which(filt_sub_new_bwa_aln$patternName %in% c("ENST00000359540.7_BCRABLe13a2","ENST00000359540.7_BCRABLe14a2","ENST00000359540.7_BCRABLe1a2"))]<-1
-# filt_sub_new_bwa_aln$wt_ABL[which(filt_sub_new_bwa_aln$patternName %in% c("ENST00000318560.6","ENST00000372348.7"))]<-1
-# 
-# cb_harmonized_sub_output_bwa_aln<-filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$CB %in% colnames(clustered_sces_nd)),]
-# 
-# # have duplicate rows
-# 
-# summed_cb_harmonized_sub_new_bwa_aln<-aggregate(cb_harmonized_sub_output_bwa_aln[4:ncol(cb_harmonized_sub_output_bwa_aln)],cb_harmonized_sub_output_bwa_aln['CB'], FUN=sum)
-# 
-# df<-data.frame(matrix(ncol=length(colnames(summed_cb_harmonized_sub_new_bwa_aln)),nrow=length(setdiff(colnames(clustered_sces_nd),summed_cb_harmonized_sub_new_bwa_aln$CB))))
-# 
-# colnames(df)<-colnames(summed_cb_harmonized_sub_new_bwa_aln)
-# 
-# df$CB<-setdiff(colnames(clustered_sces_nd),cb_harmonized_sub_output_bwa_aln$CB)
-# df$BCRABL1e14a2<-0
-# df$BCRABL1e13a2<-0
-# df$BCRABL1e1a2<-0
-# df$wt_BCR<-0
-# df$wt_ABL<-0
-# 
-# full_summed_cb_harmonized_sub_output_new_bwa_aln<-rbind(summed_cb_harmonized_sub_new_bwa_aln,df)
-# 
-# rownames(full_summed_cb_harmonized_sub_output_new_bwa_aln)<-full_summed_cb_harmonized_sub_output_new_bwa_aln$CB
-# 
-# full_summed_cb_harmonized_sub_output_new_bwa_aln<-full_summed_cb_harmonized_sub_output_new_bwa_aln[colnames(clustered_sces_nd), , drop = FALSE]
-# 
-# # since just want yes or no and not counts and didn't do UMI deduplication --> convert all numbers to 1 or 0
-# 
-# full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e14a2>0),"BCRABL1e14a2"]<-1
-# full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e13a2>0),"BCRABL1e13a2"]<-1
-# full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e1a2>0),"BCRABL1e1a2"]<-1
-# full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_BCR>0),"wt_BCR"]<-1
-# full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_ABL>0),"wt_ABL"]<-1
-# 
-# clustered_sces_nd$new_bwa_aln_BCRABL1e14a2<-full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e14a2
-# clustered_sces_nd$new_bwa_aln_BCRABL1e1a2<-full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e1a2
-# clustered_sces_nd$new_bwa_aln_BCRABL1e13a2<-full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e13a2
-# clustered_sces_nd$new_bwa_aln_wt_BCR<-full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_BCR
-# clustered_sces_nd$new_bwa_aln_wt_ABL<-full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_ABL
 
 ```
 
@@ -425,7 +346,7 @@ summed <- aggregateAcrossCells(monocytes_sce_nd,
 
 summed<-summed[-which(rowSums(assay(summed,"counts"))==0),] # removing genes with zero counts 
 
-monocytes_logcpm<-as.data.frame(cpm(summed,log=TRUE,prior.count=1))
+monocytes_logcpm<-as.data.frame(edgeR::cpm(summed,log=TRUE,prior.count=1))
 
 pearson_corr<-cor(monocytes_logcpm$no,monocytes_logcpm$yes,method="pearson")
 pearson_corr
@@ -449,97 +370,120 @@ ggsave(file=file.path(datadir,"comparison_monocytes.png"), plot=plot1, width=2.7
 
 ```
 
-## Dot plot with monocyte markers
+## Heatmap with monocyte markers
 
 ```{r}
 
-monocytes_sce_nd<-fusion_db_sces_nd[,fusion_db_sces_nd$ident=="monocytes"]
-positive_monocytes_sce_nd<-monocytes_sce_nd[,monocytes_sce_nd$positive_cells_gene_fusion_num_14865_id_6899__BCR_ABL1>0]
-negative_monocytes_sce_nd<-monocytes_sce_nd[,monocytes_sce_nd$positive_cells_gene_fusion_num_14865_id_6899__BCR_ABL1==0]
+levels(fusion_db_sces_nd$ident)<-c(levels(fusion_db_sces_nd$ident),"BCR_ABL1_positive_monocytes")
+levels(fusion_db_sces_nd$ident)<-c(levels(fusion_db_sces_nd$ident),"BCR_ABL1_negative_monocytes")
 
-names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","patient","positive","cluster2","cluster3","tdtom_cds","no_detection","doublets","cluster1")
+fusion_db_sces_nd$ident[which(fusion_db_sces_nd$gene_fusion_num_14865_id_6899__BCR_ABL1>0&fusion_db_sces_nd$ident=="monocytes")]<-"BCR_ABL1_positive_monocytes"
+fusion_db_sces_nd$ident[which(fusion_db_sces_nd$gene_fusion_num_14865_id_6899__BCR_ABL1==0&fusion_db_sces_nd$ident=="monocytes")]<-"BCR_ABL1_negative_monocytes"
 
-grep("17--",rownames(fusion_db_sces_nd))
+fusion_db_sces_nd$positivity<-0
+fusion_db_sces_nd$positivity[which(fusion_db_sces_nd$gene_fusion_num_14865_id_6899__BCR_ABL1>0)]<-1
 
-markers<-c("ENSG00000177455.15--CD19",
-                     "ENSG00000012124.17--CD22",
-                     "ENSG00000010278.15--CD9",
-                     "ENSG00000107447.8--DNTT",
-                     "ENSG00000196549.13--MME",
-                     "ENSG00000134460.18--IL2RA",
-                     "ENSG00000174059.17--CD34",
-                     "ENSG00000198851.10--CD3E",
-                     "ENSG00000173762.8--CD7",
-                     "ENSG00000153563.16--CD8A",
-                     "ENSG00000172116.23--CD8B",
-                     "ENSG00000145649.8--GZMA",
-                     "ENSG00000244734.4--HBB",
-                     "ENSG00000170458.14--CD14",
-                     "ENSG00000005381.8--MPO",
-                     "ENSG00000105383.15--CD33",
-                     "ENSG00000197561.7--ELANE",
-                     "ENSG00000197405.8--C5AR1",
-                     "ENSG00000158869.11--FCER1G",
-                     "ENSG00000090382.7--LYZ",
-                     "ENSG00000166927.13--MS4A7",
-                     "ENSG00000101439.9--CST3",
-                     "ENSG00000114013.16--CD86",
-                     "ENSG00000158481.13--CD1C",
-                     "ENSG00000179639.10--FCER1A",
-                     "ENSG00000239961.3--LILRA4")
+inds<-split(seq_len(ncol(fusion_db_sces_nd)),fusion_db_sces_nd$ident)
+set.seed(1976)
+inds<-lapply(inds, function(u) {
+  sample(u,ifelse(length(u)>=100,100,length(u)),replace=FALSE)
+})
 
-# positive cells
+co<-unlist(inds)
+co <- rev(co)
 
-short_markers<-as.vector(sapply(strsplit(markers,"--"),"[",2))
-short_sces<-positive_monocytes_sce_nd[markers,]
-rownames(short_sces)<-short_markers
+names(myscale)<-c("patient leukemic cells","dendritic cells","NA","myeloid precursors","SUP-B15 cell line","precursor erythocytes","T cells","BCR_ABL1_positive_monocytes","BCR_ABL1_negative_monocytes")
+ann_colors<-list(annotation = myscale[seq_len(length(inds))])
 
-plot11<-dittoDotPlot(short_sces,
-             short_markers,
-             group.by="ident",
-             min.color="grey", 
-             max.color=myscale[["positive"]],
-             scale=FALSE,
-             size=7)+
-  rock_roi_theme()
+col_anno<-colData(fusion_db_sces_nd)[, "ident", drop = FALSE] %>% as.data.frame()
+col_anno<-col_anno[co, , drop = FALSE]
+rownames(col_anno)<-colnames(fusion_db_sces_nd)[co]
 
-plot11<-ggrastr::rasterize(plot11, layers='Point', dpi=1000)
+lcounts<-as.matrix(logcounts(fusion_db_sces_nd))
+gene_list<-intersect(markers, rownames(lcounts))
 
-plot11
+col_anno <- colData(fusion_db_sces_nd)[, "ident", drop = FALSE] %>% as.data.frame()
+col_anno$positivity <- fusion_db_sces_nd$positivity
+col_anno <- col_anno[co, , drop = FALSE]
+rownames(col_anno) <- colnames(fusion_db_sces_nd)[co]
 
-ggsave(file=file.path(datadir,"positive_monocyte_markers.svg"), plot=plot11, width=3.5, height=2.7)
+ann_colors <- list(
+  ident = myscale[seq_len(length(inds))],
+  positivity = c("0" = "white", "1" = "black")
+)
 
-# negative cells
+lcounts_sub <- lcounts[gene_list, co]
 
-short_markers<-as.vector(sapply(strsplit(markers,"--"),"[",2))
-short_sces<-negative_monocytes_sce_nd[markers,]
-rownames(short_sces)<-short_markers
+keep <- apply(lcounts_sub, 1, sd) > 0
+lcounts_sub <- lcounts_sub[keep, , drop = FALSE]
 
-plot11<-dittoDotPlot(short_sces,
-             short_markers,
-             group.by="ident",
-             min.color="grey", 
-             max.color=myscale[["positive"]],
-             scale=FALSE,
-             size=7)+
-  rock_roi_theme()
-
-plot11<-ggrastr::rasterize(plot11, layers='Point', dpi=1000)
-
-plot11
-
-ggsave(file=file.path(datadir,"negative_monocyte_markers.svg"), plot=plot11, width=3.5, height=2.7)
+# heatmap
+pheatmap(lcounts_sub,
+         show_rownames = TRUE,
+         show_colnames = FALSE,
+         scale = "none",
+         annotation_col = col_anno,
+         clustering_distance_rows = "correlation",
+         cluster_rows = TRUE,
+         treeheight_row = 50,
+         cluster_cols = FALSE,
+         fontsize_row = 9,
+         annotation_colors = ann_colors)
 
 ```
 
-
-### SessionInfo()
+# Adding HVGs
 
 ```{r}
 
-sessionInfo()
+mgv<-modelGeneVar(fusion_db_sces_nd)
+top_hvg<-rownames(mgv[order(mgv$bio,decreasing=TRUE),])[1:1000]
+
+gene_list<-unique(c(top_hvg,markers))
+
+lcounts<-as.matrix(logcounts(fusion_db_sces_nd))
+mat<-lcounts[intersect(gene_list,rownames(lcounts)),,drop=FALSE]
+
+inds<-split(seq_len(ncol(fusion_db_sces_nd)),fusion_db_sces_nd$ident)
+set.seed(1976)
+inds<-lapply(inds,function(u)sample(u,min(length(u),100),replace=FALSE))
+co<-unlist(inds)
+mat<-mat[,co,drop=FALSE]
+
+#dropzero-variancerowsandcols
+row_vars<-apply(mat,1,var)
+col_vars<-apply(mat,2,var)
+mat<-mat[row_vars>0,col_vars>0,drop=FALSE]
+
+#buildannotationwithidentandpositivity
+col_anno<-data.frame(
+ident=factor(fusion_db_sces_nd$ident[co[col_vars>0]]),
+positivity=fusion_db_sces_nd$positivity[co[col_vars>0]]
+)
+rownames(col_anno)<-colnames(mat)
+
+#annotationcolors
+ann_colors<-list(
+ident=myscale[levels(col_anno$ident)],
+positivity=c("0"="white","1"="black")
+)
+
+labels_row<-ifelse(rownames(mat)%in%markers,rownames(mat),"")
+
+pheatmap(mat,
+show_rownames=TRUE,
+labels_row=labels_row,
+show_colnames=FALSE,
+scale="none",
+annotation_col=col_anno,
+clustering_distance_rows="correlation",
+clustering_distance_cols="correlation",
+cluster_rows=TRUE,
+cluster_cols=FALSE,
+treeheight_row=50,
+fontsize_row=6,
+annotation_colors=ann_colors)
+
 
 ```
-
-
 
