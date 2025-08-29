@@ -1,4 +1,4 @@
-# Aim
+# Structure
 
 - `00_mixing`: mouse + human cell mixing experiment, with GFP and tdTomato as captures. Aim: testing the RoCK and ROI library generation
 - `01_pdgfra_experiment`: the mouse experiment with chr5 PDGFRA and GFP captures
@@ -7,6 +7,11 @@
 - `06_Sankey_plots`: code to generate Sankey plots for the two mixing experiments
 - `07_leukemia_patient`: analysis of BCR-ABL patient data 
 - `08_leukemia_cell_lines`: analysis of BCR-ABL cell line mixing experiment
+
+# Branches
+
+- `leukemia`-related: leukemia usecases
+- `troubleshooting`: extra QCs and checks across experiments
 
 # Other resources
 
