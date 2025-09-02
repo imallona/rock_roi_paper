@@ -1,0 +1,424 @@
+---
+title: "slopegraphs_all_experiments"
+format:
+  html:
+    toc: true
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
+---
+
+
+## Load packages, load data
+
+```{r, warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+#install.packages("https://cran.r-project.org/src/contrib/Archive/Matrix/Matrix_1.6-1.tar.gz", repos = NULL, type = "source")
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(edgeR)
+  library(scales)
+  library(ggthemes)
+})
+
+```
+
+## Setting up knitr
+
+```{r}
+knitr::opts_chunk$set(fig.width = 10,
+               fig.height = 10,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache=TRUE,
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+```
+
+# Themes
+
+```{r}
+
+rock_roi_theme<-function(){
+  theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        aspect.ratio=1,
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+}
+
+rock_roi_theme_multiple_panels<-function(){
+    theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        aspect.ratio=1,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=7),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.border = element_rect(colour = "black", fill = NA))
+}
+
+```
+
+# Start with Pdgfra
+
+```{r}
+
+pdgfra<-readRDS("/Users/gimoro/figure_making_paper/rock_roi_paper/01_pdgfra_experiment/data/sce_qc-filtered-nodoublets-clustered-annotated.rds")
+
+mod <- pdgfra[,pdgfra$sample_id=="rockroi"]
+unmod <- pdgfra[,pdgfra$sample_id=="unmod"]
+
+uniques_mod <- assay(mod, "wta") + assay(mod, "tso_off_and_ontarget_unique")
+uniques_unmod <- assay(unmod, "wta") + assay(unmod, "tso_off_and_ontarget_unique")
+
+multis_mod <- assay(altExp(mod, "wta_ontarget_multi")) + assay(altExp(mod, "tso_ontarget_multi"))
+multis_unmod <- assay(altExp(unmod, "wta_ontarget_multi")) + assay(altExp(unmod, "tso_ontarget_multi"))
+
+pd_features <- c('roi_4_chr5:75166756-75166771',
+                 'roi_4_chr5:75167837-75167882',
+                 'roi_5_chr5:75167954-75167967',
+                 'roi_5_chr5:75170495-75170544',
+                 'roi_6_chr5:75170652-75170666',
+                 'roi_6_chr5:75170762-75170808',
+                 'roi_13_chr5:75180257-75180272',
+                 'roi_13_chr5:75180999-75181044',
+                 'roi_14_chr5:75181096-75181110',
+                 'roi_14_chr5:75181522-75181569',
+                 'roi_15_chr5:75181661-75181675',
+                 'roi_15_chr5:75182976-75183022',
+                 'roi_16_chr5:75183128-75183142',
+                 'roi_16_chr5:75185514-75185560')
+
+
+egfp_features <- c("h2b_egfp:1-378",
+          "linker_egfp:379-396",
+          "egfp_before_roi_egfp:397-708",
+          "roi_egfp_egfp:709-769",
+          "between_roi_egfp:770-1049",
+          "capture_egfp_egfp:1050-1074",
+          "3_to_capture_egfp:1075-1113",
+          "3_utr_egfp_egfp:1114-1425")
+
+gfp_mod <- colSums(multis_mod[egfp_features,])
+pdgfra_mod <- colSums(multis_mod[pd_features,])
+ontarget_multis_mod <- rbind(gfp_mod, pdgfra_mod)
+rownames(ontarget_multis_mod) <- c('eGFP', 'Pdgfra')
+print('caution merging unique features with multimapping features!')
+mod_counts <- rbind(uniques_mod, ontarget_multis_mod)
+
+# same for unmod
+egfp_unmod <- colSums(multis_unmod[egfp_features,])
+pdgfra_unmod <- colSums(multis_unmod[pd_features,])
+ontarget_multis_unmod <- rbind(egfp_unmod, pdgfra_unmod)
+rownames(ontarget_multis_unmod) <- c('eGFP', 'Pdgfra')
+unmod_counts <- rbind(uniques_unmod, ontarget_multis_unmod)
+
+## mean cpm them
+mod_avg_cpm <- rowMeans(edgeR::cpm(mod_counts, log = FALSE))
+unmod_avg_cpm <- rowMeans(edgeR::cpm(unmod_counts, log = FALSE))
+
+summary(mod_avg_cpm)
+stopifnot(all(rownames(mod_avg_cpm) == rownames(unmod_avg_cpm)))
+
+## str(mod_avg_lcpm)
+## > str(mod_avg_lcpm)
+##  Named num [1:25636] 7.59e-14 8.32e-13 1.06e-13 1.74e-13 5.36e-13 ...
+##  - attr(*, "names")= chr [1:25636] "ENSMUSG00000064842.1__Gm26206" "ENSMUSG00000051951.5__Xkr4" "ENSMUSG00000103377.1__Gm37180" "ENSMUSG00000103161.1__Gm38148" ...
+## > 
+
+fd <- data.frame(
+  gene = names(mod_avg_cpm),
+  mod = mod_avg_cpm,
+  unmod = unmod_avg_cpm)
+
+## flag for highlighting pdgfra
+highlight_gene <- "Pdgfra"
+fd$target <- fd$gene == highlight_gene
+stopifnot(sum(fd$target) == 1)
+
+head(fd)
+
+p1<-ggplot(fd, aes(x = unmod, y = mod)) +
+  geom_point(aes(color = target), alpha = 0.6,size=0.3) +
+  
+  # large point for Pdgfra
+  geom_point(
+    data = subset(fd, target),
+    aes(x = unmod, y = mod),
+    color = "red",
+    size = 1
+  ) +
+  
+  # label for Pdgfra
+  geom_text(
+    data = subset(fd, target),
+    aes(label = highlight_gene),
+    vjust = -1,
+    color = "red",
+    size = 1,
+    fontface = "bold"
+  ) +
+
+    ## scale_x_log10() +
+    ## scale_y_log10() +
+
+  scale_x_log10(
+    breaks       = trans_breaks("log10", function(x) 10^x),
+    labels       = trans_format("log10", math_format(10^.x))
+  ) +
+  scale_y_log10(
+    breaks       = trans_breaks("log10", function(x) 10^x),
+    labels       = trans_format("log10", math_format(10^.x))
+  ) +
+
+    ## manual color scale
+  scale_color_manual(values = c("FALSE" = "grey60", "TRUE" = "red")) +
+  
+  # labels and theme
+  labs(
+    x = "untargeted (unmod) gene expression (mean CPM across cells)",
+    y = "targeted (RoCK & ROI) gene expression (mean CPM across cells)",
+  ) +
+  theme_bw() + 
+  rock_roi_theme()
+
+plot1<-ggrastr::rasterize(p1, layers='Point', dpi=1000)
+plot1
+ggsave(file=file.path("pdgfra_scatter.svg"), plot=plot1, width=2.7, height=2.7)
+
+rm(pdgfra,mod_avg_cpm,unmod_avg_cpm,mod,unmod,pdgfra_mod,pdgfra_unmod,egfp_unmod)
+
+```
+
+# Same for mixing experiment
+
+```{r}
+
+mixing<-readRDS("/Users/gimoro/figure_making_paper/rock_roi_paper/00_mixing_experiment/data/sce_nd.rds")
+
+mod <- mixing[,mixing$sample_id=="mixing_rockroi"]
+unmod <- mixing[,mixing$sample_id=="mixing_unmod"]
+
+uniques_mod <- assay(mod, "wta") + assay(mod, "tso_off_and_ontarget_unique")
+uniques_unmod <- assay(unmod, "wta") + assay(unmod, "tso_off_and_ontarget_unique")
+
+multis_mod <- assay(altExp(mod, "wta_ontarget_multi")) + assay(altExp(mod, "tso_ontarget_multi"))
+multis_unmod <- assay(altExp(unmod, "wta_ontarget_multi")) + assay(altExp(unmod, "tso_ontarget_multi"))
+rownames(assay(altExp(mixing)))
+tdtomato_features <- c('regulatory_region_tdtomato',
+                       '5_utr_tdtomato_wpre',
+                       '3_utr_tdtomato_wpre',
+                       '5_to_roi_tdtomato',
+                       'roi_1_tdtomato',
+                       'roi_2_tdtomato',
+                       'roi_3_tdtomato',
+                       'roi_4_tdtomato',
+                       'between_roi_1',
+                       'between_roi_2',
+                       'between_roi_3',
+                       'rock_tdtomato',
+                       'capture_sequence_double_egfp_tdtom')
+                  
+egfp_features <- c('regulatory_region_egfp',
+                   '5_utr_egfp_wpre',
+                   '3_utr_egfp_wpre',
+                   '5_to_roi_egfp',
+                   'roi_egfp',
+                   'rock_egfp',
+                   'capture_sequence_double_egfp_egfp')
+                   
+gfp_mod <- colSums(multis_mod[egfp_features,])
+tdtomato_mod <- colSums(multis_mod[tdtomato_features,])
+ontarget_multis_mod <- rbind(gfp_mod, tdtomato_mod)
+rownames(ontarget_multis_mod) <- c('eGFP', 'tdtomato')
+print('caution merging unique features with multimapping features!')
+mod_counts <- rbind(uniques_mod, ontarget_multis_mod)
+
+# same for unmod
+tdtomato_unmod <- colSums(multis_unmod[tdtomato_features,])
+egfp_unmod <- colSums(multis_unmod[egfp_features,])
+ontarget_multis_unmod <- rbind(egfp_unmod, tdtomato_unmod)
+rownames(ontarget_multis_unmod) <- c('eGFP', 'tdtomato')
+unmod_counts <- rbind(uniques_unmod, ontarget_multis_unmod)
+
+## mean cpm them
+mod_avg_cpm <- rowMeans(edgeR::cpm(mod_counts, log = FALSE))
+unmod_avg_cpm <- rowMeans(edgeR::cpm(unmod_counts, log = FALSE))
+
+summary(mod_avg_cpm)
+stopifnot(all(rownames(mod_avg_cpm) == rownames(unmod_avg_cpm)))
+
+## str(mod_avg_lcpm)
+## > str(mod_avg_lcpm)
+##  Named num [1:25636] 7.59e-14 8.32e-13 1.06e-13 1.74e-13 5.36e-13 ...
+##  - attr(*, "names")= chr [1:25636] "ENSMUSG00000064842.1__Gm26206" "ENSMUSG00000051951.5__Xkr4" "ENSMUSG00000103377.1__Gm37180" "ENSMUSG00000103161.1__Gm38148" ...
+## > 
+
+fd <- data.frame(
+  gene = names(mod_avg_cpm),
+  mod = mod_avg_cpm,
+  unmod = unmod_avg_cpm)
+
+## flag for highlighting genes
+highlight_gene <- c("tdtomato", "eGFP")
+fd$target <- ifelse(fd$gene %in% highlight_gene, fd$gene, NA)  # store gene names
+
+p2<-ggplot(fd, aes(x = unmod, y = mod)) +
+  geom_point(aes(color = target), alpha = 0.6,size=0.3) +
+  
+  # larger points for highlighted genes
+  geom_point(
+    data = subset(fd, !is.na(target)),
+    aes(color = target),
+    size = 1
+  ) +
+  
+  # text labels for highlighted genes
+  geom_text(
+    data = subset(fd, !is.na(target)),
+    aes(label = target, color = target),
+    vjust = -1,
+    size = 1,
+    fontface = "bold",
+    show.legend = FALSE
+  ) +
+  
+  scale_x_log10(
+    breaks = trans_breaks("log10", function(x) 10^x),
+    labels = trans_format("log10", math_format(10^.x))
+  ) +
+  scale_y_log10(
+    breaks = trans_breaks("log10", function(x) 10^x),
+    labels = trans_format("log10", math_format(10^.x))
+  ) +
+  
+  scale_color_manual(
+    values = c("tdtomato" = "red", "eGFP" = "red"),
+    na.value = "grey60"
+  ) +
+  
+  labs(
+    x = "untargeted (unmod) gene expression (mean CPM across cells)",
+    y = "targeted (RoCK & ROI) gene expression (mean CPM across cells)",    color = "Gene"
+  ) +
+  theme_bw() +
+  rock_roi_theme()
+
+rm(egfp_unmod,tdtomato_mod,tdtomato_unmod,gfp_mod,mod,unmod,unmod_avg_cpm,mod_avg_cpm)
+
+plot2<-ggrastr::rasterize(p2, layers='Point', dpi=1000)
+
+ggsave(file=file.path("mixing_scatter.svg"), plot=plot2, width=2.7, height=2.7)
+
+
+```
+
+# Same for HeLa  experiment
+
+```{r}
+
+datadir_unmod_downsampled<-"/Users/gimoro/figure_making_paper/rock_roi_paper/09_hela_analysis/data/unmod_1_downsampled"
+datadir_mod<-"/Users/gimoro/figure_making_paper/rock_roi_paper/09_hela_analysis/data/mod_7"
+
+unmod<-readRDS(paste0(datadir_unmod_downsampled,"/sce_qc-filtered-nodoublets.rds"))
+mod<-readRDS(paste0(datadir_mod,"/sce_qc-filtered-nodoublets.rds"))
+
+uniques_mod <- assay(mod, "wta") + assay(mod, "tso_off_and_ontarget_unique")
+uniques_unmod <- assay(unmod, "wta") + assay(unmod, "tso_off_and_ontarget_unique")
+
+# in this case we just care about the uniques! 
+
+mod_avg_cpm   <- rowMeans(edgeR::cpm(uniques_mod,   log = FALSE))
+unmod_avg_cpm <- rowMeans(edgeR::cpm(uniques_unmod, log = FALSE))
+
+stopifnot(all(rownames(uniques_mod) == rownames(uniques_unmod)))
+
+summary(mod_avg_cpm)
+
+fd <- data.frame(
+  gene  = names(mod_avg_cpm),
+  mod   = mod_avg_cpm,
+  unmod = unmod_avg_cpm
+)
+
+highlight_gene<-c("RAB4B","FOXP3","KRT23","SCN9A","ADRA1D","EHD3","SOX9")
+fd$target <- ifelse(fd$gene %in% highlight_gene, fd$gene, NA)  # store gene names
+
+plot3 <- ggplot(fd, aes(x = unmod, y = mod)) +
+  geom_point(aes(color = target), alpha = 0.6, size = 0.3) +
+  
+  geom_point(
+    data = subset(fd, !is.na(target)),
+    aes(color = target),
+    size = 1
+  ) +
+  
+  geom_text_repel(
+    data = subset(fd, !is.na(target)),
+    aes(label = target, color = target),
+    size = 1,
+    fontface = "bold",
+    show.legend = FALSE,
+    max.overlaps = 20,    
+    box.padding = 0.5,    
+    point.padding = 0.3   
+  ) +
+  
+  scale_x_log10(
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+  ) +
+  scale_y_log10(
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+  ) +
+  
+  scale_color_manual(
+    values = c("RAB4B"="red",
+               "FOXP3"="red",
+               "KRT23"="red",
+               "SCN9A"="red",
+               "ADRA1D"="red",
+               "EHD3"="red",
+               "SOX9"="red"),
+    na.value = "grey60"
+  ) +
+  
+  labs(
+    x = "untargeted (unmod) gene expression (mean CPM across cells)",
+    y = "targeted (RoCK & ROI) gene expression (mean CPM across cells)",
+    color = "Gene"
+  ) +
+  theme_bw() +
+  rock_roi_theme()
+
+plot3
+
+plot3<-ggrastr::rasterize(plot3, layers='Point', dpi=1000)
+
+ggsave(file=file.path("HeLa_scatter.svg"), plot=plot3, width=2.7, height=2.7)
+
+
+```
+
+
