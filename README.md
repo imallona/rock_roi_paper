@@ -40,6 +40,6 @@ MIT
 
 # Contact
 
-- giulia.moro2 ta uzh.ch
+- giulia.moro2 at uzh.ch
 - mark.robinson at mls.uzh.ch
-- izaskun.mallona aa gmail dot com
+- izaskun.mallona at gmail dot com
