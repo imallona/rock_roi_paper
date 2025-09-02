@@ -1,0 +1,41 @@
+simulate: False
+
+Rbin: R
+STAR: STAR
+featureCounts: featureCounts
+bedtools: bedtools
+bedGraphToBigWig: bedGraphToBigWig
+faSize: faSize
+nthreads: 5
+max_mem_mb: 20000
+
+## mind to update this to the full or relative path the git repo is cloned to
+rock_method_path: "."
+
+working_dir: /home/gmoro/mapping_hela_experiment/alignment_with_pipeline/unmod_1
+
+gtf: /home/gmoro/mapping_hela_experiment/alignment_with_pipeline/gtf_generation/combined.gtf
+genome: /home/gmoro/mapping_hela_experiment/genome/GRCh38.p13.genome.fa
+
+# i.e. cDNA read length minus 1
+sjdbOverhang: 180
+
+## run mode, one of these (please see the README / docs):
+##   'tso off- and ontarget unique'
+##   'tso ontarget_multi'
+##   'all'
+run_mode: 'all'
+
+## GTF `source` field identifying on-target rock- or roi- features
+capture_gtf_column_2_pattern : 'captured'
+featurecounts_t: 'exon' ## feature counting unit for featurecounts
+featurecounts_g: 'gene_id' ## feature grouping unit for featurecounts
+
+## these are not used by the simulations, but must be updated with
+##   the experimental design for sequenced data
+samples:
+  - name: unmod_1
+    uses:
+      cb_umi_fq: /home/gmoro/fastqs_hela_cells/384021_1-Unmod_1_S1_R1_001.fastq.gz
+      cdna_fq: /home/gmoro/fastqs_hela_cells/384021_1-Unmod_1_S1_R2_001.fastq.gz
+      whitelist: 384x3  ## so full CB allowedlist

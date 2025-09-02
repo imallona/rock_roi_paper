@@ -1,0 +1,205 @@
+---
+title: "09_HeLa_d_mod_7_filtering"
+format:
+  html:
+    toc: true
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+#install.packages("https://cran.r-project.org/src/contrib/Archive/Matrix/Matrix_1.6-1.tar.gz", repos = NULL, type = "source")
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(plotROC)
+library(here)
+library(SingleCellExperiment)
+library(Matrix)
+library(scDblFinder)
+
+datadir<-"/Users/gimoro/figure_making_paper/rock_roi_paper/09_hela_analysis/data/mod_7"
+
+sce<-readRDS(file.path(datadir, "mod_7.sce"))
+
+genes <- read.table(file.path(datadir,'wta','features.tsv'), header = FALSE)
+rownames(sce) <- genes$V2
+
+```
+
+### Themes
+
+```{r}
+
+rock_roi_theme<-function(){
+  theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        aspect.ratio=1,
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "white"),
+        plot.background = element_rect(fill = "white"),
+        panel.border = element_rect(color = "black", fill = NA))
+}
+
+rock_roi_theme_multiple_panels<-function(){
+    theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        aspect.ratio=1,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.border = element_rect(colour = "black", fill = NA))
+}
+
+```
+
+## Do some QC things (on WTA)
+
+```{r}
+
+gene_names <- rownames(sce)
+k <- grepl("^MT", gene_names)
+gene_type <- ifelse(k, "human_mito", "human_gene")
+
+# Assign to rowData
+
+rowData(sce)$gene_type <- gene_type
+
+# Now run QC metrics
+
+sce <- addPerCellQCMetrics(
+  sce,
+  assay.type = "wta",
+  subsets = list(
+    human_gene = rowData(sce)$gene_type == "human_gene",
+    human_mito = rowData(sce)$gene_type == "human_mito"
+  )
+)
+
+cd <- as.data.frame(colData(sce))
+
+plot1<-ggplot(cd, aes(x = total,
+               y = detected,
+               colour = subsets_human_mito_percent)) +
+  geom_point(size=0.8,alpha=0.5,stroke=NA) +
+  scale_x_log10() + scale_y_log10() +
+  theme_bw()+
+  theme(
+    axis.text = element_text(size = 15),
+    axis.title=element_text(size=20,face="bold"),
+    strip.text=element_text(size=15,face="bold"))+
+    rock_roi_theme_multiple_panels()+
+  labs(colour="percent mito")
+
+plot1<-ggrastr::rasterize(plot1, layers='Point', dpi=1000)
+
+plot1
+
+ggsave(file=file.path(datadir,"qc1.svg"), plot=plot1, width=2.7, height=2.7)
+
+plot2<-ggplot(cd, aes(x = total, 
+               y = subsets_human_mito_percent)) +
+  geom_point(size=0.8,alpha=0.5,stroke=NA) + scale_x_log10() + scale_y_sqrt() +
+  geom_hline(yintercept=c(6,25), colour="orange") +
+  geom_vline(xintercept=c(10000), colour="orange") +
+   theme_bw()+
+  theme(
+    axis.text = element_text(size = 15),
+    axis.title=element_text(size=20,face="bold"),
+    strip.text=element_text(size=15,face="bold"))+
+    rock_roi_theme_multiple_panels()
+
+plot2<-ggrastr::rasterize(plot2, layers='Point', dpi=1000)
+
+plot2
+
+ggsave(file=file.path(datadir,"qc2.svg"), plot=plot2, width=2.7, height=2.7)
+
+
+plot3<-ggplot(cd, aes(x = detected, 
+               y = subsets_human_mito_percent)) +
+  geom_point(size=0.8,alpha=0.5,stroke=NA) + scale_x_log10() + scale_y_sqrt() +
+   theme_bw()+
+  theme(
+    axis.text = element_text(size = 15),
+    axis.title=element_text(size=20,face="bold"),
+    strip.text=element_text(size=15,face="bold"))+
+    rock_roi_theme_multiple_panels()
+
+plot3<-ggrastr::rasterize(plot3, layers='Point', dpi=1000)
+
+plot3
+
+ggsave(file=file.path(datadir,"qc3.svg"), plot=plot3, width=2.7, height=2.7)
+
+
+
+# crude filter --> only for cells, not for genes
+dim(sce)
+sces <- sce[,sce$total>10000 & sce$subsets_human_mito_percent>6 & sce$subsets_human_mito_percent<25]
+
+dim(sces)
+
+cds <- colData(sces) %>% as.data.frame
+
+# save filtered to RDS
+#saveRDS(sces, file.path(datadir, "sce_qc-filtered.rds"))
+
+# remove extra things
+rm(cd, cds, sce); gc()
+
+```
+
+# Remove doublets
+
+```{r}
+
+sces_adj <- sces
+counts(sces_adj) <- assay(sces, 1)
+
+sces_nd <- scDblFinder(sces_adj)
+sces_nd <- sces_nd[,sces_nd$scDblFinder.class=="singlet"]
+
+# save filtered to RDS
+#saveRDS(sces_nd, file.path(datadir, "sce_qc-filtered-nodoublets.rds"))
+
+```
+
+## Session info
+
+```{r}
+
+sessionInfo()
+
+```
+
