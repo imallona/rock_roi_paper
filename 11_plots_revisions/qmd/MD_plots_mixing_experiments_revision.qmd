@@ -1,0 +1,384 @@
+---
+title: "MD_plots_mixing_experiments"
+author: "Mark Robinson, Izaskun Mallona & Giulia Moro"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    keep_md: true
+---
+
+```{r,warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(googlesheets4)
+library(readr)
+library(plotROC)
+library(here)
+library(RColorBrewer)
+library(ggnewscale)
+library(scales)
+library(rmarkdown)
+library(khroma)
+library(irlba)
+library(viridis)
+library(gridExtra)
+library(quarto)
+library(Biostrings)
+library(BSgenome)
+library(rtracklayer)
+library(Matrix)
+library(Matrix.utils)
+library(edgeR)
+library(DESeq2)
+library(ggrepel)
+library(corrplot)
+library(GGally)
+
+packageVersion("Matrix")
+
+```
+
+
+### Setting up knitr 
+
+```{r}
+
+knitr::opts_chunk$set(fig.width = 2.7,
+               fig.height = 2.7,
+               fig.align = "center",
+               include = TRUE,
+               dev = c("png","svg"),
+               cache=TRUE,
+               cache.lazy = FALSE,
+               warning = TRUE,
+               message = TRUE)
+
+```
+
+### Themes
+
+```{r}
+
+rock_roi_theme<-function(){
+  theme(axis.text = element_text(size=7), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=7),
+        aspect.ratio=1, 
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+}
+
+rock_roi_theme_multiple_panels<-function(){
+    theme(axis.text = element_text(size=7), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        aspect.ratio=1,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.title=element_text(size=5,face="bold"),
+        legend.text=element_text(size=5),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.border = element_rect(colour = "black", fill = NA))
+}
+
+```
+
+### Defining colors
+
+```{r}
+
+myscale<-c(color("muted")(9), gray="darkgrey", 
+             black = "black", darkorange = "darkorange",
+             yellowgreen = "yellowgreen")
+
+# defining colors for samples and for species
+
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtom_cds","no_detection","doublets","unmod_n1","high")
+
+#plot(1:13, col=myscale, pch=19, cex=4)
+
+```
+
+# Plots for second mixing experiment
+
+### Loading data for second mixing experiment
+
+```{r}
+
+rdss <- dir(here("00_mixing_experiment"), "^mixing.*rds", 
+            recursive = TRUE, full.names = TRUE)
+
+datadir <- dirname(rdss)[1] # folder where the .rds files are 
+
+sce_nd<-readRDS(file.path(datadir, "sce_nd.rds"))
+
+mouse<-sce_nd[,sce_nd$species=="mouse"]
+human<-sce_nd[,sce_nd$species=="human"]
+
+# also only want mouse genes in mouse and human genes in human
+
+mouse<-mouse[grep("^ENSMUS",rownames(mouse)),]
+human<-human[grep("^ENSG",rownames(human))]
+
+```
+
+### Plots for mouse
+
+```{r}
+
+summed<-aggregateAcrossCells(mouse, 
+    ids=colData(mouse)[,c("sample_id")],
+    use.assay.type="wta")
+
+summed<-summed[-which(rowSums(assay(summed,"wta"))==0),]
+
+assay(summed,"counts")<-assay(summed,"wta")
+
+sf<-librarySizeFactors(summed)
+
+norm_counts<-t(t(counts(summed))/sf)
+
+samples<-c("mixing_rock","mixing_rockroi","mixing_unmod","mixing_unmod_roi")
+
+for (i in 1:(length(samples)-1)){
+  for (j in (i+1):length(samples)){
+    s1<-samples[i]
+    s2<-samples[j]
+    
+    A<-rowMeans(log2(norm_counts[,c(s1, s2)]+1))
+    M<-log2(norm_counts[,s1] + 1) - log2(norm_counts[,s2]+1)
+    
+    df<-data.frame(A=A,M=M)
+    
+    p<-ggplot(df, aes(A,M))+
+      geom_point(size=1)+
+      theme_bw()+
+      rock_roi_theme()+
+      labs(
+        title=paste("mouse_second_mixing",s1,"vs",s2),
+        x="Average expression (log2)",
+        y="Log2 fold change"
+      )
+    
+    print(p)  
+    
+    p<-ggrastr::rasterize(p, layers = "Point", dpi = 1000)
+    
+    ggsave(
+      filename = file.path(paste0("mouse_second_mixing",s1, "_vs_", s2, ".svg")),
+      plot = p,
+      width = 4,
+      height = 4
+    )
+  }
+}
+
+```
+
+### Plots for human
+
+```{r}
+
+summed<-aggregateAcrossCells(human, 
+    ids=colData(human)[,c("sample_id")],
+    use.assay.type="wta")
+
+summed<-summed[-which(rowSums(assay(summed,"wta"))==0),]
+
+assay(summed,"counts")<-assay(summed,"wta")
+
+sf<-librarySizeFactors(summed)
+
+norm_counts<-t(t(counts(summed))/sf)
+
+samples<-c("mixing_rock","mixing_rockroi","mixing_unmod","mixing_unmod_roi")
+
+for (i in 1:(length(samples)-1)){
+  for (j in (i+1):length(samples)){
+    s1<-samples[i]
+    s2<-samples[j]
+    
+    A<-rowMeans(log2(norm_counts[,c(s1, s2)]+1))
+    M<-log2(norm_counts[,s1] + 1) - log2(norm_counts[,s2]+1)
+    
+    df<-data.frame(A=A,M=M)
+    
+    p<-ggplot(df, aes(A,M))+
+      geom_point(size=1)+
+      theme_bw()+
+      rock_roi_theme()+
+      labs(
+        title=paste("mouse_second_mixing",s1,"vs",s2),
+        x="Average expression (log2)",
+        y="Log2 fold change"
+      )
+    
+    print(p) 
+    
+    p<-ggrastr::rasterize(p, layers = "Point", dpi = 1000)
+    
+    ggsave(
+      filename = file.path(paste0("human_second_mixing",s1, "_vs_", s2, ".svg")),
+      plot = p,
+      width = 4,
+      height = 4
+    )
+  }
+}
+
+```
+
+# Plots for first mixing experiment
+
+### Loading data for first mixing experiment
+
+```{r}
+
+rdss <- dir(here("03_first_mixing_experiment"), ".*rds", 
+            recursive = TRUE, full.names = TRUE)
+
+datadir <- dirname(rdss)[1] # folder where the .rds files are 
+
+sce_nd<-readRDS(file.path(datadir, "sce_nd.rds"))
+
+mouse<-sce_nd[,sce_nd$species=="mouse"]
+human<-sce_nd[,sce_nd$species=="human"]
+
+# also only want mouse genes in mouse and human genes in human
+
+mouse<-mouse[grep("^ENSMUS",rownames(mouse)),]
+human<-human[grep("^ENSG",rownames(human))]
+
+```
+
+### Plots for mouse
+
+```{r}
+
+summed<-aggregateAcrossCells(mouse, 
+    ids=colData(mouse)[,c("sample_id")],
+    use.assay.type="wta")
+
+summed<-summed[-which(rowSums(assay(summed,"wta"))==0),]
+
+assay(summed,"counts")<-assay(summed,"wta")
+
+sf<-librarySizeFactors(summed)
+
+norm_counts<-t(t(counts(summed))/sf)
+
+samples<-c("unmod","unmod_n1")
+
+for (i in 1:(length(samples)-1)){
+  for (j in (i+1):length(samples)){
+    s1<-samples[i]
+    s2<-samples[j]
+    
+    A<-rowMeans(log2(norm_counts[,c(s1, s2)]+1))
+    M<-log2(norm_counts[,s1] + 1) - log2(norm_counts[,s2]+1)
+    
+    df<-data.frame(A=A,M=M)
+    
+    p<-ggplot(df, aes(A,M))+
+      geom_point(size=1)+
+      theme_bw()+
+      rock_roi_theme()+
+      labs(
+        title=paste(s1,"vs",s2),
+        x="Average expression (log2)",
+        y="Log2 fold change"
+      )
+    
+    print(p)  
+    
+    p<-ggrastr::rasterize(p, layers = "Point", dpi = 1000)
+    
+    ggsave(
+      filename = file.path(paste0("mouse_first_mixing",s1, "_vs_", s2, ".svg")),
+      plot = p,
+      width = 4,
+      height = 4
+    )
+  }
+}
+
+```
+
+### Plots for human
+
+```{r}
+
+summed<-aggregateAcrossCells(human, 
+    ids=colData(human)[,c("sample_id")],
+    use.assay.type="wta")
+
+summed<-summed[-which(rowSums(assay(summed,"wta"))==0),]
+
+assay(summed,"counts")<-assay(summed,"wta")
+
+sf<-librarySizeFactors(summed)
+
+norm_counts<-t(t(counts(summed))/sf)
+
+samples<-c("unmod","unmod_n1")
+
+for (i in 1:(length(samples)-1)){
+  for (j in (i+1):length(samples)){
+    s1<-samples[i]
+    s2<-samples[j]
+    
+    A<-rowMeans(log2(norm_counts[,c(s1, s2)]+1))
+    M<-log2(norm_counts[,s1] + 1) - log2(norm_counts[,s2]+1)
+    
+    df<-data.frame(A=A,M=M)
+    
+    p<-ggplot(df, aes(A,M))+
+      geom_point(size=1)+
+      theme_bw()+
+      rock_roi_theme()+
+      labs(
+        title=paste(s1,"vs",s2),
+        x="Average expression (log2)",
+        y="Log2 fold change"
+      )
+    
+    print(p)  
+    
+    p<-ggrastr::rasterize(p, layers = "Point", dpi = 1000)
+    
+    ggsave(
+      filename = file.path(paste0("human_first_mixing", "_vs_", s2, ".svg")),
+      plot = p,
+      width = 4,
+      height = 4
+    )
+  }
+}
+
+```
+
+

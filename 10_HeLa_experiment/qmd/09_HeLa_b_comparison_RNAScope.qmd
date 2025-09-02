@@ -1,0 +1,607 @@
+---
+title: "09_HeLa_b_comparison_RNAScope"
+format:
+  html:
+    toc: true
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Load packages, load data
+
+```{r, warning=FALSE, message=FALSE}
+
+rm(list=ls())
+
+#install.packages("https://cran.r-project.org/src/contrib/Archive/Matrix/Matrix_1.6-1.tar.gz", repos = NULL, type = "source")
+
+library(SingleCellExperiment)
+library(scran)
+library(ggplot2)
+library(ggrepel)
+library(dplyr)
+library(scater)
+library(reshape2)
+library(UpSetR)
+library(limma)
+library(cowplot)
+library(pheatmap)
+library(readr)
+library(plotROC)
+library(here)
+library(Matrix)
+library(scDblFinder)
+library(biomaRt)
+library(GenomicFeatures)
+library(khroma)
+library(rtracklayer)       
+library(Biostrings)     
+library(GenomicRanges) 
+library(openxlsx)
+library(pheatmap)
+library(edgeR)
+
+datadir<-"/Users/gimoro/figure_making_paper/rock_roi_paper/09_hela_analysis/data/unmod_1"
+
+sce_nd<-readRDS(paste0(datadir,"/sce_qc-filtered-nodoublets.rds"))
+
+genes <- read.table(file.path(datadir,'wta','features.tsv'), header = FALSE)
+
+```
+
+## Adding information on captured transcripts from featurecounts
+
+```{r}
+
+wta_alt<-altExp(sce_nd,"wta_ontarget_multi")
+tso_alt<-altExp(sce_nd,"tso_ontarget_multi")
+
+# targeted genes: FOXP3, RAB4B, SCN9A, ADRA1D, SOX9, KRT23, EHD3
+
+sce_nd$wta_EHD3<-assay(wta_alt)["ENSG00000013016.16",]
+sce_nd$tso_EHD3<-assay(tso_alt)["ENSG00000013016.16",]
+sce_nd$total_EHD3<-sce_nd$wta_EHD3+sce_nd$tso_EHD3
+
+sce_nd$wta_FOXP3<-assay(wta_alt)["ENSG00000049768.17",]
+sce_nd$tso_FOXP3<-assay(tso_alt)["ENSG00000049768.17",]
+sce_nd$total_FOXP3<-sce_nd$wta_FOXP3+sce_nd$tso_FOXP3
+
+sce_nd$wta_KRT23<-assay(wta_alt)["ENSG00000108244.17",]
+sce_nd$tso_KRT23<-assay(tso_alt)["ENSG00000108244.17",]
+sce_nd$total_KRT23<-sce_nd$wta_KRT23+sce_nd$tso_KRT23
+
+sce_nd$wta_SOX9<-assay(wta_alt)["ENSG00000125398.8",]
+sce_nd$tso_SOX9<-assay(tso_alt)["ENSG00000125398.8",]
+sce_nd$total_SOX9<-sce_nd$wta_SOX9+sce_nd$tso_SOX9
+
+sce_nd$wta_RAB4B<-assay(wta_alt)["ENSG00000167578.18",]
+sce_nd$tso_RAB4B<-assay(tso_alt)["ENSG00000167578.18",]
+sce_nd$total_RAB4B<-sce_nd$wta_RAB4B+sce_nd$tso_RAB4B
+
+sce_nd$wta_RAB4B<-assay(wta_alt)["ENSG00000167578.18",]
+sce_nd$tso_RAB4B<-assay(tso_alt)["ENSG00000167578.18",]
+sce_nd$total_RAB4B<-sce_nd$wta_RAB4B+sce_nd$tso_RAB4B
+
+sce_nd$wta_SCN9A<-assay(wta_alt)["ENSG00000169432.18",]
+sce_nd$tso_SCN9A<-assay(tso_alt)["ENSG00000169432.18",]
+sce_nd$total_SCN9A<-sce_nd$wta_SCN9A+sce_nd$tso_SCN9A
+
+sce_nd$wta_ADRA1D<-assay(wta_alt)["ENSG00000171873.8",]
+sce_nd$tso_ADRA1D<-assay(tso_alt)["ENSG00000171873.8",]
+sce_nd$total_ADRA1D<-sce_nd$wta_ADRA1D+sce_nd$tso_ADRA1D
+
+```
+
+### Themes
+
+```{r}
+
+rock_roi_theme<-function(){
+  theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        aspect.ratio=1,
+        legend.key.size = unit(0.5, 'cm'),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "white"),
+        plot.background = element_rect(fill = "white"),
+        panel.border = element_rect(color = "black", fill = NA))
+}
+
+rock_roi_theme_multiple_panels<-function(){
+    theme(axis.text = element_text(size=5), 
+        plot.title=element_text(size=7,face="bold",hjust=0.5),
+        axis.title=element_text(size=7,face="bold"),
+        strip.text=element_text(size=7,face="bold"),
+        aspect.ratio=1,
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.key.size = unit(0.5, 'cm'),
+        legend.title=element_text(size=7,face="bold"),
+        legend.text=element_text(size=5),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(-5,-5,-5,-5),
+        legend.title.align=0.5,
+        panel.border = element_rect(colour = "black", fill = NA))
+}
+
+```
+
+### Defining colors to use (also adding pdgfra unimodal)
+
+```{r}
+
+myscale<-c(color("muted")(9), gray="darkgrey", 
+             black = "black", darkorange = "darkorange",
+             yellowgreen = "yellowgreen")
+
+# defining colors for samples and for species
+
+names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","rockroi","human","unknown","mouse","tdtom_cds","no_detection","doublets","low","pdgfra_unimodal")
+
+plot(1:13, col=myscale, pch=19, cex=4)
+
+```
+
+## Reading in the Excel sheet from the Pelkmans lab
+
+```{r}
+
+df <- read.xlsx(paste0(datadir,"/41592_2013_BFnmeth2657_MOESM348_ESM-2.xlsx"))
+df<-df[4:length(rownames(df)),]
+
+colnames(df)<-df[1,]
+
+df<-df[2:length(rownames(df)),]
+colnames(df)
+
+length(rownames(df))
+
+# need to capitalize all the genes in the second column
+
+df$Gene_Symbol<-toupper(df$Gene_Symbol) # problem --> many entries are combination of genes 
+
+```
+
+# Adding column with ENSEMBL ID based on Entrez ID
+
+```{r}
+
+mart <- biomaRt::useMart(biomart = "ENSEMBL_MART_ENSEMBL",
+                         dataset = "hsapiens_gene_ensembl",
+                         host = "http://www.ensembl.org")
+
+new_rowname<-df$Entrez_ID
+
+ensembl_id <- getBM(filters = "entrezgene_id",
+               attributes = c("entrezgene_id", "ensembl_gene_id"),
+               values = new_rowname, 
+               mart = mart)
+
+ensembl_id <- ensembl_id %>%
+  mutate(entrezgene_id = as.character(entrezgene_id))
+
+df_with_ensembl <- df %>%
+  left_join(ensembl_id, by = c("Entrez_ID" = "entrezgene_id"))
+
+df_with_ensembl<-as.data.frame(df_with_ensembl)
+
+```
+
+# Converting the sce gene names
+
+```{r}
+
+rownames(sce_nd)<-genes$V1
+
+# need to remove everything before dot
+
+rownames(sce_nd) <- rownames(sce_nd) <- sub("\\..*", "", rownames(sce_nd))
+
+length(which(df_with_ensembl$ensembl_gene_id %in% rownames(sce_nd))) # only 920 in both
+
+length(rownames(df_with_ensembl)) # longer than initial because duplicate rows (one entrez ID for two genes)
+
+df_with_ensembl<-df_with_ensembl[which(df_with_ensembl$ensembl_gene_id %in% rownames(sce_nd)),] # subset table to include the genes which we have in our dataset
+
+```
+
+# Add information from sce_nd to table
+
+```{r}
+
+# table with information on genes from table
+
+counts_sce_nd<-assay(sce_nd)[df_with_ensembl$ensembl_gene_id,]
+
+df_with_scRNAseq<-df_with_ensembl
+
+# calculating average corrected spots per cell 
+
+df_with_scRNAseq$average_corrected_spots_per_cells<-(as.numeric(df_with_scRNAseq$"Corrected_Spots/Cell_Rep1")+as.numeric(df_with_scRNAseq$"Corrected_Spots/Cell_Rep2"))/2
+
+# calculating average percentage positive cells FISH
+
+df_with_scRNAseq$average_fraction_above_background<-(as.numeric(df_with_scRNAseq$Fraction_Above_Background_Rep1)+as.numeric(df_with_scRNAseq$Fraction_Above_Background_Rep2))/2*100
+
+# total counts across all cells (not normalized)
+
+df_with_scRNAseq$total_unique_counts<-rowSums(counts_sce_nd)
+
+# average counts per cell across all cells (not nromalized)
+
+df_with_scRNAseq$unique_counts_per_cell<-rowSums(counts_sce_nd)/length(colnames(counts_sce_nd))
+
+# percentage of detected cells
+
+df_with_scRNAseq$percentage_cells_unique_counts<-rowSums(counts_sce_nd > 0)/length(colnames(counts_sce_nd))*100
+
+# gene length --> sum of all exons for gene
+
+txdb <- makeTxDbFromGFF(paste0(datadir,"/gencode.v38.basic.annotation.gtf"), format = "gtf")
+
+exons_by_gene <- exonsBy(txdb, by = "gene")
+gene_length <- sum(width(reduce(exons_by_gene)))
+
+names(gene_length)<-sub("\\..*", "", names(gene_length))
+
+gene_length<-gene_length[df_with_ensembl$ensembl_gene_id]
+
+# calculating log10_fpkm
+
+l_sizes<-colSums(counts_sce_nd)
+length(l_sizes)
+fpkm <- t(t(counts_sce_nd) / l_sizes) * 1e6  # normalize to per million
+fpkm <- fpkm / (gene_length / 1000)  # normalize to per kb
+
+log10_fpkm <- log10(fpkm + 1)
+
+df_with_scRNAseq$gene_length<-gene_length
+df_with_scRNAseq$log10_fpkm<-rowSums(log10_fpkm)
+
+# adding information on multialigners 
+
+df_with_scRNAseq$total_multialigner_counts<-0
+df_with_scRNAseq$percentage_positive_cells_multialigner_counts<-0
+
+targets<-c("RAB4B","FOXP3","KRT23","SCN9A","ADRA1D","EHD3","SOX9")
+
+for (i in targets){
+  k<-paste0("total_",i)
+  df_with_scRNAseq$total_multialigner_counts[which(df_with_scRNAseq$Gene_Symbol==i)]<-sum(sce_nd[[k]])
+  df_with_scRNAseq$percentage_positive_cells_multialigner_counts[which(df_with_scRNAseq$Gene_Symbol==i)]<-length(which(sce_nd[[k]]>0))/length(colnames(counts_sce_nd))*100
+}
+
+```
+
+# Saving file
+
+```{r}
+
+#write.csv(df_with_scRNAseq, "~/Desktop/genes_with_scRNAseq_info.csv", row.names = FALSE)
+
+```
+
+## Plots
+
+# Make all plots removing the 0 from the replicates
+
+```{r}
+
+df_with_scRNAseq$`Spots/Cell_Rep1` <- as.numeric(df_with_scRNAseq$`Spots/Cell_Rep1`)
+df_sorted <- df_with_scRNAseq[order(df_with_scRNAseq$`Spots/Cell_Rep1`), ]
+df_sorted$RowOrder <- 1:nrow(df_sorted)
+
+df_sorted_two_replicates<-df_sorted[which(df_sorted$Number_of_Rep_Above_Background==2),]
+df_with_scRNAseq_two_replicates<-df_with_scRNAseq[which(df_with_scRNAseq$Number_of_Rep_Above_Background==2),]
+
+rownames(df_with_scRNAseq_two_replicates)<-make.unique(df_with_scRNAseq_two_replicates[,2])
+highlight_rows <- c("FOXP3","RAB4B","SCN9A","ADRA1D","SOX9","KRT23","EHD3")
+
+df_with_scRNAseq_two_replicates$label <- NA  # start with all NA
+df_with_scRNAseq_two_replicates$label[rownames(df_with_scRNAseq_two_replicates) %in% highlight_rows] <- 
+  rownames(df_with_scRNAseq_two_replicates)[rownames(df_with_scRNAseq_two_replicates) %in% highlight_rows]
+
+df_with_scRNAseq_two_replicates$spot_color <- ifelse(
+  rownames(df_with_scRNAseq_two_replicates) %in% highlight_rows,
+  "highlight",
+  "other"
+)
+
+# calculating cpms
+
+counts_mat <- assay(sce_nd,1)[df_with_scRNAseq_two_replicates$ensembl_gene_id,]
+lib_sizes<-colSums(counts_mat)
+cpm_mat<-t(t(counts_mat)/lib_sizes)*1e6
+
+df_with_scRNAseq_two_replicates$logcpm_counts<-rowSums(log2(cpm_mat+1))/length(colnames(cpm_mat))
+
+plot1<-ggplot(df_with_scRNAseq_two_replicates,aes(x=logcpm_counts,
+                                                  y=as.numeric(df_with_scRNAseq_two_replicates$average_corrected_spots_per_cells),
+                                                  color = spot_color))+
+  geom_text_repel(aes(label = label), color = myscale["human"], vjust = -3,hjust=-1, size = 2,fontface = "bold")+
+  geom_point(size=0.5)+
+  scale_x_log10()+
+  scale_y_log10()+
+  rock_roi_theme()+
+  xlab("average logcpm counts per cell")+
+  ylab("average corrected spots") +
+  scale_color_manual(values = c("other" = "black", "highlight" = myscale["human"]))
+
+
+plot1<-ggrastr::rasterize(plot1, layers='Point', dpi=1000)
+
+plot1
+
+ggsave(file=file.path(datadir,"counts_vs_spots.svg"), plot=plot1, width=4, height=4)
+
+
+plot2<-ggplot(df_with_scRNAseq_two_replicates, aes(x = gene_length,y=unique_counts_per_cell)) +
+  geom_point(size=0.3) +
+  rock_roi_theme()
+
+plot2<-ggrastr::rasterize(plot2, layers='Point', dpi=1000)
+
+plot2
+
+ggsave(file=file.path(datadir,"counts_vs_gene_length.svg"), plot=plot2, width=2.7, height=2.7)
+
+plot3<-ggplot(df_sorted_two_replicates, aes(x = gene_length,y=average_corrected_spots_per_cells)) +
+  geom_point(size=0.3) +
+  rock_roi_theme()+
+  ylab("average corrected spots")
+
+plot3<-ggrastr::rasterize(plot3, layers='Point', dpi=1000)
+
+plot3
+
+ggsave(file=file.path(datadir,"spots_vs_gene_length.svg"), plot=plot3, width=2.7, height=2.7)
+
+plot4<-ggplot(df_with_scRNAseq_two_replicates, aes(x=average_corrected_spots_per_cells,
+                                                   y=average_fraction_above_background,
+                                                   color = spot_color)) +
+  geom_point(size=0.3) +
+  geom_text_repel(aes(label = label), color = myscale["human"], vjust = 0.2,hjust=-1, size = 2,fontface = "bold")+
+  rock_roi_theme()+
+  scale_color_manual(values = c("other" = "black", "highlight" = myscale["human"]))+
+  xlab("average corrected spots")+
+  ylab("average fraction above background")
+
+plot4<-ggrastr::rasterize(plot4, layers='Point', dpi=1000)
+
+plot4
+
+ggsave(file=file.path(datadir,"spots_per_cell_vs_fraction.svg"), plot=plot4, width=2.7, height=2.7)
+
+plot5<-ggplot(df_with_scRNAseq_two_replicates, aes(x =logcpm_counts,y=percentage_cells_unique_counts,color = spot_color)) +
+  geom_point(size=0.3) +
+  geom_text_repel(aes(label = label), color = myscale["human"], vjust = -0.5,hjust=-1, size = 2,fontface = "bold")+
+  rock_roi_theme()+
+  scale_color_manual(values = c("other" = "black", "highlight" = myscale["human"]))
+
+plot5<-ggrastr::rasterize(plot5, layers='Point', dpi=1000)
+
+plot5
+
+ggsave(file=file.path(datadir,"counts_per_cell_vs_fraction.svg"), plot=plot5, width=2.7, height=2.7)
+
+
+plot6<-ggplot(df_with_scRNAseq_two_replicates, aes(x =logcpm_counts,y=percentage_cells_unique_counts,color = spot_color)) +
+  geom_point(size=0.3) +
+  geom_text_repel(aes(label = label), color = myscale["human"], vjust = -3,hjust=-4, size = 2,fontface = "bold")+
+  rock_roi_theme()+
+  xlim(0,1)+
+  ylim(0,1)+
+  scale_color_manual(values = c("other" = "black", "highlight" = myscale["human"]))
+
+plot6<-ggrastr::rasterize(plot6, layers='Point', dpi=1000)
+
+plot6
+
+ggsave(file=file.path(datadir,"zoom_counts_per_cell_vs_fraction.svg"), plot=plot6, width=2.7, height=2.7)
+
+```
+
+# Barplot with comparison of unique and average corrected FISH 
+
+```{r}
+
+# barplot with percentage
+
+positive_cells<-data.frame(matrix(nrow=2,ncol=7))
+colnames(positive_cells)<-c("RAB4B","FOXP3","KRT23","SCN9A","ADRA1D","EHD3","SOX9")
+rownames(positive_cells)<-c("FISH","counts")
+
+for (i in colnames(positive_cells)){
+  positive_cells[1,i]<-df_with_scRNAseq_two_replicates[which(df_with_scRNAseq_two_replicates$Gene_Symbol==i),]$average_fraction_above_background
+  positive_cells[2,i]<-df_with_scRNAseq_two_replicates[which(df_with_scRNAseq_two_replicates$Gene_Symbol==i),]$percentage_cells_unique_counts
+}
+
+plottable<-melt(positive_cells)
+
+plottable$sample<-rep(rownames(positive_cells),7)
+
+samples<-rownames(positive_cells)
+
+p1<-ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=samples)))+
+  geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9))+
+  xlab(" ")+
+  ylab("positive cells (%)")+
+  theme_bw()+
+  rock_roi_theme()+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), 
+            position=position_dodge(width=0.9), 
+            size=2,
+            angle = 90)+
+  scale_fill_manual(values=c("FISH"="black","counts"=myscale[["unmod"]])) +
+  guides(colour = guide_legend(override.aes = list(size=3)))+
+  theme(legend.title = element_blank())
+
+p1<-ggrastr::rasterize(p1, layers='Point', dpi=1000)
+
+p1
+
+ggsave(file=file.path(datadir,"barplot_percentages.svg"), plot=p1, width=3, height=3)
+
+```
+
+# Same with counts comparison of unique and average corrected FISH 
+
+```{r}
+
+positive_cells<-data.frame(matrix(nrow=2,ncol=7))
+colnames(positive_cells)<-c("RAB4B","FOXP3","KRT23","SCN9A","ADRA1D","EHD3","SOX9")
+rownames(positive_cells)<-c("FISH","counts")
+
+for (i in colnames(positive_cells)){
+  positive_cells[1,i]<-df_with_scRNAseq_two_replicates[which(df_with_scRNAseq_two_replicates$Gene_Symbol==i),]$average_corrected_spots_per_cells
+  positive_cells[2,i]<-df_with_scRNAseq_two_replicates[which(df_with_scRNAseq_two_replicates$Gene_Symbol==i),]$logcpm_counts
+}
+
+plottable<-melt(positive_cells)
+
+plottable$sample<-rep(rownames(positive_cells),7)
+
+samples<-rownames(positive_cells)
+
+p1<-ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=samples)))+
+  geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9))+
+  xlab(" ")+
+  ylab("positive cells (%)")+
+  theme_bw()+
+  rock_roi_theme()+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), 
+            position=position_dodge(width=0.9), 
+            size=2,
+            angle = 90)+
+  scale_fill_manual(values=c("FISH"="black","counts"=myscale[["unmod"]])) +
+  guides(colour = guide_legend(override.aes = list(size=3)))+
+  theme(legend.title = element_blank())
+
+p1<-ggrastr::rasterize(p1, layers='Point', dpi=1000)
+
+p1
+
+ggsave(file=file.path(datadir,"barplot_counts_per_cell.svg"), plot=p1, width=3, height=3)
+
+```
+
+# Same for total amount of counts for unique and multialigners
+
+```{r}
+
+positive_cells<-data.frame(matrix(nrow=2,ncol=7))
+colnames(positive_cells)<-c("RAB4B","FOXP3","KRT23","SCN9A","ADRA1D","EHD3","SOX9")
+rownames(positive_cells)<-c("unique","multi")
+
+for (i in colnames(positive_cells)){
+  positive_cells[2,i]<-df_with_scRNAseq_two_replicates[which(df_with_scRNAseq_two_replicates$Gene_Symbol==i),]$total_unique_counts
+  positive_cells[3,i]<-df_with_scRNAseq_two_replicates[which(df_with_scRNAseq_two_replicates$Gene_Symbol==i),]$total_multialigner_counts
+}
+
+plottable<-melt(positive_cells)
+
+plottable$sample<-rep(rownames(positive_cells),7)
+
+samples<-rownames(positive_cells)
+
+p1<-ggplot(data=plottable,aes(y=value,x=variable,fill=factor(sample,levels=samples)))+
+  geom_bar(stat="identity",width = 0.8, position = position_dodge(width = 0.9))+
+  xlab(" ")+
+  ylab("positive cells (%)")+
+  theme_bw()+
+  rock_roi_theme()+
+  geom_text(aes(label=format(round(value,2),nsmall=2)), 
+            position=position_dodge(width=0.9), 
+            size=2,
+            angle = 90)+
+  scale_fill_manual(values=c("unique"="darkgrey","multi"="lightgrey")) +
+  guides(colour = guide_legend(override.aes = list(size=3)))+
+  theme(legend.title = element_blank())
+
+p1<-ggrastr::rasterize(p1, layers='Point', dpi=1000)
+
+p1
+
+ggsave(file=file.path(datadir,"barplot_unique_multi.svg"), plot=p1, width=3, height=3)
+
+```
+
+# Heatmap with information on counts
+
+```{r}
+
+numeric<-df_with_scRNAseq_two_replicates[,c("average_corrected_spots_per_cells","logcpm_counts")]
+
+row_anno<-data.frame(polyA = df_with_scRNAseq_two_replicates$NonPolyA)
+rownames(row_anno) <- rownames(numeric)
+
+# log transform and scale
+
+numeric$average_corrected_spots_per_cells<-log1p(numeric$average_corrected_spots_per_cells)
+numeric$logcpm_counts<-log1p(numeric$logcpm_counts)
+
+# order numeric for average RNAScope spots per cell
+
+numeric<-numeric[order(numeric$average_corrected_spots_per_cells, decreasing = FALSE), ]
+row_anno <- row_anno[rownames(numeric), , drop = FALSE]
+
+ph<-pheatmap(
+  numeric,
+  cluster_rows = FALSE,
+  cluster_cols = FALSE,
+  annotation_row = row_anno,
+  angle_col = 0,
+  fontsize_row = 1
+)
+
+ggsave(file=file.path(datadir,"heatmap_counts.svg"), plot=ph, width=6, height=15)
+
+
+```
+
+# Heatmap with information on percentages
+
+```{r}
+
+numeric<-df_with_scRNAseq_two_replicates[,c("average_fraction_above_background","percentage_cells_unique_counts")]
+
+row_anno<-data.frame(polyA = df_with_scRNAseq_two_replicates$NonPolyA)
+rownames(row_anno) <- rownames(numeric)
+
+# order numeric for average RNAScope spots per cell
+
+numeric<-numeric[order(numeric$average_fraction_above_background, decreasing = FALSE), ]
+row_anno <- row_anno[rownames(numeric), , drop = FALSE]
+
+ph<-pheatmap(
+  numeric,
+  cluster_rows = FALSE,
+  cluster_cols = FALSE,
+  annotation_row = row_anno,
+  angle_col = 0,
+  fontsize_row = 3
+)
+
+ph<-pheatmap(
+  numeric,
+  cluster_rows = FALSE,
+  cluster_cols = FALSE,
+  annotation_row = row_anno,
+  angle_col = 0,
+  fontsize_row = 1
+)
+
+ggsave(file=file.path(datadir,"heatmap_percentages.svg"), plot=ph, width=6, height=15)
+
+```
+
