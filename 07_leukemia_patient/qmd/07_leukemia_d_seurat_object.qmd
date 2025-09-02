@@ -83,6 +83,8 @@ library(Matrix)
 library(Seurat)
 library(SeuratObject)
 
+packageVersion("SeuratObject")
+
 set.seed(1976)
 
 seurat_sces_nd <- CreateSeuratObject(counts = counts(sces_nd), meta.data = as.data.frame(colData(sces_nd)))
@@ -188,7 +190,9 @@ DimPlot(filtered.combined.logNormalize, reduction = "umap", label = F, pt.size =
 
 clustered_sces_nd<-as.SingleCellExperiment(filtered.combined.logNormalize)
 
-saveRDS(clustered_sces_nd,file=file.path(wd,"clustered_object.rds"))
+#saveRDS(clustered_sces_nd,file=file.path(wd,"clustered_object.rds"))
+
+clustered_sces_nd
 
 ```
 

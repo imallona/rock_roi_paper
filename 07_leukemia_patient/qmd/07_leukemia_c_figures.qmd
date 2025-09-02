@@ -39,7 +39,6 @@ library(ggrastr)
 library(edgeR)
 library(tibble)
 library(ggplotify)
-library(grid)
 library(gridExtra)
 
 
@@ -363,9 +362,7 @@ plot1
 
 plot1<-rasterize(plot1, layers='Point', dpi=1000)
 
-
-
-ggsave(file=file.path(datadir,"comparison_monocytes.png"), plot=plot1, width=2.7, height=2.7,device="tiff")
+ggsave(file=file.path(datadir,"comparison_monocytes.svg"), plot=plot1, width=2.7, height=2.7)
 
 
 ```
