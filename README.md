@@ -14,11 +14,8 @@ Supplementary code for _RoCK and ROI: a single-cell RNA-sequencing method with e
 - `07_leukemia_patient`: deprecated analysis of BCR-ABL patient data 
 - `08_leukemia_cell_lines`: deprecated analysis of BCR-ABL cell line mixing experiment
 - `10_troubleshooting`: artificially primed products (APP) documentation
-
-# Branches
-
-- `leukemia`-related: leukemia usecases
-- `troubleshooting`: extra QCs and checks across experiments
+- `10_HeLa_experiment`: HeLa low expression and multiplexing experiment
+- `11_plots_revisions`: custom plotting addressing revision/reviewers concerns
 
 # Other resources
 
@@ -34,7 +31,7 @@ Plus several Zenado snapshots of these, including:
 # Sequencing reads layout TL/DR
 
 <p align="center">
-  <img src="docs/reads_layout.png" alt="layout" style="width:50%;">
+  <img src="docs/reads_layout.png" alt="layout" style="width:100%;">
 </p>
 
 # License
@@ -43,6 +40,6 @@ MIT
 
 # Contact
 
-giulia.moro2 ta uzh.ch
-mark.robinson at mls.uzh.ch
-izaskun.mallona aa gmail dot com
+- giulia.moro2 ta uzh.ch
+- mark.robinson at mls.uzh.ch
+- izaskun.mallona aa gmail dot com
