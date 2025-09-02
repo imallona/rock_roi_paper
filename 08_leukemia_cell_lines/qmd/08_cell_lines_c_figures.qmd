@@ -35,7 +35,6 @@ library(singleCellTK)
 library(khroma)
 library(BUSpaRse)
 library(dittoSeq)
-library(ggvenn)
 library(GGally)
 
 wd<-"/Users/gimoro/figure_making_paper/rock_roi_paper/08_cell_line_analysis/data"
@@ -71,7 +70,14 @@ sces <- Reduce(cbind, sces)
 
 sces_nd<-readRDS(file.path(wd, "cell_lines_sce_nd-filtered.rds"))
 
-write.table(colnames(sces_nd),"cell_line.txt")
+fusion_db_sces_nd<-readRDS("/Users/gimoro/figure_making_paper/rock_roi_paper/08_cell_line_analysis/data/lines_and_patients.rds")$lines
+
+dim(fusion_db_sces_nd) # dim: 21487 5434
+dim(sces_nd) # dim: 21487  5434
+
+rownames(assay(altExp(fusion_db_sces_nd)))
+
+rm (sces_nd)
 
 ```
 
@@ -149,26 +155,26 @@ names(myscale) <- c("unmod","unmod_roi","rock","egfp_cds","patient","positive","
 ```{r}
 
 set.seed(1976)
-nn.clusters <- clusterCells(sces_nd, use.dimred="PCA",
+nn.clusters <- clusterCells(fusion_db_sces_nd, use.dimred="PCA",
                             BLUSPARAM=NNGraphParam(k=70))
 table(nn.clusters)
-sces_nd$cluster <- nn.clusters
+fusion_db_sces_nd$cluster <- nn.clusters
 
-scater::plotUMAP(sces_nd, colour_by="cluster")
+scater::plotUMAP(fusion_db_sces_nd, colour_by="cluster")
 
-table(sces_nd$sample_id, sces_nd$cluster)
+table(fusion_db_sces_nd$sample_id, fusion_db_sces_nd$cluster)
 
 mm <- model.matrix(~cluster, 
-                   data=as.data.frame(colData(sces_nd)))
+                   data=as.data.frame(colData(fusion_db_sces_nd)))
 
-lcounts <- logcounts(sces_nd)
+lcounts <- logcounts(fusion_db_sces_nd)
 
-col_anno <- colData(sces_nd)[,c("cluster")] %>% as.data.frame
+col_anno <- colData(fusion_db_sces_nd)[,c("cluster")] %>% as.data.frame
 
-scater::plotUMAP(sces_nd, colour_by = "cluster")
+scater::plotUMAP(fusion_db_sces_nd, colour_by = "cluster")
 
 
-plot3<-scater::plotUMAP(sces_nd, colour_by = "cluster",point_alpha=1,point_size=0.1)+
+plot3<-scater::plotUMAP(fusion_db_sces_nd, colour_by = "cluster",point_alpha=1,point_size=0.1)+
   scale_color_manual(values = c(myscale[["cluster1"]],myscale[["cluster2"]],myscale[["cluster3"]]))+
   rock_roi_theme()
 
@@ -183,11 +189,11 @@ ggsave(file=file.path(datadir,"umap_total.svg"), plot=plot3, width=2.7, height=2
 
 ```{r}
 
-sces_nd$annotation[sces_nd$cluster == 1] <- "Loucy"
-sces_nd$annotation[sces_nd$cluster == 2] <- "SUP-B15"
-sces_nd$annotation[sces_nd$cluster == 3] <- "K562"
+fusion_db_sces_nd$annotation[fusion_db_sces_nd$cluster == 1] <- "Loucy"
+fusion_db_sces_nd$annotation[fusion_db_sces_nd$cluster == 2] <- "SUP-B15"
+fusion_db_sces_nd$annotation[fusion_db_sces_nd$cluster == 3] <- "K562"
 
-cd<-colData(sces_nd)
+cd<-colData(fusion_db_sces_nd)
 cd$barcode<-rownames(cd)
 
 to_export<-cd[,c("barcode","annotation")]
@@ -203,7 +209,7 @@ to_export<-cd[,c("barcode","annotation")]
 markers<-c("ENSG00000177455.15__CD19","ENSG00000012124.17__CD22","ENSG00000107447.8__DNTT","ENSG00000196549.13__MME","ENSG00000198851.10__CD3E","ENSG00000173762.8__CD7","ENSG00000105383.15__CD33","ENSG00000170180.22__GYPA")
 
 short_markers<-as.vector(sapply(strsplit(markers,"__"),"[",2))
-short_sces<-sces_nd[markers,]
+short_sces<-fusion_db_sces_nd[markers,]
 rownames(short_sces)<-short_markers
 
 plot11<-dittoDotPlot(short_sces,
@@ -227,84 +233,84 @@ ggsave(file=file.path(datadir,"markers.svg"), plot=plot11, width=2.7, height=2.7
 
 ```{r}
 
-new_bwa_aln <- read.table("~/figure_making_paper/rock_roi_paper/08_cell_line_analysis/data/bwa_aln_with_cb_ub_annotated_fusion.txt", quote="\"", comment.char="")
+#new_bwa_aln <- read.table("~/figure_making_paper/rock_roi_paper/08_cell_line_analysis/data/bwa_aln_with_cb_ub_annotated_fusion.txt", quote="\"", comment.char="")
 
-colnames(new_bwa_aln)<-c("seqID","patternName","start","CB","UB")
+#colnames(new_bwa_aln)<-c("seqID","patternName","start","CB","UB")
 
-sub_new_bwa_aln<-new_bwa_aln[,c("patternName","start","CB")]
-sub_new_bwa_aln$CB<-sapply(strsplit(sub_new_bwa_aln$CB,"CB:Z:"),"[",2)
+#sub_new_bwa_aln<-new_bwa_aln[,c("patternName","start","CB")]
+#sub_new_bwa_aln$CB<-sapply(strsplit(sub_new_bwa_aln$CB,"CB:Z:"),"[",2)
 
 # filtering the start position for the fusions --> want an overlap of at least 10 for both BCR and ABL
 
-filt<-filter(sub_new_bwa_aln,patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2") & start > 10 & start < 170)
-non_filt<-sub_new_bwa_aln[! sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2"),]
+#filt<-filter(sub_new_bwa_aln,patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2") & start > 10 & start < 170)
+#non_filt<-sub_new_bwa_aln[! sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2"),]
 
-filt_sub_new_bwa_aln<-bind_rows(filt,non_filt)
+#filt_sub_new_bwa_aln<-bind_rows(filt,non_filt)
 
 # filtering check
 
-table(filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$start)
-table(sub_new_bwa_aln[which(sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$start)
+#table(filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$start)
+#table(sub_new_bwa_aln[which(sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$start)
 
-table(filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$patternName)
-table(sub_new_bwa_aln[which(sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$patternName)
+#table(filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$patternName)
+#table(sub_new_bwa_aln[which(sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$patternName)
 
-table(filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$patternName,
-      filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$start)
+#table(filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$patternName,
+#      filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$patternName %in% c("BCRABL1e14a2","BCRABL1e13a2","BCRABLe1a2")),]$start)
 
 
 # counting the alignments for each CB
 
-filt_sub_new_bwa_aln$BCRABL1e14a2<-0
-filt_sub_new_bwa_aln$BCRABL1e13a2<-0
-filt_sub_new_bwa_aln$BCRABL1e1a2<-0
-filt_sub_new_bwa_aln$wt_BCR<-0
-filt_sub_new_bwa_aln$wt_ABL<-0
-
-table(filt_sub_new_bwa_aln$patternName)
-
-filt_sub_new_bwa_aln$BCRABL1e14a2[which(filt_sub_new_bwa_aln$patternName=="BCRABL1e14a2")]<-1
-filt_sub_new_bwa_aln$BCRABL1e13a2[which(filt_sub_new_bwa_aln$patternName=="BCRABLe13a2")]<-1
-filt_sub_new_bwa_aln$BCRABL1e1a2[which(filt_sub_new_bwa_aln$patternName=="BCRABLe1a2")]<-1
-filt_sub_new_bwa_aln$wt_BCR[which(filt_sub_new_bwa_aln$patternName %in% c("ENST00000359540.7_BCRABLe13a2","ENST00000359540.7_BCRABLe14a2","ENST00000359540.7_BCRABLe1a2"))]<-1
-filt_sub_new_bwa_aln$wt_ABL[which(filt_sub_new_bwa_aln$patternName %in% c("ENST00000318560.6","ENST00000372348.7"))]<-1
-
-cb_harmonized_sub_output_bwa_aln<-filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$CB %in% colnames(sces_nd)),]
-
-# have duplicate rows
-
-summed_cb_harmonized_sub_new_bwa_aln<-aggregate(cb_harmonized_sub_output_bwa_aln[4:ncol(cb_harmonized_sub_output_bwa_aln)],cb_harmonized_sub_output_bwa_aln['CB'], FUN=sum)
-
-df<-data.frame(matrix(ncol=length(colnames(summed_cb_harmonized_sub_new_bwa_aln)),nrow=length(setdiff(colnames(sces_nd),summed_cb_harmonized_sub_new_bwa_aln$CB))))
-
-colnames(df)<-colnames(summed_cb_harmonized_sub_new_bwa_aln)
-
-df$CB<-setdiff(colnames(sces_nd),cb_harmonized_sub_output_bwa_aln$CB)
-df$BCRABL1e14a2<-0
-df$BCRABL1e13a2<-0
-df$BCRABL1e1a2<-0
-df$wt_BCR<-0
-df$wt_ABL<-0
-
-full_summed_cb_harmonized_sub_output_new_bwa_aln<-rbind(summed_cb_harmonized_sub_new_bwa_aln,df)
-
-rownames(full_summed_cb_harmonized_sub_output_new_bwa_aln)<-full_summed_cb_harmonized_sub_output_new_bwa_aln$CB
-
-full_summed_cb_harmonized_sub_output_new_bwa_aln<-full_summed_cb_harmonized_sub_output_new_bwa_aln[colnames(sces_nd), , drop = FALSE]
-
-# since just want yes or no and not counts and didn't do UMI deduplication --> convert all numbers to 1 or 0
-
-full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e14a2>0),"BCRABL1e14a2"]<-1
-full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e13a2>0),"BCRABL1e13a2"]<-1
-full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e1a2>0),"BCRABL1e1a2"]<-1
-full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_BCR>0),"wt_BCR"]<-1
-full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_ABL>0),"wt_ABL"]<-1
-
-sces_nd$new_bwa_aln_BCRABL1e14a2<-full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e14a2
-sces_nd$new_bwa_aln_BCRABL1e1a2<-full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e1a2
-sces_nd$new_bwa_aln_BCRABL1e13a2<-full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e13a2
-sces_nd$new_bwa_aln_wt_BCR<-full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_BCR
-sces_nd$new_bwa_aln_wt_ABL<-full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_ABL
+# filt_sub_new_bwa_aln$BCRABL1e14a2<-0
+# filt_sub_new_bwa_aln$BCRABL1e13a2<-0
+# filt_sub_new_bwa_aln$BCRABL1e1a2<-0
+# filt_sub_new_bwa_aln$wt_BCR<-0
+# filt_sub_new_bwa_aln$wt_ABL<-0
+# 
+# table(filt_sub_new_bwa_aln$patternName)
+# 
+# filt_sub_new_bwa_aln$BCRABL1e14a2[which(filt_sub_new_bwa_aln$patternName=="BCRABL1e14a2")]<-1
+# filt_sub_new_bwa_aln$BCRABL1e13a2[which(filt_sub_new_bwa_aln$patternName=="BCRABLe13a2")]<-1
+# filt_sub_new_bwa_aln$BCRABL1e1a2[which(filt_sub_new_bwa_aln$patternName=="BCRABLe1a2")]<-1
+# filt_sub_new_bwa_aln$wt_BCR[which(filt_sub_new_bwa_aln$patternName %in% c("ENST00000359540.7_BCRABLe13a2","ENST00000359540.7_BCRABLe14a2","ENST00000359540.7_BCRABLe1a2"))]<-1
+# filt_sub_new_bwa_aln$wt_ABL[which(filt_sub_new_bwa_aln$patternName %in% c("ENST00000318560.6","ENST00000372348.7"))]<-1
+# 
+# cb_harmonized_sub_output_bwa_aln<-filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$CB %in% colnames(sces_nd)),]
+# 
+# # have duplicate rows
+# 
+# summed_cb_harmonized_sub_new_bwa_aln<-aggregate(cb_harmonized_sub_output_bwa_aln[4:ncol(cb_harmonized_sub_output_bwa_aln)],cb_harmonized_sub_output_bwa_aln['CB'], FUN=sum)
+# 
+# df<-data.frame(matrix(ncol=length(colnames(summed_cb_harmonized_sub_new_bwa_aln)),nrow=length(setdiff(colnames(sces_nd),summed_cb_harmonized_sub_new_bwa_aln$CB))))
+# 
+# colnames(df)<-colnames(summed_cb_harmonized_sub_new_bwa_aln)
+# 
+# df$CB<-setdiff(colnames(sces_nd),cb_harmonized_sub_output_bwa_aln$CB)
+# df$BCRABL1e14a2<-0
+# df$BCRABL1e13a2<-0
+# df$BCRABL1e1a2<-0
+# df$wt_BCR<-0
+# df$wt_ABL<-0
+# 
+# full_summed_cb_harmonized_sub_output_new_bwa_aln<-rbind(summed_cb_harmonized_sub_new_bwa_aln,df)
+# 
+# rownames(full_summed_cb_harmonized_sub_output_new_bwa_aln)<-full_summed_cb_harmonized_sub_output_new_bwa_aln$CB
+# 
+# full_summed_cb_harmonized_sub_output_new_bwa_aln<-full_summed_cb_harmonized_sub_output_new_bwa_aln[colnames(sces_nd), , drop = FALSE]
+# 
+# # since just want yes or no and not counts and didn't do UMI deduplication --> convert all numbers to 1 or 0
+# 
+# full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e14a2>0),"BCRABL1e14a2"]<-1
+# full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e13a2>0),"BCRABL1e13a2"]<-1
+# full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e1a2>0),"BCRABL1e1a2"]<-1
+# full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_BCR>0),"wt_BCR"]<-1
+# full_summed_cb_harmonized_sub_output_new_bwa_aln[which(full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_ABL>0),"wt_ABL"]<-1
+# 
+# sces_nd$new_bwa_aln_BCRABL1e14a2<-full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e14a2
+# sces_nd$new_bwa_aln_BCRABL1e1a2<-full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e1a2
+# sces_nd$new_bwa_aln_BCRABL1e13a2<-full_summed_cb_harmonized_sub_output_new_bwa_aln$BCRABL1e13a2
+# sces_nd$new_bwa_aln_wt_BCR<-full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_BCR
+# sces_nd$new_bwa_aln_wt_ABL<-full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_ABL
 
 ```
 
@@ -312,117 +318,120 @@ sces_nd$new_bwa_aln_wt_ABL<-full_summed_cb_harmonized_sub_output_new_bwa_aln$wt_
 
 ```{r}
 
-cd<-colData(sces_nd)
-cd$CB<-rownames(colData(sces_nd))
-sub_cd<-cd[,c("CB","annotation")]
-
-harmonized_filt_sub_new_bwa_aln<-filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$CB %in% colnames(sces_nd)),]
-harmonized_sub_new_bwa_aln<-sub_new_bwa_aln[which(filt_sub_new_bwa_aln$CB %in% colnames(sces_nd)),]
-
-merged_filt<-as.data.frame(merge(harmonized_filt_sub_new_bwa_aln,sub_cd,by="CB",all.x=TRUE))
-merged<-as.data.frame(merge(harmonized_sub_new_bwa_aln,sub_cd,by="CB",all.x=TRUE))
-
-merged_filt$true <- FALSE
-merged_filt$true[merged_filt$annotation=="K562"&merged_filt$patternName=="BCRABL1e14a2"] <- TRUE
-merged_filt$true[merged_filt$annotation=="SUP-B15"&merged_filt$patternName=="BCRABLe1a2"] <- TRUE
-
-merged$true <- FALSE
-merged$true[merged$annotation=="K562"&merged$patternName=="BCRABL1e14a2"] <- TRUE
-merged$true[merged$annotation=="SUP-B15"&merged$patternName=="BCRABLe1a2"] <- TRUE
-
-
-# focus on K562 cells for filt
-df_k562 <- merged_filt %>% 
-  dplyr::filter(annotation=="K562",
-                grepl("^BCRABL",patternName)) %>%
-  arrange(start)
-
-df_k562$id <- seq_len(nrow(df_k562))
-
-ggplot(df_k562 ) +
-  geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
-  ggtitle("K562 + BCRABL1e14a2")
-
-# focus on K562 cells for non-filt
-df_k562 <- merged %>% 
-  dplyr::filter(annotation=="K562",
-                grepl("^BCRABL",patternName)) %>%
-  arrange(start)
-
-df_k562$id <- seq_len(nrow(df_k562))
-
-ggplot(df_k562 ) +
-  geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
-  ggtitle("K562 + BCRABL1e14a2")
+# cd<-colData(sces_nd)
+# cd$CB<-rownames(colData(sces_nd))
+# sub_cd<-cd[,c("CB","annotation")]
+# 
+# harmonized_filt_sub_new_bwa_aln<-filt_sub_new_bwa_aln[which(filt_sub_new_bwa_aln$CB %in% colnames(sces_nd)),]
+# harmonized_sub_new_bwa_aln<-sub_new_bwa_aln[which(filt_sub_new_bwa_aln$CB %in% colnames(sces_nd)),]
+# 
+# merged_filt<-as.data.frame(merge(harmonized_filt_sub_new_bwa_aln,sub_cd,by="CB",all.x=TRUE))
+# merged<-as.data.frame(merge(harmonized_sub_new_bwa_aln,sub_cd,by="CB",all.x=TRUE))
+# 
+# merged_filt$true <- FALSE
+# merged_filt$true[merged_filt$annotation=="K562"&merged_filt$patternName=="BCRABL1e14a2"] <- TRUE
+# merged_filt$true[merged_filt$annotation=="SUP-B15"&merged_filt$patternName=="BCRABLe1a2"] <- TRUE
+# 
+# merged$true <- FALSE
+# merged$true[merged$annotation=="K562"&merged$patternName=="BCRABL1e14a2"] <- TRUE
+# merged$true[merged$annotation=="SUP-B15"&merged$patternName=="BCRABLe1a2"] <- TRUE
 
 
-
-# focus on SUP-B15 cells for filt
-df_supb15 <- merged_filt %>% 
-  dplyr::filter(annotation=="SUP-B15",
-                grepl("^BCRABL",patternName)) %>%
-  arrange(start)
-
-df_supb15$id <- seq_len(nrow(df_supb15))
-
-ggplot(df_supb15 ) +
-  geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
-  ggtitle("SUP-B15 + BCRABL1e1a2")
-
-# focus on SUP-B15 cells for non-filt
-df_supb15 <- merged %>% 
-  dplyr::filter(annotation=="SUP-B15",
-                grepl("^BCRABL",patternName)) %>%
-  arrange(start)
-
-df_supb15$id <- seq_len(nrow(df_supb15))
-
-ggplot(df_supb15 ) +
-  geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
-  ggtitle("SUP-B15 + BCRABL1e1a2")
-
-# in this case it seems like we filter out many true positives
-
-# focus on Loucy cells for filt
-df_loucy <- merged_filt %>% 
-  dplyr::filter(annotation=="Loucy",
-                grepl("^BCRABL",patternName)) %>%
-  arrange(start)
-
-df_loucy$id <- seq_len(nrow(df_loucy))
-
-ggplot(df_loucy) +
-  geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
-  ggtitle("Loucy + BCRABL1e14a2")
-
-# focus on Loucy cells for non-filt
-df_loucy <- merged %>% 
-  dplyr::filter(annotation=="Loucy",
-                grepl("^BCRABL",patternName)) %>%
-  arrange(start)
-
-df_loucy$id <- seq_len(nrow(df_loucy))
-
-ggplot(df_loucy) +
-  geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
-  ggtitle("Loucy + BCRABL1e14a2")
+# # focus on K562 cells for filt
+# df_k562 <- merged_filt %>% 
+#   dplyr::filter(annotation=="K562",
+#                 grepl("^BCRABL",patternName)) %>%
+#   arrange(start)
+# 
+# df_k562$id <- seq_len(nrow(df_k562))
+# 
+# ggplot(df_k562 ) +
+#   geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
+#   ggtitle("K562 + BCRABL1e14a2")
+# 
+# # focus on K562 cells for non-filt
+# df_k562 <- merged %>% 
+#   dplyr::filter(annotation=="K562",
+#                 grepl("^BCRABL",patternName)) %>%
+#   arrange(start)
+# 
+# df_k562$id <- seq_len(nrow(df_k562))
+# 
+# ggplot(df_k562 ) +
+#   geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
+#   ggtitle("K562 + BCRABL1e14a2")
+# 
+# 
+# 
+# # focus on SUP-B15 cells for filt
+# df_supb15 <- merged_filt %>% 
+#   dplyr::filter(annotation=="SUP-B15",
+#                 grepl("^BCRABL",patternName)) %>%
+#   arrange(start)
+# 
+# df_supb15$id <- seq_len(nrow(df_supb15))
+# 
+# ggplot(df_supb15 ) +
+#   geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
+#   ggtitle("SUP-B15 + BCRABL1e1a2")
+# 
+# # focus on SUP-B15 cells for non-filt
+# df_supb15 <- merged %>% 
+#   dplyr::filter(annotation=="SUP-B15",
+#                 grepl("^BCRABL",patternName)) %>%
+#   arrange(start)
+# 
+# df_supb15$id <- seq_len(nrow(df_supb15))
+# 
+# ggplot(df_supb15 ) +
+#   geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
+#   ggtitle("SUP-B15 + BCRABL1e1a2")
+# 
+# # in this case it seems like we filter out many true positives
+# 
+# # focus on Loucy cells for filt
+# df_loucy <- merged_filt %>% 
+#   dplyr::filter(annotation=="Loucy",
+#                 grepl("^BCRABL",patternName)) %>%
+#   arrange(start)
+# 
+# df_loucy$id <- seq_len(nrow(df_loucy))
+# 
+# ggplot(df_loucy) +
+#   geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
+#   ggtitle("Loucy + BCRABL1e14a2")
+# 
+# # focus on Loucy cells for non-filt
+# df_loucy <- merged %>% 
+#   dplyr::filter(annotation=="Loucy",
+#                 grepl("^BCRABL",patternName)) %>%
+#   arrange(start)
+# 
+# df_loucy$id <- seq_len(nrow(df_loucy))
+# 
+# ggplot(df_loucy) +
+#   geom_segment(aes(x=start, xend=start+180, y=id, yend = id, colour=true)) +
+#   ggtitle("Loucy + BCRABL1e14a2")
 
 ```
 
-### New bwa aln plots
+### New plots
 
 ```{r}
 
-positive_cells <- sces_nd$new_bwa_aln_BCRABL1e14a2> 0
+# major fusion
 
-sces_nd <- sces_nd[, order(positive_cells)]
+fusion_db_sces_nd$gene_fusion_num_14906_id_6904__BCR_ABL1<-as.numeric(assay(altExp(fusion_db_sces_nd))["gene_fusion_num_14906_id_6904__BCR_ABL1",])
+fusion_db_sces_nd$gene_fusion_num_14865_id_6899__BCR_ABL1<-as.numeric(assay(altExp(fusion_db_sces_nd))["gene_fusion_num_14865_id_6899__BCR_ABL1",])
 
-plot1<-scater::plotUMAP(sces_nd, colour_by = "new_bwa_aln_BCRABL1e14a2",point_alpha=1,point_size=0.1)+ 
-  scale_colour_gradient2(low="lightgrey",
-                         mid="lightgrey",
-                         high=myscale["positive"])+
+positive_cells <- fusion_db_sces_nd$gene_fusion_num_14865_id_6899__BCR_ABL1> 0
+fusion_db_sces_nd$positive_cells_gene_fusion_num_14865_id_6899__BCR_ABL1 <- positive_cells
+
+fusion_db_sces_nd <- fusion_db_sces_nd[, order(positive_cells)]
+
+plot1<-scater::plotUMAP(fusion_db_sces_nd, colour_by = "positive_cells_gene_fusion_num_14865_id_6899__BCR_ABL1",point_alpha=1,point_size=0.1)+ 
+  scale_colour_manual(values = c("FALSE" = "lightgrey", "TRUE" = myscale[["positive"]]))+
   rock_roi_theme()
-
 
 plot1<-ggrastr::rasterize(plot1, layers='Point', dpi=1000)
 
@@ -432,14 +441,12 @@ ggsave(file=file.path(datadir,"umap_major.svg"), plot=plot1, width=2.7, height=2
 
 # same for minor fusion
 
-positive_cells <- sces_nd$new_bwa_aln_BCRABL1e1a2 > 0
+positive_cells <- fusion_db_sces_nd$gene_fusion_num_14906_id_6904__BCR_ABL1 > 0
+fusion_db_sces_nd$positive_cells_gene_fusion_num_14906_id_6904__BCR_ABL1 <- positive_cells
+fusion_db_sces_nd <- fusion_db_sces_nd[, order(positive_cells)]
 
-sces_nd <- sces_nd[, order(positive_cells)]
-
-plot2<-scater::plotUMAP(sces_nd, colour_by = "new_bwa_aln_BCRABL1e1a2",point_alpha=1,point_size=0.1)+ 
-  scale_colour_gradient2(low="lightgrey",
-                         mid="lightgrey",
-                         high=myscale["positive"])+
+plot2<-scater::plotUMAP(fusion_db_sces_nd, colour_by = "positive_cells_gene_fusion_num_14906_id_6904__BCR_ABL1",point_alpha=1,point_size=0.1)+ 
+  scale_colour_manual(values = c("FALSE" = "lightgrey", "TRUE" = myscale[["positive"]]))+
   rock_roi_theme()
 
 plot2<-ggrastr::rasterize(plot2, layers='Point', dpi=1000)
@@ -448,12 +455,11 @@ plot2
 
 ggsave(file=file.path(datadir,"umap_minor.svg"), plot=plot2, width=2.7, height=2.7)
 
-
-cd<-colData(sces_nd)
+cd<-colData(fusion_db_sces_nd)
 
 df<-data.frame(matrix(nrow=2,ncol=3))
 
-rownames(df)<-c("new_bwa_aln_BCRABL1e14a2","new_bwa_aln_BCRABL1e1a2")
+rownames(df)<-c("gene_fusion_num_14865_id_6899__BCR_ABL1","gene_fusion_num_14906_id_6904__BCR_ABL1")
 colnames(df)<-c("cluster_1","cluster_2","cluster_3")
 
 for (i in rownames(df)){
@@ -465,7 +471,7 @@ for (i in rownames(df)){
 
 plottable<-melt(df)
 plottable$id<-rep(c("major","minor"),3)
-plottable$value
+
 
 plot5<-ggplot(plottable,aes(x = factor(id,levels=c("major","minor")), 
                         y = value, 
