@@ -135,7 +135,7 @@ plot2<-ggplot(cd, aes(x = total,
                y = subsets_human_mito_percent)) +
   geom_point(size=0.8,alpha=0.5,stroke=NA) + scale_x_log10() + scale_y_sqrt() +
   geom_hline(yintercept=c(3,25), colour="orange") +
-  geom_vline(xintercept=c(10000), colour="orange") +
+  geom_vline(xintercept=c(25000), colour="orange") +
    theme_bw()+
   theme(
     axis.text = element_text(size = 15),
@@ -168,7 +168,7 @@ ggsave(file=file.path(datadir,"qc3.svg"), plot=plot3, width=2.7, height=2.7)
 
 # crude filter --> only for cells, not for genes
 dim(sce)
-sces <- sce[,sce$total>10000 & sce$subsets_human_mito_percent>3 & sce$subsets_human_mito_percent<25]
+sces <- sce[,sce$total>25000 & sce$subsets_human_mito_percent>3 & sce$subsets_human_mito_percent<25]
 
 dim(sces)
 

@@ -40,6 +40,7 @@ library(Biostrings)
 library(GenomicRanges) 
 library(openxlsx)
 library(pheatmap)
+library(edgeR)
 
 datadir<-"/Users/gimoro/figure_making_paper/rock_roi_paper/09_hela_analysis/data/unmod_1"
 
@@ -286,7 +287,7 @@ for (i in targets){
 
 ```{r}
 
-write.csv(df_with_scRNAseq, "~/Desktop/genes_with_scRNAseq_info.csv", row.names = FALSE)
+#write.csv(df_with_scRNAseq, "~/Desktop/genes_with_scRNAseq_info.csv", row.names = FALSE)
 
 ```
 
@@ -316,15 +317,23 @@ df_with_scRNAseq_two_replicates$spot_color <- ifelse(
   "other"
 )
 
-plot1<-ggplot(df_with_scRNAseq_two_replicates,aes(x=unique_counts_per_cell,
+# calculating cpms
+
+counts_mat <- assay(sce_nd,1)[df_with_scRNAseq_two_replicates$ensembl_gene_id,]
+lib_sizes<-colSums(counts_mat)
+cpm_mat<-t(t(counts_mat)/lib_sizes)*1e6
+
+df_with_scRNAseq_two_replicates$logcpm_counts<-rowSums(log2(cpm_mat+1))/length(colnames(cpm_mat))
+
+plot1<-ggplot(df_with_scRNAseq_two_replicates,aes(x=logcpm_counts,
                                                   y=as.numeric(df_with_scRNAseq_two_replicates$average_corrected_spots_per_cells),
                                                   color = spot_color))+
-  geom_text_repel(aes(label = label), color = myscale["human"], vjust = -1,hjust=-0.2, size = 3,fontface = "bold")+
+  geom_text_repel(aes(label = label), color = myscale["human"], vjust = -3,hjust=-1, size = 2,fontface = "bold")+
   geom_point(size=0.5)+
   scale_x_log10()+
   scale_y_log10()+
   rock_roi_theme()+
-  xlab("average counts per cell")+
+  xlab("average logcpm counts per cell")+
   ylab("average corrected spots") +
   scale_color_manual(values = c("other" = "black", "highlight" = myscale["human"]))
 
@@ -361,7 +370,7 @@ plot4<-ggplot(df_with_scRNAseq_two_replicates, aes(x=average_corrected_spots_per
                                                    y=average_fraction_above_background,
                                                    color = spot_color)) +
   geom_point(size=0.3) +
-  geom_text_repel(aes(label = label), color = myscale["human"], vjust = 0.2,hjust=-0.5, size = 3,fontface = "bold")+
+  geom_text_repel(aes(label = label), color = myscale["human"], vjust = 0.2,hjust=-1, size = 2,fontface = "bold")+
   rock_roi_theme()+
   scale_color_manual(values = c("other" = "black", "highlight" = myscale["human"]))+
   xlab("average corrected spots")+
@@ -373,9 +382,9 @@ plot4
 
 ggsave(file=file.path(datadir,"spots_per_cell_vs_fraction.svg"), plot=plot4, width=2.7, height=2.7)
 
-plot5<-ggplot(df_with_scRNAseq_two_replicates, aes(x =unique_counts_per_cell,y=percentage_cells_unique_counts,color = spot_color)) +
+plot5<-ggplot(df_with_scRNAseq_two_replicates, aes(x =logcpm_counts,y=percentage_cells_unique_counts,color = spot_color)) +
   geom_point(size=0.3) +
-  geom_text_repel(aes(label = label), color = myscale["human"], vjust = 0.2,hjust=-0.5, size = 3,fontface = "bold")+
+  geom_text_repel(aes(label = label), color = myscale["human"], vjust = -0.5,hjust=-1, size = 2,fontface = "bold")+
   rock_roi_theme()+
   scale_color_manual(values = c("other" = "black", "highlight" = myscale["human"]))
 
@@ -386,9 +395,9 @@ plot5
 ggsave(file=file.path(datadir,"counts_per_cell_vs_fraction.svg"), plot=plot5, width=2.7, height=2.7)
 
 
-plot6<-ggplot(df_with_scRNAseq_two_replicates, aes(x =unique_counts_per_cell,y=percentage_cells_unique_counts,color = spot_color)) +
+plot6<-ggplot(df_with_scRNAseq_two_replicates, aes(x =logcpm_counts,y=percentage_cells_unique_counts,color = spot_color)) +
   geom_point(size=0.3) +
-  geom_text_repel(aes(label = label), color = myscale["human"], vjust = -3,hjust=-1, size = 3,fontface = "bold")+
+  geom_text_repel(aes(label = label), color = myscale["human"], vjust = -3,hjust=-4, size = 2,fontface = "bold")+
   rock_roi_theme()+
   xlim(0,1)+
   ylim(0,1)+
@@ -455,7 +464,7 @@ rownames(positive_cells)<-c("FISH","counts")
 
 for (i in colnames(positive_cells)){
   positive_cells[1,i]<-df_with_scRNAseq_two_replicates[which(df_with_scRNAseq_two_replicates$Gene_Symbol==i),]$average_corrected_spots_per_cells
-  positive_cells[2,i]<-df_with_scRNAseq_two_replicates[which(df_with_scRNAseq_two_replicates$Gene_Symbol==i),]$unique_counts_per_cell
+  positive_cells[2,i]<-df_with_scRNAseq_two_replicates[which(df_with_scRNAseq_two_replicates$Gene_Symbol==i),]$logcpm_counts
 }
 
 plottable<-melt(positive_cells)
@@ -531,7 +540,7 @@ ggsave(file=file.path(datadir,"barplot_unique_multi.svg"), plot=p1, width=3, hei
 
 ```{r}
 
-numeric<-df_with_scRNAseq_two_replicates[,c("average_corrected_spots_per_cells","unique_counts_per_cell")]
+numeric<-df_with_scRNAseq_two_replicates[,c("average_corrected_spots_per_cells","logcpm_counts")]
 
 row_anno<-data.frame(polyA = df_with_scRNAseq_two_replicates$NonPolyA)
 rownames(row_anno) <- rownames(numeric)
@@ -539,7 +548,7 @@ rownames(row_anno) <- rownames(numeric)
 # log transform and scale
 
 numeric$average_corrected_spots_per_cells<-log1p(numeric$average_corrected_spots_per_cells)
-numeric$unique_counts_per_cell<-log1p(numeric$unique_counts_per_cell)
+numeric$logcpm_counts<-log1p(numeric$logcpm_counts)
 
 # order numeric for average RNAScope spots per cell
 
